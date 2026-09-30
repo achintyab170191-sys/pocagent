@@ -40,6 +40,7 @@ npm run build            # typecheck + API bundle (dist/) + web build
 npm run samples          # regenerate apps/web/public/samples (after changing personas)
 docker compose up -d postgres && npm run db:migrate            # database
 npm run reset:runtime    # delete ONLY runtime state
+# Demo URL (one image serves API + web; PERSISTENCE=memory needs no database): see docs/10-deployment.md and render.yaml
 npm run dev              # API :3000 + web :5173
 npm run docs:conformance && npm run report:conformance
 ```

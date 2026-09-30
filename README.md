@@ -54,6 +54,10 @@ No model key? Set `AGENT_RUNTIME=deterministic` in `.env`: the five checks and t
 | `npm run reset:runtime` | Delete **only** runtime state |
 | `npm run verify:sources` | SHA-256 check of the archived n8n files |
 
+## Deploy a demo URL
+
+One Docker image serves the API and the web app on a single address, with a shared password and no database (`PERSISTENCE=memory`). Step-by-step for Render and other Docker hosts: [docs/10-deployment.md](docs/10-deployment.md); Render Blueprint: [render.yaml](render.yaml).
+
 ## What the assistant offers
 
 The chat opens with **eight topics** (authorised representative & company profile · correct or verify data · mobile and SIM · new services · change a service · move, transfer or port · renew or cease · verification, compliance and legal) and **ready-made questions** you can click, or you can type a request in your own words. Every request type of the operating model (profiling → verifier task → processing) is in the catalog. **Only New LOA is automated**; any other request is *captured and routed* to the team that owns it (VERIFIER_OPERATIONS, PROCESSING_ORDERS, ...) with a plain statement that nothing was checked, approved or changed. The **Operations** page shows the six stages of the operating model and the captured requests.
