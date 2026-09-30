@@ -921,7 +921,7 @@ export const n8nPersonas: Persona[] = [
     "slug": "n8n-marcus-lee-harbour-quartz",
     "representativeName": "Marcus Lee",
     "businessName": "Harbour Quartz Demo Consulting Pty Ltd",
-    "story": "n8n scenario (corrected V2 letter): a valid POA/MOA covers every requested action, then all checks pass. (n8n AUTH-008-V2)",
+    "story": "n8n scenario (V1 then the corrected V2 letter): V1 only lets the representative discuss the account, so the evidence is insufficient; V2 covers every requested action and all checks pass. (n8n AUTH-008-V2)",
     "expectedOutcome": "NEED_MORE_INFORMATION_THEN_APPROVE",
     "documents": [
       {

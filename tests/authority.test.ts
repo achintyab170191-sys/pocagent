@@ -165,8 +165,9 @@ describe('the chat asks for a better authority document instead of rejecting, an
   it('the n8n persona whose sample authority document only covers day-to-day enquiries is asked for a revised letter, and the sample V1 / V2 files are listed and readable', async () => {
     const liam = personas.find((entry) => entry.slug === slug)!;
     expect(liam.expectedOutcome).toBe('NEED_MORE_INFORMATION');
-    expect(liam.staticDocuments?.map((entry) => entry.fileName)).toEqual(['authority-letter-v1.pdf', 'authority-letter-v2.pdf']);
-    for (const file of liam.staticDocuments ?? []) expect(classifyDocument((await extractDocumentText(readFileSync(join('apps', 'web', 'public', 'samples', slug, file.fileName)))).text)?.documentType, file.fileName).toBe('POA_MOA');
+    expect(liam.documents.find((entry) => entry.type === 'POA_MOA')?.fileName).toBe('authority-letter-v1.pdf'); // the customer-supplied V1 is Liam's own authority document
+    expect(liam.variants?.map((entry) => entry.fileName)).toEqual(['authority-letter-v2.pdf']); // and V2 the corrected one
+    for (const fileName of ['authority-letter-v1.pdf', 'authority-letter-v2.pdf']) expect(classifyDocument((await extractDocumentText(readFileSync(join('apps', 'web', 'public', 'samples', slug, fileName)))).text)?.documentType, fileName).toBe('POA_MOA');
     const store = newStore();
     await handleChatMessage(deps(store), { sessionId: 'p', message: `My name is ${liam.representativeName} and I represent ${liam.businessName}.` });
     const reply = await handleChatEvidenceUpload(deps(store), { sessionId: 'p', files: personaAttachments(slug, [...intakeTypes, 'POA_MOA']) });

@@ -378,6 +378,7 @@ export function normalizeOutcome(value: string): GovernedOutcome {
 export * from './loa.js';
 export * from './authority.js';
 export * from './document-review.js';
+export * from './loa-documents-builders.js';
 export * from './loa-scenarios.js';
 export * from './loa-personas.js';
 export * from './catalog.js';

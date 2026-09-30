@@ -9,10 +9,7 @@
  */
 import { type DocumentType } from './loa.js';
 
-export const scenarioReferenceDate = '2026-09-30';
-/** The day the sample documents are dated from: SAMPLE_TODAY (yyyy-mm-dd) when regenerating for a deployment, otherwise the reference date. */
-export const scenarioToday = (): string => (typeof process !== 'undefined' && /^\d{4}-\d{2}-\d{2}$/.test(process.env.SAMPLE_TODAY ?? '') ? process.env.SAMPLE_TODAY! : scenarioReferenceDate) as string;
-const shift = (days: number): string => new Date(Date.parse(`${scenarioToday()}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+import { authorityLetterText as authorityLetter, emiratesIdText as emiratesId, enquiriesOnly, establishmentCardText as card, explicitClauses, proofOfAddressText as proofOfAddress, shiftDays as shift, tradeLicenseText as tradeLicense } from './loa-documents-builders.js';
 
 export interface ScenarioFile {
   fileName: string; type: DocumentType; note: string;
@@ -36,41 +33,6 @@ export interface GuidedScenario {
   slug: string; title: string; representativeName: string; businessName: string; story: string;
   files: ScenarioFile[]; steps: ScenarioStep[];
 }
-
-// ------------------------------------------------------------------------------------------------------------------
-// Document builders (realistic layout)
-// ------------------------------------------------------------------------------------------------------------------
-
-const banner = (title: string): string[] => ['ANZ B2B AGENT PROTOTYPE - SYNTHETIC DOCUMENT', title, 'SYNTHETIC POC DATA ONLY - NOT A REAL CUSTOMER, BUSINESS, IDENTITY, GOVERNMENT RECORD,', 'CREDIT RESULT, OR LEGAL DOCUMENT.'];
-const doc = (lines: string[]): string => `${lines.join('\n')}\n`;
-
-const emiratesId = (o: { id: string; name: string; expiry: string; note?: string; nationality?: string; born?: string }): string => doc([
-  ...banner('Emirates ID (Synthetic Specimen)'), `ID Number ${o.id}`, `Full Name ${o.name}`, `Nationality ${o.nationality ?? 'United Arab Emirates'}`, `Date of Birth ${o.born ?? '1988-03-14'}`, `Issue Date ${shift(-1200)}`, `Expiry Date ${o.expiry}`, ...(o.note ? [`Prototype note: ${o.note}`] : []),
-]);
-const tradeLicense = (o: { number: string; business: string; holder: string; expiry?: string; note?: string }): string => doc([
-  ...banner('Trade License (Synthetic Specimen)'), `License Number ${o.number}`, `Business Name ${o.business}`, `License Holder ${o.holder}`, 'Issuing Authority Demo Department of Economic Development', `Expiry Date ${o.expiry ?? shift(900)}`, `QR Code QR-${o.number.replace('DEMO-', '')}`, 'Activity Telecommunications and IT consultancy (synthetic)', ...(o.note ? [`Prototype note: ${o.note}`] : []),
-]);
-const card = (o: { number: string; business: string; license: string; signatories: string[]; expiry?: string; note?: string; injected?: string }): string => doc([
-  ...banner('Establishment Card (Synthetic Specimen)'), `Establishment Number ${o.number}`, `Business Name ${o.business}`, `Trade License Number ${o.license}`, `Authorised Signatory ${o.signatories.join('; ')}`, `Expiry Date ${o.expiry ?? shift(700)}`, ...(o.injected ? [o.injected] : []), ...(o.note ? [`Prototype note: ${o.note}`] : []),
-]);
-const proofOfAddress = (o: { holder: string; address: string; kind: string; issued: string; note?: string }): string => doc([
-  ...banner('Proof of Address (Synthetic Specimen)'), `Holder Name ${o.holder}`, `Address ${o.address}`, `Document Type ${o.kind}`, `Issue Date ${o.issued}`, ...(o.note ? [`Prototype note: ${o.note}`] : []),
-]);
-const authorityLetter = (o: { company: string; rep: string; role: string; signer: string; signerTitle: string; issued: string; validUntil?: string; body: string[]; revised?: boolean; note?: string; ref: string }): string => doc([
-  ...banner(`${o.revised ? 'Revised ' : ''}Authorised Representative Letter`),
-  `Company ${o.company}`, `Issue date ${o.issued}`, ...(o.validUntil ? [`Valid until ${o.validUntil}`] : []), `Representative ${o.rep}`, `Representative role ${o.role}`, 'To: B2B Telecommunications Operations - Prototype', ...o.body,
-  'Signed for and on behalf of the company:', `${o.signer} - ${o.signerTitle}`, `Synthetic signature reference ${o.ref}`, ...(o.note ? [`Prototype note: ${o.note}`] : []),
-]);
-
-const explicitClauses = (company: string, rep: string): string[] => [
-  `${company} hereby appoints and expressly authorises ${rep} to act on behalf of the company for the telecommunications permissions stated below.`,
-  'Explicit authority scope',
-  '1. Order new telecommunications services, including new service connections and associated service requests.',
-  '2. Approve commercial commitments associated with those services, including quoted charges and service terms.',
-  '3. Request and approve service or plan changes, including additions, removals, migrations, upgrades and downgrades.',
-  `4. Execute and sign telecommunications service agreements and related documentation on behalf of ${company}.`,
-];
-const enquiriesOnly = (rep: string): string[] => [`${rep} is authorised to manage day-to-day telecommunications enquiries, communicate with the service provider, and coordinate account administration.`, 'Prototype note: The letter does not explicitly mention ordering services or signing/approving commitments.'];
 
 // ------------------------------------------------------------------------------------------------------------------
 // The scenarios

@@ -95,7 +95,7 @@ const stories: Record<string, { story: string; expected: string }> = {
   'AUTH-005': { story: 'n8n scenario: conflicting duplicate CRM records (two party IDs for one company): a specialist reconciles them.', expected: 'MANUAL_REVIEW' },
   'AUTH-006': { story: 'n8n scenario: the final verification fails, shown here as an adverse credit verification: rejection recommended.', expected: 'REJECT' },
   'AUTH-007': { story: 'n8n scenario: the registry lookup is unavailable: not treated as invalid, a specialist verifies.', expected: 'MANUAL_REVIEW' },
-  'AUTH-008-V2': { story: 'n8n scenario (corrected V2 letter): a valid POA/MOA covers every requested action, then all checks pass.', expected: 'NEED_MORE_INFORMATION_THEN_APPROVE' },
+  'AUTH-008-V2': { story: 'n8n scenario (V1 then the corrected V2 letter): V1 only lets the representative discuss the account, so the evidence is insufficient; V2 covers every requested action and all checks pass.', expected: 'NEED_MORE_INFORMATION_THEN_APPROVE' },
   'AUTH-009': { story: 'n8n scenario: the authority letter carries an embedded instruction (prompt injection): treated as data, and a specialist reviews the document.', expected: 'MANUAL_REVIEW' },
   'AUTH-010': { story: 'n8n scenario: a credit hold and outstanding balance (policy TBD): the credit verification is referred to a specialist.', expected: 'MANUAL_REVIEW' },
 };

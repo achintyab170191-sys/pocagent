@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-30T11:59:44.796Z",
+  "generatedAt": "2026-09-30T12:22:01.963Z",
   "node": "v24.21.0",
   "totals": {
-    "steps": 53,
-    "verified": 50,
+    "steps": 54,
+    "verified": 51,
     "unverified": 0,
     "outOfScope": 3,
     "conformancePercentageOfInScopeSteps": 100
@@ -12,7 +12,7 @@
     {
       "name": "unit",
       "ran": true,
-      "passed": 438,
+      "passed": 452,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run",
@@ -30,7 +30,7 @@
     {
       "name": "e2e",
       "ran": true,
-      "passed": 37,
+      "passed": 38,
       "failed": 0,
       "skipped": 0,
       "command": "npx playwright test",
@@ -898,6 +898,20 @@
         "tests/scenarios.test.ts › each step ends where the script says",
         "tests/scenarios.test.ts › the scenarios are listed for the web app",
         "tests/e2e/portal.spec.ts › a guided scenario: the wrong Emirates ID is explained and the right one is accepted"
+      ]
+    },
+    {
+      "id": "T20",
+      "lane": "Product owner request",
+      "step": "Every demo persona that reaches the authority check ships a document to test insufficient evidence with and the corrected one, in the customer-supplied letter layout (Liam: the n8n AUTH-003 V1/V2; Marcus: the n8n AUTH-008 V1/V2); the demo panel labels them",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa-personas.ts#withVariants · scripts/generate-samples.ts · apps/web ChatPage",
+      "tests": [
+        "tests/persona-evidence.test.ts › every persona sample file",
+        "tests/persona-evidence.test.ts › the demo list labels each authority document",
+        "tests/persona-evidence.test.ts › the insufficient document is read and explained",
+        "tests/e2e/portal.spec.ts › the demo panel labels each authority document so insufficient evidence can be tested"
       ]
     },
     {

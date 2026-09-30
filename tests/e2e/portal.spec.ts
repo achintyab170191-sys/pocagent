@@ -98,6 +98,19 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await sendDocuments(page, scenario('emirates-id-v3.pdf'));
     await expect(lastMeta(page)).toContainText('APPROVE');
   });
+  test('the demo panel labels each authority document so insufficient evidence can be tested: Liam gets the n8n V1 (insufficient) and V2 (corrected) letters, Marcus his V1 and V2', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('details.demo', { hasText: 'Demo: synthetic customers and sample documents' }).locator('summary').click();
+    const liam = page.getByTestId('persona-n8n-liam-chen-bluegum-vector');
+    await expect(liam.getByRole('link', { name: /Authority letter V1 \(n8n AUTH-003\)/ })).toHaveAttribute('href', '/samples/n8n-liam-chen-bluegum-vector/authority-letter-v1.pdf');
+    await expect(liam.getByRole('link', { name: /Authority letter V2 \(n8n AUTH-003, revised\)/ })).toHaveAttribute('href', '/samples/n8n-liam-chen-bluegum-vector/authority-letter-v2.pdf');
+    await expect(liam).toContainText('test insufficient evidence');
+    await expect(liam).toContainText('corrected');
+    const marcus = page.getByTestId('persona-n8n-marcus-lee-harbour-quartz');
+    await expect(marcus.getByRole('link', { name: /Authority letter V1 \(n8n AUTH-008-V1\)/ })).toBeVisible();
+    await expect(marcus.getByRole('link', { name: /Authority letter V2 \(n8n AUTH-008-V2\)/ })).toBeVisible();
+    await expect(page.getByTestId('persona-omar-gulf-horizon')).toContainText('day-to-day enquiries only: insufficient evidence (test file)');
+  });
   test('a returning customer is told the case is already in progress and carries on in the same case; a closed case is offered for reopening', async ({ page, context }) => {
     await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
     await sendDocuments(page, samples('fatima-al-noor', 'emirates-id.pdf'));
@@ -149,7 +162,7 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await expect(lastMeta(page)).toContainText('POA_MOA_MISSING');
     await expect(page.getByTestId('evidence-card')).toContainText('Power of Attorney (POA) or Memorandum of Association (MOA)');
     await expect(page.getByLabel('Message')).toHaveCount(0);
-    await sendDocuments(page, samples('omar-gulf-horizon', 'power-of-attorney.pdf'));
+    await sendDocuments(page, samples('omar-gulf-horizon', 'authority-letter.pdf'));
     await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
     await expect(lastMeta(page)).toContainText('Tools called: POA/MOA Check → Bad Debt Check → AVCV Verification');
   });
@@ -293,7 +306,7 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await page.getByText('Demo: synthetic customers and sample documents').click();
     await expect(page.locator('[data-testid^="persona-"]')).toHaveCount(27);
     await expect(page.getByTestId('persona-omar-gulf-horizon')).toContainText('Power of Attorney');
-    await expect(page.getByTestId('persona-omar-gulf-horizon').getByRole('link', { name: 'POA / MOA' })).toHaveAttribute('href', '/samples/omar-gulf-horizon/power-of-attorney.pdf');
+    await expect(page.getByTestId('persona-omar-gulf-horizon').getByRole('link', { name: /Authority letter - explicit clauses/ })).toHaveAttribute('href', '/samples/omar-gulf-horizon/authority-letter.pdf');
     const nav = page.getByRole('navigation', { name: 'Primary' });
     await expect(nav.getByRole('link', { name: /upload|resubmi/i })).toHaveCount(0);
     await expect(nav.getByRole('link')).toHaveText(['Assessment chat', 'Operations', 'Review dashboard', 'Case status']);
