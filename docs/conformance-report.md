@@ -1,17 +1,17 @@
 # Conformance report
 
-Generated 2026-09-30T09:06:01.249Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
+Generated 2026-09-30T09:37:21.849Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
 The behaviour under test is the **To-Be New LOA process** (docs/09), not the earlier n8n export.
 
 ## Result
 
 | Measure | Value |
 | --- | ---: |
-| Process steps mapped (docs/05) | 43 |
-| Steps **verified** (implemented + every referenced test passed) | 40 |
+| Process steps mapped (docs/05) | 47 |
+| Steps **verified** (implemented + every referenced test passed) | 44 |
 | Steps out of scope (in the diagrams, not built) | 3 |
 | Steps unverified | 0 |
-| **Conformance of in-scope steps** | **100%** (40/40) |
+| **Conformance of in-scope steps** | **100%** (44/44) |
 
 "Verified" means a mapped implementation exists and every test title referenced in `docs/05` matched at least one passing test in this run. Steps marked SIMULATED run against a synthetic stand-in for an external system; they prove the process logic, not a real integration.
 
@@ -19,7 +19,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 374 | 0 | 0 |
+| unit | `npx vitest run` | 387 | 0 | 0 |
 | integration | `npx vitest run --config vitest.integration.config.ts` | 19 | 0 | 0 |
 | e2e | `npx playwright test` | 33 | 0 | 0 |
 
@@ -53,6 +53,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 | Sophie Williams / Aoraki Lantern Demo Limited | MANUAL_REVIEW | MANUAL_REVIEW | DOCUMENT_SECURITY_REVIEW | 1 | yes |
 | Jack Morgan / Red Earth Demo Logistics Pty Ltd | MANUAL_REVIEW | MANUAL_REVIEW | AVCV_UNVERIFIED | 3 | yes |
 | Emma Wilson / Wattle Ridge Demo Networks Pty Ltd | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
+| Achintya Rao / Bluegum Vector Demo Pty Ltd | APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
 
 ## Out of scope
 

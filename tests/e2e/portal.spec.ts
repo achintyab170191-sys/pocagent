@@ -59,13 +59,20 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await expect(page.getByRole('note')).toContainText('Synthetic data');
   });
 
-  test('a company that is not on record becomes a new lead: nothing is checked and nothing is approved', async ({ page }) => {
+  test('a company that is not on record is confirmed first and becomes a new lead with onboarding pending', async ({ page }) => {
     await page.goto('/');
     await say(page, 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd.');
+    await expect(page.getByTestId('chat-log')).toContainText('please confirm');
+    await expect(page.getByTestId('chat-log')).not.toContainText('new lead case');
+    await say(page, 'yes');
     await expect(page.getByTestId('chat-log')).toContainText('new lead case');
+    await expect(page.getByTestId('chat-log')).toContainText('Onboarding status: Pending');
     await expect(page.getByTestId('chat-log')).toContainText('nothing has been approved');
     await expect(page.getByTestId('outcome-meta')).toHaveCount(0);
     await expect(page.getByTestId('evidence-card')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Operations' }).click();
+    await expect(page.getByTestId('leads-table')).toContainText('Acme Imaginary Holdings Ltd');
+    await expect(page.getByTestId('leads-table')).toContainText('PENDING');
   });
 
   test('Omar is not the licence owner: the chat asks for a POA in the same window, then resumes and approves', async ({ page }) => {
@@ -177,7 +184,8 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     const row = page.getByTestId('captured-table').getByRole('row', { name: /Mobile number portability/ });
     await expect(row).toContainText('VERIFIER_OPERATIONS');
     await expect(row).toContainText('Al Noor Trading LLC');
-    await expect(page.getByTestId('stage-VERIFIER')).toContainText('requests routed here');
+    await page.getByTestId('stage-VERIFIER').click();
+    await expect(page.getByTestId('stage-detail')).toContainText('1 requests routed here');
   });
 
   test('pre-populated standard queries start a request in one click', async ({ page }) => {
@@ -202,15 +210,21 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await page.goto('/operations');
     const pipeline = page.getByTestId('pipeline');
     for (const name of ['Profiling', 'Verifier task', 'Processing', 'Control tower', 'Governance', 'Reporting']) await expect(pipeline).toContainText(name);
-    await expect(page.getByTestId('stage-PROFILING')).toContainText('LIVE');
-    await expect(page.getByTestId('stage-PROFILING')).toContainText('Automated: New authorised representative (LOA)');
-    await expect(page.getByTestId('stage-CONTROL_TOWER')).toContainText('NOT BUILT');
+    await expect(page.getByRole('list', { name: 'Operating-model stages' }).getByRole('listitem')).toHaveCount(6);
+    await expect(page.getByTestId('stage-PROFILING')).toContainText('Live');
+    await expect(page.getByTestId('stage-PROFILING')).toHaveAttribute('aria-current', 'step');
+    await expect(page.getByTestId('stage-detail')).toContainText('Automated: New authorised representative (LOA)');
+    await page.getByTestId('stage-CONTROL_TOWER').click();
+    await expect(page.getByTestId('stage-CONTROL_TOWER')).toContainText('Not built');
+    await expect(page.getByTestId('stage-detail')).toContainText('Control tower');
+    await expect(page.getByTestId('loa-pipeline')).toContainText('Awaiting documents');
+    await expect(page.getByTestId('kpis')).toContainText('New leads');
   });
 
   test('the demo panel lists every synthetic customer with downloadable sample documents; there is no upload page or resubmission page', async ({ page }) => {
     await page.goto('/');
     await page.getByText('Demo: synthetic customers and sample documents').click();
-    await expect(page.locator('[data-testid^="persona-"]')).toHaveCount(26);
+    await expect(page.locator('[data-testid^="persona-"]')).toHaveCount(27);
     await expect(page.getByTestId('persona-omar-gulf-horizon')).toContainText('Power of Attorney');
     await expect(page.getByTestId('persona-omar-gulf-horizon').getByRole('link', { name: 'POA / MOA' })).toHaveAttribute('href', '/samples/omar-gulf-horizon/power-of-attorney.pdf');
     const nav = page.getByRole('navigation', { name: 'Primary' });

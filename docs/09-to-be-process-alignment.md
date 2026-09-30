@@ -105,3 +105,11 @@ The Claude Agent SDK runtime (provisional recommendation only), the guarded five
 ## Retained n8n data
 
 The n8n data files (dt_*.csv) are still preserved unchanged. Their businesses, people, authority letters, party records and mock results are also retained as synthetic registers: run `npm run import:n8n` to regenerate packages/domain/src/n8n-registers.ts, which is merged into the trade-licence, Emirates ID, POA/MOA, bad-debt and AVCV registers and adds 10 personas (slugs starting n8n-, e.g. Liam Chen at Bluegum Vector Demo Pty Ltd). Where the export had no named owner, a synthetic Director is generated. Duplicate CRM records raise BD-003 (DUPLICATE_RECORD_CONFLICT), an unavailable licence lookup raises TL-005, and a flagged authority letter raises POA-005 (DOCUMENT_SECURITY_REVIEW); all go to a human.
+
+
+## Intake follow-ups, lead confirmation and reopening (product-owner request)
+
+- **Full name:** a single-word name is asked for again as a full name (first and last name, as on the Emirates ID) before anything is created.
+- **Lead confirmation:** a company that is not on record is not turned into a lead straight away. The chatbot asks the customer to confirm the name (yes = create the lead; a different name = carry on with that company; no = ask for the correct name). A confirmed lead is recorded with onboarding status **PENDING** (runtime status ONBOARDING_PENDING, audit LEAD_CAPTURED, queue PROFILING_OPERATIONS); the customer is told a representative will get back to onboard the business. Nothing is checked or approved.
+- **Operations page:** the six stages are a stepper (click a stage for what it covers and its request types), with KPIs, the New LOA pipeline, new leads with onboarding status, captured requests and recent activity.
+- **Reopening:** a reviewer can reopen any closed (completed) rejected / need-more-information / manual-review case from the dashboard. A returning customer whose earlier rejection a human already confirmed is told the case is closed and is asked for proof; only when documents are attached is it reopened as a new version (audit CASE_REOPENED, actor Customer (chat)) and reassessed. Before a human confirms, a rejection is never revealed and a returning customer simply starts a new case. Approved cases are not reopened.

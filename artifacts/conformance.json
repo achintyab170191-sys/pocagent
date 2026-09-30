@@ -1,11 +1,11 @@
 {
   "source": "E&SMB-BO To-Be Process, profiling, pages 12-13 (photographed), plus product-owner requests",
-  "totalSteps": 43,
+  "totalSteps": 47,
   "statusCounts": {
     "IMPLEMENTED": 22,
     "SIMULATED": 7,
     "PLATFORM": 2,
-    "TARGET_ADDITION": 9,
+    "TARGET_ADDITION": 13,
     "OUT_OF_SCOPE": 3
   },
   "steps": [
@@ -66,7 +66,7 @@
         ],
         [
           "tests/e2e/portal.spec.ts",
-          "a company that is not on record becomes a new lead"
+          "a company that is not on record is confirmed first and becomes a new lead with onboarding pending"
         ]
       ],
       "status": "SIMULATED",
@@ -716,6 +716,70 @@
       ],
       "status": "TARGET_ADDITION",
       "note": "Only New LOA is automated. Control tower, governance and reporting are shown for the operating model only."
+    },
+    {
+      "id": "T10",
+      "lane": "Product owner request",
+      "step": "A name that is not a full name is asked for again (first and last name) before anything is created",
+      "module": "packages/workflows/src/chat.ts#handleChatMessage",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a name that is not a full name is asked for again before anything is created"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T11",
+      "lane": "Product owner request",
+      "step": "A company that is not on record is confirmed with the customer before the lead is created; a confirmed lead is recorded with onboarding status PENDING and the customer is told a representative will get back",
+      "module": "packages/workflows/src/chat.ts#proceed · capture.ts#captureNewLead",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a company that is not on record is confirmed with the customer first; a correction continues the normal flow"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a confirmed lead is recorded with onboarding status PENDING, tells the customer a representative will get back, and never checks or approves"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "a company that is not on record is confirmed first and becomes a new lead with onboarding pending"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T12",
+      "lane": "Product owner request",
+      "step": "A human can reopen a closed case; a closed, human-confirmed rejection is reopened by the customer only once they furnish documents",
+      "module": "packages/workflows/src/reopen.ts · chat.ts#findClosedRejection",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a human can reopen a closed (completed) rejected review from the dashboard"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a closed, human-confirmed rejection is reopened by the customer only once they furnish documents; before confirmation nothing is offered"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T13",
+      "lane": "Product owner request",
+      "step": "The Operations page shows the operating-model stages as a stepper with the New LOA pipeline, new leads, captured requests and recent activity",
+      "module": "apps/web/src/pages/OperationsPage.tsx · packages/workflows/src/operations.ts",
+      "tests": [
+        [
+          "tests/e2e/portal.spec.ts",
+          "the Operations page shows the six stages of the operating model with only profiling live"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
     },
     {
       "id": "X1",

@@ -155,6 +155,7 @@ export const TargetAuditEvents = {
   RCA_REQUESTED: 'RCA_REQUESTED',
   REQUEST_CAPTURED: 'REQUEST_CAPTURED',
   CASE_REOPENED: 'CASE_REOPENED',
+  LEAD_CAPTURED: 'LEAD_CAPTURED',
 } as const;
 
 export const EvidenceRequestStatuses = ['OPEN', 'RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICIENT', 'ACCEPTED', 'ESCALATED', 'CANCELLED'] as const;
@@ -179,7 +180,7 @@ export type IntakeDetails = z.infer<typeof IntakeDetailsSchema>;
 export const ChatSessionStateSchema = z.object({
   sessionId: z.string(),
   caseRunId: z.string(),
-  step: z.enum(['IDLE', 'INTAKE', 'AWAITING_EVIDENCE', 'DONE']),
+  step: z.enum(['IDLE', 'INTAKE', 'CONFIRM_LEAD', 'REOPEN_PROOF', 'AWAITING_EVIDENCE', 'DONE']),
   evidenceRequestId: z.string().default(''),
   /** The request type the customer chose or the bot recognised (catalog id); empty = New LOA by default. */
   requestTypeId: z.string().default(''),

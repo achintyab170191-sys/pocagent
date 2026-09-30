@@ -9,7 +9,8 @@ import { type Repository, now, uniqueMillis } from '@sbo/persistence';
 import { reopenableOutcomes, reviewOpenStatuses } from './human-review.js';
 import { openEvidenceRequest, reopenedStatus } from './super-agent.js';
 
-export interface ReopenInput { caseRunId: string; reviewerName: string; comments: string; }
+/** A reviewer reopens from the dashboard; the customer reopens a closed rejection from the chat by furnishing proof (sessionId = that chat). */
+export interface ReopenInput { caseRunId: string; reviewerName: string; comments: string; initiatedBy?: 'REVIEWER' | 'CUSTOMER'; sessionId?: string; }
 export interface ReopenResult { original: CaseRecord; reopened: CaseRecord; request: EvidenceRequest; customerNotified: boolean; }
 
 export async function reopenCase(repository: Repository, input: ReopenInput): Promise<ReopenResult> {
@@ -30,15 +31,16 @@ export async function reopenCase(repository: Repository, input: ReopenInput): Pr
     // The previous version is closed; any review still open on it is closed with the reviewer's note.
     if (runtimeCase) await transaction.persistRuntimeCase({ ...runtimeCase, status: reopenedStatus, currentStage: 'REOPENED', humanReviewRequired: false, targetQueue: reopened.caseRunId, updatedAt: timestamp });
     for (const review of reviews) if (reviewOpenStatuses.includes(review.reviewStatus.toUpperCase())) await transaction.persistReview({ ...review, reviewStatus: 'CLOSED_REOPENED', reviewerName, reviewerDecision: 'REOPEN', reviewerComments: comments, completedAt: timestamp });
-    const sessionId = requests[0]?.sessionId ?? '';
+    const sessionId = input.sessionId ?? requests[0]?.sessionId ?? '';
+    const byCustomer = input.initiatedBy === 'CUSTOMER';
     const request = await openEvidenceRequest(transaction, {
       caseRunId: reopened.caseRunId, submissionVersion: version, sessionId, originatingCheckType: 'DOCUMENT_INTAKE', reasonCode: 'CASE_REOPENED', previousState: original.caseRunId,
       requestedItems: intakeDocumentTypes.map((type) => documentLabels[type]),
-      message: `A reviewer reopened your request as case ${reopened.caseRunId}.\n\nReviewer note: ${comments}\n\nPlease attach these documents (corrected or current versions):\n${intakeDocumentTypes.map((type) => `- ${documentLabels[type]}`).join('\n')}`,
+      message: byCustomer ? `Thank you. I have reopened your earlier request as case ${reopened.caseRunId}.\n\nPlease attach these documents (current versions, including the proof you mentioned):\n${intakeDocumentTypes.map((type) => `- ${documentLabels[type]}`).join('\n')}` : `A reviewer reopened your request as case ${reopened.caseRunId}.\n\nReviewer note: ${comments}\n\nPlease attach these documents (corrected or current versions):\n${intakeDocumentTypes.map((type) => `- ${documentLabels[type]}`).join('\n')}`,
     });
     // Put the customer's conversation back into "attach your documents" for the new version.
     if (sessionId) await transaction.saveSession({ sessionId, caseRunId: reopened.caseRunId, step: 'AWAITING_EVIDENCE', evidenceRequestId: request.evidenceRequestId, requestTypeId: '', intake: { representativeName: '', businessName: '', businessIdentifier: '' }, updatedAt: timestamp });
-    await transaction.appendAudit({ eventId: `EVT-${original.caseRunId}-REOPEN-${uniqueMillis()}`, caseRunId: original.caseRunId, submissionVersion: original.submissionVersion, timestamp, actor: reviewerName, eventType: TargetAuditEvents.CASE_REOPENED, stage: 'REVIEW_DASHBOARD', previousState: decision?.outcome ?? 'EVIDENCE_REVIEW', newState: reopenedStatus, ruleId: '', reasonCode: 'REOPENED_BY_REVIEWER', evidenceReference: reopened.caseRunId, details: { original_case_run_id: original.caseRunId, reopened_case_run_id: reopened.caseRunId, original_version: original.submissionVersion, reopened_version: version, comments, customerNotified: Boolean(sessionId), audit_alias: SourceAuditEvents.CASE_RESUBMITTED } });
+    await transaction.appendAudit({ eventId: `EVT-${original.caseRunId}-REOPEN-${uniqueMillis()}`, caseRunId: original.caseRunId, submissionVersion: original.submissionVersion, timestamp, actor: reviewerName, eventType: TargetAuditEvents.CASE_REOPENED, stage: 'REVIEW_DASHBOARD', previousState: decision?.outcome ?? 'EVIDENCE_REVIEW', newState: reopenedStatus, ruleId: '', reasonCode: byCustomer ? 'REOPENED_BY_CUSTOMER_PROOF' : 'REOPENED_BY_REVIEWER', evidenceReference: reopened.caseRunId, details: { original_case_run_id: original.caseRunId, reopened_case_run_id: reopened.caseRunId, original_version: original.submissionVersion, reopened_version: version, comments, initiatedBy: byCustomer ? 'CUSTOMER' : 'REVIEWER', customerNotified: Boolean(sessionId), audit_alias: SourceAuditEvents.CASE_RESUBMITTED } });
     return { original, reopened, request, customerNotified: Boolean(sessionId) };
   });
 }

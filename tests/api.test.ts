@@ -110,9 +110,13 @@ describe('chat API (customer journey over HTTP)', () => {
   it('a company that is not on record becomes a new lead over HTTP', async () => {
     const { post } = await start();
     const body = (await post('/api/chat', { message: 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd' })).json();
-    expect(body.step).toBe('DONE');
-    expect(body.messages[0]).toContain('new lead case');
-    expect(body.outcome).toBeUndefined();
+    expect(body.step).toBe('INTAKE'); // the customer confirms the company name first
+    expect(body.messages[0]).toContain('please confirm');
+    const lead = (await post('/api/chat', { message: 'yes' })).json();
+    expect(lead.step).toBe('DONE');
+    expect(lead.messages[0]).toContain('new lead case');
+    expect(lead.messages[0]).toContain('Onboarding status: Pending');
+    expect(lead.outcome).toBeUndefined();
   });
 
   it('GET /api/chat/state returns what the conversation is waiting for (and null otherwise)', async () => {
@@ -135,7 +139,7 @@ describe('chat API (customer journey over HTTP)', () => {
   it('demo personas are listed with their sample documents and expected outcomes', async () => {
     const { get } = await start();
     const body = (await get('/api/scenarios')).json();
-    expect(body.scenarios).toHaveLength(26);
+    expect(body.scenarios).toHaveLength(27);
     expect(body.scenarios[0]).toMatchObject({ slug: 'fatima-al-noor', expectedOutcome: 'APPROVE', documents: [{ type: 'EMIRATES_ID', path: '/samples/fatima-al-noor/emirates-id.pdf' }, expect.anything(), expect.anything()] });
   });
 

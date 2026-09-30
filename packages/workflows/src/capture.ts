@@ -17,3 +17,18 @@ export async function captureRequest(repository: Repository, caseRecord: CaseRec
   });
   return { stageName: stage.name, queue: stage.queue };
 }
+export const onboardingPendingStatus = 'ONBOARDING_PENDING';
+
+/**
+ * A company that is not on record and whose name the customer confirmed: the lead is recorded with onboarding status PENDING and routed to the
+ * profiling team, who get back to the customer to onboard the business. Nothing is verified or approved.
+ */
+export async function captureNewLead(repository: Repository, caseRecord: CaseRecord, sessionId: string): Promise<{ queue: string }> {
+  const queue = stageById('PROFILING')?.queue ?? 'PROFILING_OPERATIONS';
+  const timestamp = now();
+  await repository.transaction(async (transaction) => {
+    await transaction.persistRuntimeCase({ caseRunId: caseRecord.caseRunId, caseId: caseRecord.caseId, submissionVersion: caseRecord.submissionVersion, country: caseRecord.country, requestType: caseRecord.requestType, businessName: caseRecord.businessName, businessIdentifier: caseRecord.businessIdentifier, customerId: caseRecord.customerId, representativeName: caseRecord.representativeName, status: onboardingPendingStatus, currentStage: 'ONBOARDING', finalOutcome: '', targetQueue: queue, humanReviewRequired: false, createdAt: timestamp, updatedAt: timestamp, primaryReasonCode: 'NEW_LEAD_ONBOARDING' });
+    await transaction.appendAudit({ eventId: `EVT-${caseRecord.caseRunId}-LEAD-${uniqueMillis()}`, caseRunId: caseRecord.caseRunId, submissionVersion: caseRecord.submissionVersion, timestamp, actor: 'SBO.01', eventType: TargetAuditEvents.LEAD_CAPTURED, stage: 'PROFILING', previousState: '', newState: onboardingPendingStatus, ruleId: '', reasonCode: 'NEW_LEAD_ONBOARDING', evidenceReference: sessionId, details: { onboardingStatus: 'PENDING', queue, customerConfirmedCompanyName: true } });
+  });
+  return { queue };
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyDocument, documentText, emiratesIdRegister, extractFields, findKnownBusiness, personas, renderDocumentText } from '@sbo/domain';
-import { completeHumanReview, describeChatState, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listReviewDashboard, reopenCase } from '@sbo/workflows';
+import { completeHumanReview, describeChatState, getCaseStatus, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listReviewDashboard, reopenCase } from '@sbo/workflows';
 import { newStore, persona, personaAttachments, ScriptedRuntime } from '@sbo/testkit';
 
 const base = 'http://localhost:5173';
@@ -74,7 +74,10 @@ describe('customer-first intake', () => {
   it('a company that is NOT on record becomes a new lead: no checks, no decision, never an approval', async () => {
     const store = newStore();
     const runtime = new ScriptedRuntime();
-    const reply = await handleChatMessage({ repository: store, agentRuntime: runtime, appBaseUrl: base }, { sessionId: 'x', message: 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd' });
+    const confirm = await handleChatMessage({ repository: store, agentRuntime: runtime, appBaseUrl: base }, { sessionId: 'x', message: 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd' });
+    expect(confirm).toMatchObject({ step: 'INTAKE', caseRunId: '' }); // asks the customer to confirm the name first: nothing is created yet
+    expect(await store.listCases()).toEqual([]);
+    const reply = await handleChatMessage({ repository: store, agentRuntime: runtime, appBaseUrl: base }, { sessionId: 'x', message: 'yes' });
     expect(reply.step).toBe('DONE');
     expect(reply.outcome).toBeUndefined();
     expect(reply.evidenceRequest).toBeUndefined();
@@ -424,5 +427,105 @@ describe('data retained from the n8n exports (synthetic registers)', () => {
     const n8n = personas.filter((entry) => entry.slug.startsWith('n8n-'));
     expect(n8n).toHaveLength(10);
     for (const entry of n8n) expect(findKnownBusiness(entry.businessName), entry.businessName).toBeDefined();
+  });
+});
+describe('follow-up questions, lead confirmation and reopening closed cases', () => {
+  const bluegum = 'Bluegum Vector Demo Pty Ltd';
+
+  it('a name that is not a full name is asked for again before anything is created', async () => {
+    const store = newStore();
+    const first = await say(store, 'n', `My name is Achintya and I represent ${bluegum}`);
+    expect(first).toMatchObject({ step: 'INTAKE', caseRunId: '' });
+    expect(first.messages[0]).toContain('full name');
+    expect(await store.listCases()).toEqual([]);
+    const again = await say(store, 'n', 'Achintya');
+    expect(again.messages[0]).toContain('full name');
+    const second = await say(store, 'n', 'Achintya Rao');
+    expect(second).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: 'AUTH-101' });
+    expect(await store.getCase('AUTH-101')).toMatchObject({ representativeName: 'Achintya Rao', businessName: bluegum });
+    // name only, company later
+    const other = await say(store, 'm', 'My name is Achintya');
+    expect(other.messages[0]).toContain('full name');
+    expect((await say(store, 'm', 'Achintya Rao')).messages[0]).toContain('Which company');
+  });
+
+  it('a company that is not on record is confirmed with the customer first; a correction continues the normal flow', async () => {
+    const store = newStore();
+    const asked = await say(store, 'c', 'My name is Achintya Rao and I represent Blugum Vector Demo Pty Ltd');
+    expect(asked).toMatchObject({ step: 'INTAKE', caseRunId: '' });
+    expect(asked.messages[0]).toContain('please confirm');
+    expect(await store.listCases()).toEqual([]);
+    const no = await say(store, 'c', 'no');
+    expect(no.messages[0]).toContain('correct name of the company');
+    const corrected = await say(store, 'c', bluegum);
+    expect(corrected).toMatchObject({ step: 'AWAITING_EVIDENCE' }); // a known company: the document request, not a lead
+    expect(corrected.messages[0]).toContain('found');
+    // typing the right name straight into the confirmation also works
+    const direct = await say(store, 'd', 'My name is Achintya Rao and I represent Blugum Vector Demo Pty Ltd');
+    void direct;
+    expect((await say(store, 'd', bluegum)).step).toBe('AWAITING_EVIDENCE');
+  });
+
+  it('a confirmed lead is recorded with onboarding status PENDING, tells the customer a representative will get back, and never checks or approves', async () => {
+    const store = newStore();
+    await say(store, 'l', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
+    const lead = await say(store, 'l', 'yes');
+    expect(lead).toMatchObject({ step: 'DONE', caseRunId: 'AUTH-101' });
+    const text = lead.messages.join('\n');
+    expect(text).toContain('representative from our onboarding team will get back to you');
+    expect(text).toContain('Onboarding status: Pending');
+    expect(await store.getRuntimeCase('AUTH-101')).toMatchObject({ status: 'ONBOARDING_PENDING', currentStage: 'ONBOARDING', requestType: 'NEW_LEAD', finalOutcome: '' });
+    expect((await store.getAudit('AUTH-101')).map((event) => event.eventType)).toContain('LEAD_CAPTURED');
+    expect(await store.getDecision('AUTH-101')).toBeUndefined();
+    expect(await store.getRuntimeResults('AUTH-101', 1)).toEqual([]);
+    expect(await getCaseStatus(store, 'AUTH-101')).toMatchObject({ onboardingStatus: 'PENDING', currentStatus: 'ONBOARDING_PENDING', outcome: '' });
+    // cancelling the confirmation creates nothing
+    await say(store, 'k', 'My name is Zed Nobody and I represent Another Imaginary Ltd');
+    expect((await say(store, 'k', 'cancel')).step).toBe('DONE');
+    expect((await store.listCases()).map((entry) => entry.caseRunId)).toEqual(['AUTH-101']);
+  });
+
+  it('a human can reopen a closed (completed) rejected review from the dashboard', async () => {
+    const { store, reply } = await assess('sara-desert-bloom');
+    const review = (await listReviewDashboard(store))[0]!;
+    await completeHumanReview(store, review.reviewId, { reviewerName: 'Reviewer', reviewerDecision: 'REJECT', reviewerComments: 'Confirmed: the licence has expired.' });
+    expect((await listReviewDashboard(store))[0]).toMatchObject({ reviewOpen: false, reviewStatus: 'COMPLETED' });
+    expect(await getReviewPackage(store, review.reviewId)).toMatchObject({ reviewOpen: false, reopenAvailable: true });
+    const reopened = await reopenCase(store, { caseRunId: reply.caseRunId, reviewerName: 'Reviewer', comments: 'The customer renewed the licence.' });
+    expect(reopened.reopened.caseRunId).toBe(`${reply.caseRunId}-V2`);
+    expect(await store.getRuntimeCase(reply.caseRunId)).toMatchObject({ status: 'REOPENED_AS_NEW_VERSION' });
+    expect((await getReviewPackage(store, review.reviewId)).reopenAvailable).toBe(false);
+  });
+
+  it('a closed, human-confirmed rejection is reopened by the customer only once they furnish documents; before confirmation nothing is offered', async () => {
+    const { store, reply, sessionId } = await assess('sara-desert-bloom');
+    expect(reply.outcome?.governedOutcome).toBe('REJECT');
+    // still awaiting confirmation: a returning customer simply starts a new case, nothing is revealed or reopened
+    const early = await intro(store, 'early', 'sara-desert-bloom');
+    expect(early.step).toBe('AWAITING_EVIDENCE');
+    expect(early.caseRunId).not.toBe(reply.caseRunId);
+    const review = (await listReviewDashboard(store)).find((row) => row.caseRunId === reply.caseRunId)!;
+    await completeHumanReview(store, review.reviewId, { reviewerName: 'Reviewer', reviewerDecision: 'REJECT', reviewerComments: 'Confirmed: the licence has expired.' });
+    const back = await intro(store, 'back', 'sara-desert-bloom');
+    expect(back).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: reply.caseRunId });
+    expect(back.messages[0]).toContain('closed without approval');
+    expect(back.messages[0]).toContain('attach the proof');
+    expect((await store.getCase(`${reply.caseRunId}-V2`))).toBeUndefined(); // no proof yet: nothing reopened
+    expect((await store.getSession('back'))?.step).toBe('REOPEN_PROOF');
+    const typed = await say(store, 'back', 'I have paid, please reopen');
+    expect(typed.messages[0]).toContain("Typed text can't be used as evidence");
+    expect((await store.getCase(`${reply.caseRunId}-V2`))).toBeUndefined();
+    // an unrecognised file reopens nothing
+    await expect(handleChatEvidenceUpload(deps(store), { sessionId: 'back', files: [{ fileName: 'note.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: 'Just a note' }] })).rejects.toThrow();
+    expect((await store.getCase(`${reply.caseRunId}-V2`))).toBeUndefined();
+    // documents furnished: the case reopens as a new version and is reassessed
+    const proof = await attach(store, 'back', 'sara-desert-bloom', intakeTypes);
+    expect(proof.caseRunId).toBe(`${reply.caseRunId}-V2`);
+    expect(await store.getRuntimeCase(reply.caseRunId)).toMatchObject({ status: 'REOPENED_AS_NEW_VERSION' });
+    const audit = (await store.getAudit(reply.caseRunId)).find((event) => event.eventType === 'CASE_REOPENED');
+    expect(audit).toMatchObject({ actor: 'Customer (chat)', reasonCode: 'REOPENED_BY_CUSTOMER_PROOF' });
+    expect(audit?.details).toMatchObject({ initiatedBy: 'CUSTOMER' });
+    expect(await store.getDecision(`${reply.caseRunId}-V2`)).toBeDefined(); // reassessed
+    void sessionId;
   });
 });

@@ -177,3 +177,38 @@ table.dash tr.row-selected { box-shadow: inset 3px 0 0 var(--brand); background:
 .stat-row .card { min-width: 170px; padding: 0.8rem 1rem; }
 
 @media (max-width: 760px) { .topbar-inner { flex-wrap: wrap; gap: 0.4rem; padding: 0.55rem 1rem; } .nav { margin-left: 0; width: 100%; } .banner, main, footer { padding-left: 1rem; padding-right: 1rem; } .brand { flex: none; } }
+
+/* ---------- operations: stepper, KPIs, pipeline, activity ---------- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.8rem; margin: 0 0 1.4rem; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.95rem 1.1rem; box-shadow: var(--shadow-1); display: grid; gap: 0.15rem; }
+.kpi-value { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; } .kpi-label { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.stepper { list-style: none; margin: 0.6rem 0 1rem; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; counter-reset: none; }
+.step { position: relative; }
+.step::before { content: ''; position: absolute; top: 22px; left: -50%; width: 100%; height: 3px; background: var(--border); z-index: 0; }
+.step:first-child::before { display: none; }
+.step.live::before, .step.routed::before { background: color-mix(in srgb, var(--brand) 55%, var(--border)); }
+.step > button { position: relative; z-index: 1; width: 100%; background: transparent; border: 0; padding: 0 0.35rem 0.4rem; display: grid; justify-items: center; gap: 0.3rem; text-align: center; cursor: pointer; color: inherit; font: inherit; border-radius: 12px; }
+.step > button:hover { background: var(--surface-2); }
+.step-dot { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--surface); border: 3px solid var(--border); color: var(--muted); transition: transform 0.15s, box-shadow 0.15s; }
+.step.live .step-dot { border-color: var(--good); color: var(--good); } .step.routed .step-dot { border-color: var(--brand); color: var(--brand); }
+.step.selected .step-dot { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 0 0 5px var(--brand-soft); transform: scale(1.06); }
+.step-name { font-weight: 700; font-size: 0.9rem; } .step-count { font-size: 0.78rem; color: var(--muted); } .step-count strong { color: var(--text); font-size: 1rem; }
+.step-state { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.step-live { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); } .step-routed { background: var(--brand-soft); color: var(--brand); }
+.stage-detail { margin-top: 0; } .stage-detail header h3 { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; } .stage-detail header p { margin: 0.2rem 0 0.8rem; }
+.detail-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.2rem; } .detail-cols h4 { margin: 0 0 0.4rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.bullets { margin: 0; padding-left: 1.05rem; display: grid; gap: 0.2rem; font-size: 0.9rem; } .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; }
+.chip-live { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); border-color: transparent; }
+.funnel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.15rem; box-shadow: var(--shadow-1); margin-bottom: 1.2rem; }
+.funnel-bar { display: flex; gap: 3px; height: 16px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.seg { min-width: 6px; } .seg-good { background: var(--good); } .seg-bad { background: #d6455d; } .seg-warn { background: #e39a1c; } .seg-info { background: var(--brand); } .seg-muted { background: var(--faint); }
+.funnel-legend { list-style: none; margin: 0.9rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.45rem 1rem; }
+.funnel-legend li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; } .funnel-legend strong { margin-left: auto; } .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.activity { list-style: none; margin: 0.5rem 0 1.5rem; padding: 0 0 0 0.4rem; display: grid; gap: 0.7rem; border-left: 2px solid var(--border); }
+.activity li { display: flex; gap: 0.7rem; align-items: flex-start; position: relative; } .activity-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); margin-top: 0.4rem; margin-left: -0.62rem; flex: none; box-shadow: 0 0 0 3px var(--bg); }
+@media (max-width: 760px) {
+  .stepper { grid-template-columns: 1fr; gap: 0.4rem; }
+  .step::before { display: none; }
+  .step > button { grid-template-columns: auto 1fr; justify-items: start; text-align: left; align-items: center; column-gap: 0.75rem; padding: 0.5rem; }
+  .step-dot { grid-row: 1 / span 3; width: 38px; height: 38px; } .step-state { justify-self: start; }
+}

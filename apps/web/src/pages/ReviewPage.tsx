@@ -118,7 +118,7 @@ export function ReviewPage() {
           ) : null}
           {pack.reopenAvailable ? (
             <form onSubmit={(event) => void reopen(event)} data-testid="reopen-form">
-              <h4>Reopen for corrected documents</h4>
+              <h4>{pack.reviewOpen ? 'Reopen for corrected documents' : 'Reopen this closed case'}</h4>
               <p className="muted small">Creates a new version of this case ({pack.caseRunId}-V{pack.submissionVersion + 1}), closes this one, and asks the customer for their documents again in the chat. No separate form for the customer.</p>
               <Field label="Note to the customer"><textarea rows={3} value={reopenNote} onChange={(event) => setReopenNote(event.target.value)} required maxLength={10000} placeholder="e.g. Please send the renewed Trade License." /></Field>
               <button type="submit" disabled={busy || !name.trim()}>{busy ? 'Reopening…' : 'Reopen case'}</button>

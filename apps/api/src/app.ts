@@ -200,7 +200,8 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
   // Customer chat: answer an open document request by attaching documents in the SAME conversation (no separate upload page, nothing to type).
   app.post('/api/chat/evidence', uploadLimit, async (request, reply) => {
     const session = sessionId(request, reply);
-    if ((await repository.getSession(session))?.step !== 'AWAITING_EVIDENCE') {
+    const waitingStep = (await repository.getSession(session))?.step;
+    if (waitingStep !== 'AWAITING_EVIDENCE' && waitingStep !== 'REOPEN_PROOF') {
       for await (const part of request.parts()) if (part.type === 'file') part.file.resume();
       throw new Error('NO_EVIDENCE_REQUEST_PENDING');
     }

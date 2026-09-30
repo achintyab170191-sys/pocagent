@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-30T09:06:01.249Z",
+  "generatedAt": "2026-09-30T09:37:21.849Z",
   "node": "v24.21.0",
   "totals": {
-    "steps": 43,
-    "verified": 40,
+    "steps": 47,
+    "verified": 44,
     "unverified": 0,
     "outOfScope": 3,
     "conformancePercentageOfInScopeSteps": 100
@@ -12,7 +12,7 @@
     {
       "name": "unit",
       "ran": true,
-      "passed": 374,
+      "passed": 387,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run",
@@ -271,6 +271,15 @@
       "reason": "ALL_CHECKS_PASSED",
       "tools": 3,
       "matches": true
+    },
+    {
+      "slug": "achintya-bluegum-vector",
+      "customer": "Achintya Rao / Bluegum Vector Demo Pty Ltd",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 3,
+      "matches": true
     }
   ],
   "unverifiedSteps": [],
@@ -318,7 +327,7 @@
       "module": "packages/workflows/src/chat.ts (NEW_LEAD) · intake.ts#openIntakeCase",
       "tests": [
         "tests/loa-process.test.ts › a company that is NOT on record becomes a new lead",
-        "tests/e2e/portal.spec.ts › a company that is not on record becomes a new lead"
+        "tests/e2e/portal.spec.ts › a company that is not on record is confirmed first and becomes a new lead with onboarding pending"
       ]
     },
     {
@@ -756,6 +765,53 @@
         "tests/catalog.test.ts › a chosen request that is not automated is captured and routed",
         "tests/catalog.test.ts › the operations overview counts captured requests per stage",
         "tests/e2e/portal.spec.ts › the Operations page shows the six stages"
+      ]
+    },
+    {
+      "id": "T10",
+      "lane": "Product owner request",
+      "step": "A name that is not a full name is asked for again (first and last name) before anything is created",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts#handleChatMessage",
+      "tests": [
+        "tests/loa-process.test.ts › a name that is not a full name is asked for again before anything is created"
+      ]
+    },
+    {
+      "id": "T11",
+      "lane": "Product owner request",
+      "step": "A company that is not on record is confirmed with the customer before the lead is created; a confirmed lead is recorded with onboarding status PENDING and the customer is told a representative will get back",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts#proceed · capture.ts#captureNewLead",
+      "tests": [
+        "tests/loa-process.test.ts › a company that is not on record is confirmed with the customer first; a correction continues the normal flow",
+        "tests/loa-process.test.ts › a confirmed lead is recorded with onboarding status PENDING, tells the customer a representative will get back, and never checks or approves",
+        "tests/e2e/portal.spec.ts › a company that is not on record is confirmed first and becomes a new lead with onboarding pending"
+      ]
+    },
+    {
+      "id": "T12",
+      "lane": "Product owner request",
+      "step": "A human can reopen a closed case; a closed, human-confirmed rejection is reopened by the customer only once they furnish documents",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/reopen.ts · chat.ts#findClosedRejection",
+      "tests": [
+        "tests/loa-process.test.ts › a human can reopen a closed (completed) rejected review from the dashboard",
+        "tests/loa-process.test.ts › a closed, human-confirmed rejection is reopened by the customer only once they furnish documents; before confirmation nothing is offered"
+      ]
+    },
+    {
+      "id": "T13",
+      "lane": "Product owner request",
+      "step": "The Operations page shows the operating-model stages as a stepper with the New LOA pipeline, new leads, captured requests and recent activity",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "apps/web/src/pages/OperationsPage.tsx · packages/workflows/src/operations.ts",
+      "tests": [
+        "tests/e2e/portal.spec.ts › the Operations page shows the six stages of the operating model with only profiling live"
       ]
     },
     {

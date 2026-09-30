@@ -83,6 +83,13 @@ const corePersonas: Persona[] = [
 ];
 
 /** The demo personas plus one per archived n8n scenario (scripts/import-n8n-registers.ts). */
-export const personas: Persona[] = [...corePersonas, ...n8nPersonas];
+/** Hand-written test persona on top of the retained n8n business Bluegum: valid documents, and an authority letter that covers every requested action. */
+const achintyaBluegum: Persona = {
+  slug: 'achintya-bluegum-vector', representativeName: 'Achintya Rao', businessName: 'Bluegum Vector Demo Pty Ltd',
+  story: 'Acts for Bluegum Vector under a full Power of Attorney. Try attaching only one document first (the request stays open and asks for the rest), then the full set: the checks run through to a decision.', expectedOutcome: 'APPROVE',
+  documents: [eid('784-1995-4455667-7', 'Achintya Rao'), licence('TL-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'Bluegum Vector Director', { issuingAuthority: 'Demo Registry (n8n data)', qrCode: 'QR-TL-N8N-1002' }), card('EC-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'TL-N8N-1002', ['Bluegum Vector Director']), poa('POA-DEMO-2101', 'Bluegum Vector Director', 'Achintya Rao', 'Bluegum Vector Demo Pty Ltd', FAR)],
+};
+
+export const personas: Persona[] = [...corePersonas, ...n8nPersonas, achintyaBluegum];
 
 export function documentText(document: SampleDocument): string { return renderDocumentText(document.type, document.fields); }

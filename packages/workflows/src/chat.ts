@@ -10,13 +10,14 @@
  * Evidence is documents only: anything typed while a document request is open is not evidence (the customer is told to attach the document).
  */
 import { type AgentRuntime } from '@sbo/agent-runtime';
-import { type ChatSessionState, type EvidenceRequest, type IntakeDetails, type RequestType, documentLabels, intakeDocumentTypes, matchRequestType, requestTypeById, requestTypes, stageById } from '@sbo/domain';
+import { type ChatSessionState, type EvidenceRequest, type IntakeDetails, type RequestType, businessNamesMatch, documentLabels, findKnownBusiness, intakeDocumentTypes, matchRequestType, requestTypeById, requestTypes, sameName, stageById } from '@sbo/domain';
 import { type Repository, now } from '@sbo/persistence';
 import { buildChatResponse, customerReason } from './chat-response.js';
 import { cancelEvidenceRequest, cancelWords, readEvidenceDocument, resolveEvidenceAndContinue, submitDocumentEvidence, type EvidenceContinuation } from './evidence.js';
-import { captureRequest } from './capture.js';
-import { documentRequestMessage, extractIntake, introMessage, looksLikeBareCompany, looksLikeBareName, openIntakeCase } from './intake.js';
-import { openEvidenceRequest, type AssessmentResult } from './super-agent.js';
+import { captureNewLead, captureRequest } from './capture.js';
+import { reopenCase } from './reopen.js';
+import { documentRequestMessage, extractIntake, introMessage, isFullName, looksLikeBareCompany, looksLikeBareName, openIntakeCase } from './intake.js';
+import { openEvidenceRequest, reopenedStatus, type AssessmentResult } from './super-agent.js';
 
 export interface ChatReply {
   sessionId: string;
@@ -88,6 +89,13 @@ async function requirePending(repository: Repository, sessionId: string): Promis
 
 /** The customer attached one or more documents. Files are stored and text-extracted by the API layer; every file is checked BEFORE anything is recorded. */
 export async function handleChatEvidenceUpload(deps: ChatDependencies, input: { sessionId: string; files: AttachedEvidence[] }): Promise<ChatReply> {
+  const waiting = await deps.repository.getSession(input.sessionId);
+  if (waiting?.step === 'REOPEN_PROOF') {
+    // A closed, human-confirmed rejection: the customer furnishes proof. Every file is checked first; only then is the case reopened as a new version.
+    if (input.files.length === 0) throw new Error('EVIDENCE_FILE_REQUIRED');
+    for (const file of input.files) readEvidenceDocument(file.extractedText);
+    await reopenCase(deps.repository, { caseRunId: waiting.caseRunId, reviewerName: 'Customer (chat)', comments: 'The customer furnished proof in the chat.', initiatedBy: 'CUSTOMER', sessionId: input.sessionId });
+  }
   const { request } = await requirePending(deps.repository, input.sessionId);
   if (input.files.length === 0) throw new Error('EVIDENCE_FILE_REQUIRED');
   for (const file of input.files) readEvidenceDocument(file.extractedText);
@@ -98,6 +106,8 @@ export async function handleChatEvidenceUpload(deps: ChatDependencies, input: { 
 /** What the conversation is waiting for right now (used when the page is opened or reloaded, e.g. after a reviewer reopened the case). */
 export async function describeChatState(repository: Repository, sessionId: string): Promise<ChatReply | undefined> {
   const current = await repository.getSession(sessionId);
+  if (current?.step === 'CONFIRM_LEAD') return { sessionId, step: 'INTAKE', messages: [confirmLeadMessage(current.intake.businessName)], caseRunId: '', syntheticDataDisclaimer: true };
+  if (current?.step === 'REOPEN_PROOF') return { sessionId, step: 'AWAITING_EVIDENCE', messages: [reopenPrompt(current.caseRunId)], caseRunId: current.caseRunId, evidenceRequest: proofRequestView(), syntheticDataDisclaimer: true };
   if (current?.step !== 'AWAITING_EVIDENCE') return undefined;
   const request = await repository.getEvidenceRequest(current.evidenceRequestId);
   if (!request) return undefined;
@@ -127,6 +137,34 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
     return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Typed text can't be used as evidence — I need the document itself.\n\n${evidencePrompt(request)}`], caseRunId: request.caseRunId, evidenceRequest: requestView(request), syntheticDataDisclaimer: true };
   }
 
+  // The customer is confirming (or correcting) the name of a company that is not on record, before a lead is created.
+  if (current?.step === 'CONFIRM_LEAD') {
+    const pending = current.intake;
+    const pendingType = requestTypeById(current.requestTypeId);
+    const pendingReply = pendingType ? { requestType: requestView2(pendingType) } : {};
+    if (cancelWords.includes(upper)) {
+      await repository.saveSession(session(sessionId, '', 'DONE'));
+      return { sessionId, step: 'DONE', messages: ['No problem — I have not created anything. Start again whenever you are ready.'], caseRunId: '', ...pendingReply, syntheticDataDisclaimer: true };
+    }
+    if (yesWords.test(message)) return createLead(deps, sessionId, pending, current.requestTypeId, pendingReply);
+    if (noWords.test(message)) {
+      await repository.saveSession(session(sessionId, '', 'INTAKE', '', { ...pending, businessName: '' }, current.requestTypeId));
+      return { sessionId, step: 'INTAKE', messages: ['Thanks for checking. What is the correct name of the company you represent?'], caseRunId: '', ...pendingReply, syntheticDataDisclaimer: true };
+    }
+    const corrected = extractIntake(message).businessName || looksLikeBareCompany(message);
+    if (corrected) return proceed(deps, sessionId, { ...pending, businessName: corrected }, pendingType, current.requestTypeId, pendingReply);
+    return { sessionId, step: 'INTAKE', messages: [confirmLeadMessage(pending.businessName)], caseRunId: '', ...pendingReply, syntheticDataDisclaimer: true };
+  }
+
+  // A closed rejection is open to the customer again once they furnish proof: only documents count, and "cancel" leaves it closed.
+  if (current?.step === 'REOPEN_PROOF') {
+    if (cancelWords.includes(upper)) {
+      await repository.saveSession(session(sessionId, current.caseRunId, 'DONE'));
+      return { sessionId, step: 'DONE', messages: [`Understood — case ${current.caseRunId} stays closed.`], caseRunId: current.caseRunId, syntheticDataDisclaimer: true };
+    }
+    return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Typed text can't be used as evidence — I need the document itself.\n\n${reopenPrompt(current.caseRunId)}`], caseRunId: current.caseRunId, evidenceRequest: proofRequestView(), syntheticDataDisclaimer: true };
+  }
+
   // What is the customer asking for? A catalog choice wins, then one carried in the conversation, then a keyword match on a message with no introduction in it.
   const previous = current?.step === 'INTAKE' ? current.intake : emptyIntake;
   const asked = matchRequestType(message);
@@ -140,32 +178,69 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
   // A request was named but nobody has introduced themselves yet: acknowledge it and ask who is asking.
   if (chosen && !introduced && (input.intent || current?.step !== 'INTAKE')) {
     await repository.saveSession(session(sessionId, '', 'INTAKE', '', emptyIntake, requestTypeId));
-    return { sessionId, step: 'INTAKE', messages: [`Happy to help with **${chosen.label}**.${chosen.automated ? '' : `\n\n${notAutomated(chosen)}`}\n\nFirst, please tell me **your name** and **the company you represent**.`], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
+    return { sessionId, step: 'INTAKE', messages: [`Happy to help with **${chosen.label}**.${chosen.automated ? '' : `\n\n${notAutomated(chosen)}`}\n\nFirst, please tell me **your full name** and **the company you represent**.`], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
   }
 
-  // Customer-first intake.
+  // Customer-first intake. A single-word name is asked for again as a full name; a bare reply then replaces it.
+  const nameIsPartial = Boolean(previous.representativeName) && !isFullName(previous.representativeName);
+  const bareName = looksLikeBareName(message);
+  const namesThem = !parsed.representativeName && nameIsPartial && Boolean(bareName) && !looksLikeCompany(message); // this reply completes the earlier partial name
   const details: IntakeDetails = {
-    representativeName: parsed.representativeName || previous.representativeName || (previous.businessName && !parsed.businessName ? looksLikeBareName(message) : !previous.representativeName && current?.step === 'INTAKE' && !parsed.businessName && !looksLikeCompany(message) ? looksLikeBareName(message) : ''),
-    businessName: parsed.businessName || previous.businessName || (previous.representativeName && !parsed.representativeName ? looksLikeBareCompany(message) : !previous.businessName && current?.step === 'INTAKE' && !parsed.representativeName && looksLikeCompany(message) ? looksLikeBareCompany(message) : ''),
+    representativeName: parsed.representativeName || (namesThem ? bareName : '') || previous.representativeName || (previous.businessName && !parsed.businessName ? bareName : !previous.representativeName && current?.step === 'INTAKE' && !parsed.businessName && !looksLikeCompany(message) ? bareName : ''),
+    businessName: parsed.businessName || previous.businessName || (previous.representativeName && !parsed.representativeName && !namesThem ? looksLikeBareCompany(message) : !previous.businessName && current?.step === 'INTAKE' && !parsed.representativeName && looksLikeCompany(message) ? looksLikeBareCompany(message) : ''),
     businessIdentifier: '',
   };
   if (current?.step !== 'INTAKE' && !introduced) {
     await repository.saveSession(session(sessionId, current?.caseRunId ?? '', 'IDLE'));
     return { sessionId, step: 'IDLE', messages: [introMessage], caseRunId: current?.caseRunId ?? '', syntheticDataDisclaimer: true };
   }
-  if (!details.representativeName || !details.businessName) {
+  if (!details.representativeName || !isFullName(details.representativeName) || !details.businessName) {
     await repository.saveSession(session(sessionId, '', 'INTAKE', '', details, requestTypeId));
+    const noted = details.businessName ? `I'll note that you represent ${details.businessName}. ` : '';
     const ask = !details.representativeName
-      ? `${details.businessName ? `Thanks — I'll note that you represent ${details.businessName}. ` : ''}What is your full name?`
-      : `Thanks ${details.representativeName}. Which company are you representing?`;
+      ? `${noted}What is your full name?`
+      : !isFullName(details.representativeName)
+        ? `Thanks ${details.representativeName}. ${noted}Could you give me your **full name** — first and last name, as it appears on your Emirates ID?`
+        : `Thanks ${details.representativeName}. Which company are you representing?`;
     return { sessionId, step: 'INTAKE', messages: [ask], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
+  }
+  return proceed(deps, sessionId, details, chosen, requestTypeId, requestReply);
+}
+
+const yesWords = /^\s*(?:yes|y|yeah|yep|yup|sure|ok|okay|correct|confirm|confirmed|right|that(?:'s| is) (?:right|correct)|go ahead|please do)\b/i;
+const noWords = /^\s*(?:no|n|nope|nah|wrong|incorrect|not (?:right|correct))\b/i;
+const confirmLeadMessage = (businessName: string): string => `I couldn't find **${businessName}** in our records.\n\nBefore I register it as a new business lead, please confirm the company name is right. Reply **yes** to confirm, or type the correct company name.`;
+const reopenPrompt = (caseRunId: string): string => `Please attach the proof that resolves it — your ${intakeDocumentTypes.map((type) => documentLabels[type]).join(', ')}, plus any authority document that applies (PDF, Word or image files). I'll reopen ${caseRunId} as a new version for reassessment. To leave it closed, choose "Cancel request".`;
+const proofRequestView = (): NonNullable<ChatReply['evidenceRequest']> => ({ evidenceRequestId: '', evidenceChannel: 'CHAT', requestedItems: intakeDocumentTypes.map((type) => documentLabels[type]), status: 'OPEN', attemptCount: 0, maxAttempts: 3 });
+
+/** The latest version of the customer's earlier case, when a human already confirmed and closed its rejection. */
+async function findClosedRejection(repository: Repository, representativeName: string, businessName: string): Promise<{ caseRunId: string; reasonCode: string } | undefined> {
+  const matching = (await repository.listCases()).filter((entry) => entry.requestType !== 'NEW_LEAD' && sameName(entry.representativeName, representativeName) && businessNamesMatch(entry.businessName, businessName));
+  const latest = matching.sort((left, right) => right.submissionVersion - left.submissionVersion)[0];
+  if (!latest) return undefined;
+  const [decision, runtime] = await Promise.all([repository.getDecision(latest.caseRunId), repository.getRuntimeCase(latest.caseRunId)]);
+  if (decision?.outcome !== 'REJECT' || decision.humanReviewRequired || runtime?.status === reopenedStatus) return undefined;
+  return { caseRunId: latest.caseRunId, reasonCode: decision.primaryReasonCode };
+}
+
+/** Full name and company are known. A company that is not on record asks for confirmation before a lead is created; a closed rejection offers a reopen. */
+async function proceed(deps: ChatDependencies, sessionId: string, details: IntakeDetails, chosen: RequestType | undefined, requestTypeId: string, requestReply: { requestType?: NonNullable<ChatReply['requestType']> }): Promise<ChatReply> {
+  const { repository } = deps;
+  const known = findKnownBusiness(details.businessName);
+  if (!known) {
+    await repository.saveSession(session(sessionId, '', 'CONFIRM_LEAD', '', details, requestTypeId));
+    return { sessionId, step: 'INTAKE', messages: [confirmLeadMessage(details.businessName)], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
+  }
+  if (!chosen || chosen.automated) {
+    const closed = await findClosedRejection(repository, details.representativeName, known.businessName);
+    if (closed) {
+      await repository.saveSession(session(sessionId, closed.caseRunId, 'REOPEN_PROOF', '', emptyIntake, requestTypeId));
+      const why = customerReason(closed.reasonCode);
+      return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Welcome back ${details.representativeName}. Your earlier request **${closed.caseRunId}** for **${known.businessName}** was reviewed and closed without approval.${why ? `\n\n${why}` : ''}\n\n${reopenPrompt(closed.caseRunId)}`], caseRunId: closed.caseRunId, evidenceRequest: proofRequestView(), ...requestReply, syntheticDataDisclaimer: true };
+    }
   }
   const opened = await openIntakeCase(repository, details, requestTypeId);
   const { caseRecord } = opened;
-  if (opened.kind === 'NEW_LEAD') {
-    await repository.saveSession(session(sessionId, caseRecord.caseRunId, 'DONE'));
-    return { sessionId, step: 'DONE', messages: [`Thanks ${caseRecord.representativeName}. I couldn't find **${caseRecord.businessName}** in our records, so I've created **new lead case ${caseRecord.caseRunId}** for it.\n\nNo checks have been run and nothing has been approved: your details are unverified. A specialist will follow up to onboard the business before any request can be handled.\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*`], caseRunId: caseRecord.caseRunId, ...requestReply, syntheticDataDisclaimer: true };
-  }
   // A request type that is not automated yet: capture it and route it to the stage that owns it.
   if (chosen && !chosen.automated) {
     const routed = await captureRequest(repository, caseRecord, chosen, sessionId);
@@ -175,4 +250,12 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
   const request = await openEvidenceRequest(repository, { caseRunId: caseRecord.caseRunId, submissionVersion: caseRecord.submissionVersion, sessionId, originatingCheckType: 'DOCUMENT_INTAKE', reasonCode: 'DOCUMENTS_REQUIRED', requestedItems: intakeDocumentTypes.map((type) => documentLabels[type]), previousState: 'CASE_OPENED', message: documentRequestMessage(caseRecord.representativeName, caseRecord.businessName) });
   await repository.saveSession(session(sessionId, caseRecord.caseRunId, 'AWAITING_EVIDENCE', request.evidenceRequestId, emptyIntake, requestTypeId));
   return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`I've opened case **${caseRecord.caseRunId}**.\n\n${evidencePrompt(request)}`], caseRunId: caseRecord.caseRunId, evidenceRequest: requestView(request), ...requestReply, syntheticDataDisclaimer: true };
+}
+
+/** The customer confirmed the company name: record the lead with onboarding status PENDING and tell them a representative will get back. */
+async function createLead(deps: ChatDependencies, sessionId: string, details: IntakeDetails, requestTypeId: string, requestReply: { requestType?: NonNullable<ChatReply['requestType']> }): Promise<ChatReply> {
+  const { caseRecord } = await openIntakeCase(deps.repository, details, requestTypeId);
+  await captureNewLead(deps.repository, caseRecord, sessionId);
+  await deps.repository.saveSession(session(sessionId, caseRecord.caseRunId, 'DONE'));
+  return { sessionId, step: 'DONE', messages: [`Thanks ${caseRecord.representativeName}. I've registered **${caseRecord.businessName}** as **new lead case ${caseRecord.caseRunId}**.\n\nA representative from our onboarding team will get back to you to onboard the business. **Onboarding status: Pending.**\n\nNo checks have been run and nothing has been approved: your details stay unverified until onboarding is complete.\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*`], caseRunId: caseRecord.caseRunId, ...requestReply, syntheticDataDisclaimer: true };
 }

@@ -73,9 +73,11 @@ describe('starting a request in the chat', () => {
   it('a company that is not on record is a new lead whatever was requested', async () => {
     const store = newStore();
     await handleChatMessage(deps(store), { sessionId: 's', message: 'I want to port our numbers', intent: 'MNP' });
-    const reply = await handleChatMessage(deps(store), { sessionId: 's', message: 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd' });
+    await handleChatMessage(deps(store), { sessionId: 's', message: 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd' });
+    const reply = await handleChatMessage(deps(store), { sessionId: 's', message: 'yes' });
     expect(reply.messages[0]).toContain('new lead case');
-    expect(await store.getRuntimeCase(reply.caseRunId)).toBeUndefined();
+    expect(await store.getRuntimeCase(reply.caseRunId)).toMatchObject({ status: 'ONBOARDING_PENDING', requestType: 'NEW_LEAD' }); // never a captured/assessed request
+    expect(await store.getDecision(reply.caseRunId)).toBeUndefined();
   });
 
   it('the operations overview counts captured requests per stage, leads and LOA cases', async () => {
@@ -83,11 +85,14 @@ describe('starting a request in the chat', () => {
     await handleChatMessage(deps(store), { sessionId: 'a', message: 'My name is Fatima Al Mansoori and I represent Al Noor Trading LLC', intent: 'MNP' });
     await handleChatMessage(deps(store), { sessionId: 'b', message: 'My name is Omar Haddad and I represent Gulf Horizon Contracting LLC', intent: 'CHANGE_PLAN' });
     await handleChatMessage(deps(store), { sessionId: 'c', message: 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd' });
+    await handleChatMessage(deps(store), { sessionId: 'c', message: 'yes' });
     await handleChatMessage(deps(store), { sessionId: 'd', message: 'My name is Noura Al Falasi and I represent Marina Bay Catering LLC' });
     const overview = await getOperationsOverview(store);
     expect(overview).toMatchObject({ newLeads: 1, loaCases: 1, automatedRequestTypes: ['NEW_LOA'] });
     expect(overview.captured.map((row) => [row.requestTypeId, row.stage, row.queue])).toEqual([['CHANGE_PLAN', 'PROCESSING', 'PROCESSING_ORDERS'], ['MNP', 'VERIFIER', 'VERIFIER_OPERATIONS']]);
+    expect(overview.leads.map((lead) => [lead.businessName, lead.onboardingStatus])).toEqual([['Acme Imaginary Holdings Ltd', 'PENDING']]);
+    expect(overview.pipeline.find((step) => step.key === 'DOCUMENTS')?.count).toBe(1); // Noura is waiting to attach documents
     expect(overview.stages.find((stage) => stage.id === 'VERIFIER')?.captured).toBe(1);
-    expect(overview.stages.find((stage) => stage.id === 'PROFILING')?.assessed).toBe(1);
+    expect(overview.stages.find((stage) => stage.id === 'PROFILING')?.assessed).toBe(2); // one LOA case + one lead
   });
 });

@@ -77,6 +77,9 @@ export function extractIntake(text: string): Partial<IntakeDetails> {
   return result;
 }
 
+/** A full name has at least a first and a last name (the chatbot asks again for a single word). */
+export const isFullName = (name: string): boolean => name.trim().split(/\s+/).filter(Boolean).length >= 2;
+
 /** A bare reply to "What is your full name?" — a short run of name-like words and nothing else. */
 export function looksLikeBareName(text: string): string {
   const trimmed = text.trim().replace(/[.!]+$/u, '');
