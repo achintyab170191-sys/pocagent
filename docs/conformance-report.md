@@ -1,6 +1,6 @@
 # Conformance report
 
-Generated 2026-09-30T09:49:52.657Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
+Generated 2026-09-30T10:23:27.102Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
 The behaviour under test is the **To-Be New LOA process** (docs/09), not the earlier n8n export.
 
 ## Result
@@ -19,7 +19,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 389 | 0 | 0 |
+| unit | `npx vitest run` | 396 | 0 | 0 |
 | integration | `npx vitest run --config vitest.integration.config.ts` | 19 | 0 | 0 |
 | e2e | `npx playwright test` | 34 | 0 | 0 |
 
@@ -53,7 +53,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 | Sophie Williams / Aoraki Lantern Demo Limited | MANUAL_REVIEW | MANUAL_REVIEW | DOCUMENT_SECURITY_REVIEW | 1 | yes |
 | Jack Morgan / Red Earth Demo Logistics Pty Ltd | MANUAL_REVIEW | MANUAL_REVIEW | AVCV_UNVERIFIED | 3 | yes |
 | Emma Wilson / Wattle Ridge Demo Networks Pty Ltd | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
-| Achintya Rao / Bluegum Vector Demo Pty Ltd | APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
+| Achintya Bundelkhandi / Bluegum Vector Demo Pty Ltd | APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
 
 ## Out of scope
 
