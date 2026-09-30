@@ -169,6 +169,8 @@ export const IntakeDetailsSchema = z.object({
   representativeName: z.string().max(120).default(''),
   businessName: z.string().max(160).default(''),
   businessIdentifier: z.string().max(60).default(''),
+  /** Registered companies the customer may have meant (joined by |), while the chatbot waits for confirmation. */
+  suggestedBusiness: z.string().max(600).optional(),
 });
 export type IntakeDetails = z.infer<typeof IntakeDetailsSchema>;
 
@@ -180,7 +182,7 @@ export type IntakeDetails = z.infer<typeof IntakeDetailsSchema>;
 export const ChatSessionStateSchema = z.object({
   sessionId: z.string(),
   caseRunId: z.string(),
-  step: z.enum(['IDLE', 'INTAKE', 'CONFIRM_LEAD', 'REOPEN_PROOF', 'AWAITING_EVIDENCE', 'DONE']),
+  step: z.enum(['IDLE', 'INTAKE', 'CONFIRM_COMPANY', 'CONFIRM_LEAD', 'REOPEN_PROOF', 'AWAITING_EVIDENCE', 'DONE']),
   evidenceRequestId: z.string().default(''),
   /** The request type the customer chose or the bot recognised (catalog id); empty = New LOA by default. */
   requestTypeId: z.string().default(''),

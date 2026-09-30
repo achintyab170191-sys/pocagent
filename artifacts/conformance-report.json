@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-30T09:37:21.849Z",
+  "generatedAt": "2026-09-30T09:49:52.657Z",
   "node": "v24.21.0",
   "totals": {
-    "steps": 47,
-    "verified": 44,
+    "steps": 48,
+    "verified": 45,
     "unverified": 0,
     "outOfScope": 3,
     "conformancePercentageOfInScopeSteps": 100
@@ -12,7 +12,7 @@
     {
       "name": "unit",
       "ran": true,
-      "passed": 387,
+      "passed": 389,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run",
@@ -30,7 +30,7 @@
     {
       "name": "e2e",
       "ran": true,
-      "passed": 33,
+      "passed": 34,
       "failed": 0,
       "skipped": 0,
       "command": "npx playwright test",
@@ -812,6 +812,19 @@
       "module": "apps/web/src/pages/OperationsPage.tsx · packages/workflows/src/operations.ts",
       "tests": [
         "tests/e2e/portal.spec.ts › the Operations page shows the six stages of the operating model with only profiling live"
+      ]
+    },
+    {
+      "id": "T14",
+      "lane": "Product owner request",
+      "step": "When only the key word (or a near miss) of a registered company name is typed, the chatbot asks \"Did you mean …?\" before creating anything",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#suggestKnownBusinesses · chat.ts#proceed",
+      "tests": [
+        "tests/loa-process.test.ts › only the key word (or a near miss) of a registered company asks \"Did you mean …?\" before anything is created",
+        "tests/loa-process.test.ts › several close matches are listed and nothing is picked for the customer",
+        "tests/e2e/portal.spec.ts › only the key word of a company asks \"Did you mean …?\" once (the page polling never repeats it), and yes continues with that company"
       ]
     },
     {

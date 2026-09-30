@@ -59,6 +59,18 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await expect(page.getByRole('note')).toContainText('Synthetic data');
   });
 
+  test('only the key word of a company asks "Did you mean …?" once (the page polling never repeats it), and yes continues with that company', async ({ page }) => {
+    await page.goto('/');
+    await say(page, 'My name is Achintya Rao and I represent Bluegum');
+    const log = page.getByTestId('chat-log');
+    await expect(log).toContainText('Did you mean Bluegum Vector Demo Pty Ltd?');
+    await page.waitForTimeout(6500); // longer than the 5 s server poll
+    await expect(log.getByText(/Did you mean/)).toHaveCount(1);
+    await say(page, 'yes');
+    await expect(log).toContainText(/opened case\s+AUTH-1\d\d/);
+    await expect(log).toContainText('Bluegum Vector Demo Pty Ltd');
+  });
+
   test('a company that is not on record is confirmed first and becomes a new lead with onboarding pending', async ({ page }) => {
     await page.goto('/');
     await say(page, 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd.');
