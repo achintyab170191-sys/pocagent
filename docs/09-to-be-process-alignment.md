@@ -153,3 +153,7 @@ Where it runs: when a document arrives (the evidence request stays open with the
 | Mariam @ Dune Ridge | another company's licence and a card for a different licence, then the right licence |
 | Adel @ Coral Reef | proof of address: wrong kind, twenty months old, then a recent utility bill |
 | Fatima @ Al Noor (injected card) | a card containing "ignore all previous instructions…" goes to a security specialist |
+
+### Demo personas: documents to test insufficient evidence
+
+Every demo persona whose journey reaches the authority check has its authority document in the customer-supplied letter layout, and the demo panel labels each file. **Liam @ Bluegum** carries the two real n8n AUTH-003 letters (V1 insufficient, V2 corrected); **Marcus @ Harbour Quartz** carries the n8n AUTH-008 V1 (discuss the account only: insufficient) and V2 (explicit); **Hessa** has an expired letter and a current one; the others (Omar, Ahmed, Emma, Noah, Aroha, Jack, Achintya, and Hana who has no letter at first) have a *day-to-day enquiries only* test letter (not in the n8n data) next to their accepted one. Attach the insufficient file when the chat asks for the authority document, read the reason, then attach the corrected one.

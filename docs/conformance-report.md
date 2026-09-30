@@ -1,17 +1,17 @@
 # Conformance report
 
-Generated 2026-09-30T11:59:44.796Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
+Generated 2026-09-30T12:22:01.963Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
 The behaviour under test is the **To-Be New LOA process** (docs/09), not the earlier n8n export.
 
 ## Result
 
 | Measure | Value |
 | --- | ---: |
-| Process steps mapped (docs/05) | 53 |
-| Steps **verified** (implemented + every referenced test passed) | 50 |
+| Process steps mapped (docs/05) | 54 |
+| Steps **verified** (implemented + every referenced test passed) | 51 |
 | Steps out of scope (in the diagrams, not built) | 3 |
 | Steps unverified | 0 |
-| **Conformance of in-scope steps** | **100%** (50/50) |
+| **Conformance of in-scope steps** | **100%** (51/51) |
 
 "Verified" means a mapped implementation exists and every test title referenced in `docs/05` matched at least one passing test in this run. Steps marked SIMULATED run against a synthetic stand-in for an external system; they prove the process logic, not a real integration.
 
@@ -19,9 +19,9 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 438 | 0 | 0 |
+| unit | `npx vitest run` | 452 | 0 | 0 |
 | integration | `npx vitest run --config vitest.integration.config.ts` | 19 | 0 | 0 |
-| e2e | `npx playwright test` | 37 | 0 | 0 |
+| e2e | `npx playwright test` | 38 | 0 | 0 |
 
 ## Demo personas (replayed through the chat with their sample documents)
 

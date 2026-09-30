@@ -2,7 +2,8 @@
  * Demo personas and their synthetic sample documents. The documents are what a customer would upload in the chat; several deliberately
  * disagree with the registers (expired licence, wrong name on the Emirates ID ...) so every branch of the To-Be process can be tried.
  */
-import { type DocumentFields, type DocumentType } from './loa.js';
+import { type DocumentFields, type DocumentType, classifyDocument } from './loa.js';
+import { authorityLetterText, enquiriesOnly, explicitClauses, shiftDays, bluegumLetterV1Text } from './loa-documents-builders.js';
 import { n8nPersonas } from './n8n-registers.js';
 
 const HEADINGS: Record<DocumentType, string> = {
@@ -30,17 +31,25 @@ export function renderDocumentText(type: DocumentType, fields: DocumentFields): 
   return lines.join('\n');
 }
 
-export interface SampleDocument { type: DocumentType; fileName: string; fields: DocumentFields; }
-/** A ready-made file that is not generated from the persona's fields (for example a real-format authority letter), listed with the persona's sample documents. */
-export interface StaticSampleDocument { type: DocumentType; fileName: string; note: string; }
+export interface SampleDocument {
+  type: DocumentType; fileName: string; fields: DocumentFields;
+  /** The document text, when it is not rendered from the fields (a realistic-format letter). */
+  text?: string;
+  /** How the file is shown in the demo panel (for example "Authority letter V1 - insufficient"). */
+  note?: string;
+  /** The PDF already exists in the persona's sample folder (a customer-supplied file): the sample generator leaves it alone. */
+  existing?: boolean;
+}
+/** An extra sample file listed with the persona: a document to test insufficient evidence with, or the corrected one. */
+export interface PersonaVariant { type: DocumentType; fileName: string; note: string; kind: 'INSUFFICIENT' | 'CORRECTED' | 'OTHER'; text?: string; existing?: boolean; }
 export interface Persona {
   slug: string; representativeName: string; businessName: string;
   /** What this persona demonstrates. */
   story: string;
   expectedOutcome: 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW' | 'NEED_MORE_INFORMATION' | 'NEED_MORE_INFORMATION_THEN_APPROVE';
   documents: SampleDocument[];
-  /** Extra ready-made files (not read by the replay): shown next to the sample documents. */
-  staticDocuments?: StaticSampleDocument[];
+  /** Extra files (not part of the replay): an insufficient document to test insufficient evidence with, and the corrected one. */
+  variants?: PersonaVariant[];
 }
 
 const FAR = '2099-12-31';
@@ -87,18 +96,80 @@ const corePersonas: Persona[] = [
 ];
 
 /** The demo personas plus one per archived n8n scenario (scripts/import-n8n-registers.ts). */
+
+// ------------------------------------------------------------------------------------------------------------------
+// Authority letters in the realistic layout (banner, "Label value" lines, prose clauses, signature) for every persona that needs one,
+// plus, for each persona that reaches the authority check, a document to test INSUFFICIENT evidence with and the corrected one.
+// ------------------------------------------------------------------------------------------------------------------
+
+const letterDocument = (o: { fileName?: string; company: string; rep: string; role?: string; signer: string; title?: string; issued: string; validUntil?: string; body: string[]; caseReference?: string; ref: string; revised?: boolean; note?: string; existing?: boolean }): SampleDocument => {
+  const text = authorityLetterText({ company: o.company, rep: o.rep, role: o.role ?? 'Authorised representative', signer: o.signer, signerTitle: o.title ?? 'Demo Director', issued: o.issued, validUntil: o.validUntil, body: o.body, caseReference: o.caseReference, ref: o.ref, revised: o.revised });
+  return { type: 'POA_MOA', fileName: o.fileName ?? 'authority-letter.pdf', fields: classifyDocument(text)?.fields ?? {}, text, note: o.note, existing: o.existing };
+};
+const yearsBefore = (date: string, years: number): string => `${Number(date.slice(0, 4)) - years}${date.slice(4)}`;
+const text = (value: string | string[] | undefined): string => (Array.isArray(value) ? value[0] : value) ?? '';
+
+/** The persona's generated Power of Attorney rewritten as an authority letter in the customer-supplied layout. */
+function letterize(persona: Persona): Persona {
+  const documents = persona.documents.map((entry) => {
+    if (entry.type !== 'POA_MOA' || entry.text) return entry;
+    const scope = text(entry.fields.scope); const validUntil = text(entry.fields.validUntil) || undefined;
+    const body = /;/.test(scope) && scope.length < 120 ? explicitClauses(persona.businessName, persona.representativeName) : [`${scope.replace(/\.$/, '')}.`];
+    const expired = validUntil !== undefined && Date.parse(validUntil) < Date.parse(shiftDays(0));
+    return letterDocument({ company: persona.businessName, rep: persona.representativeName, signer: text(entry.fields.grantor), issued: text(entry.fields.issueDate) || (validUntil ? yearsBefore(validUntil, validUntil.startsWith('2099') ? 1 : 2) : shiftDays(-30)), validUntil, body, caseReference: text(entry.fields.reference), ref: `SIGN-${(text(entry.fields.reference) || persona.slug).toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`, note: expired ? 'Authority letter - expired: insufficient evidence' : 'Authority letter - explicit clauses: accepted' });
+  });
+  return { ...persona, documents };
+}
+
+const owner = (persona: Persona): string => text(persona.documents.find((entry) => entry.type === 'TRADE_LICENSE')?.fields.licenseHolder);
+/** An authority letter that only covers day-to-day enquiries: the document to test insufficient evidence with. */
+const insufficientLetter = (persona: Persona): PersonaVariant => {
+  const built = letterDocument({ fileName: 'authority-letter-insufficient.pdf', company: persona.businessName, rep: persona.representativeName, signer: owner(persona), issued: shiftDays(-10), body: enquiriesOnly(persona.representativeName), ref: `SIGN-${persona.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-INS` });
+  return { type: 'POA_MOA', fileName: built.fileName, note: 'Authority letter - day-to-day enquiries only: insufficient evidence (test file)', kind: 'INSUFFICIENT', text: built.text };
+};
+const explicitLetter = (persona: Persona, fileName: string, note: string): PersonaVariant => {
+  const built = letterDocument({ fileName, company: persona.businessName, rep: persona.representativeName, signer: owner(persona), issued: shiftDays(-2), validUntil: shiftDays(730), body: explicitClauses(persona.businessName, persona.representativeName), revised: true, ref: `SIGN-${persona.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}-OK` });
+  return { type: 'POA_MOA', fileName, note, kind: 'CORRECTED', text: built.text };
+};
+
+/** Personas whose journey reaches the authority check (so an insufficient letter can be tested): they get an insufficient test letter. */
+const reachesAuthority = new Set(['omar-gulf-horizon', 'ahmed-gulf-horizon', 'n8n-emma-wilson-wattle-ridge', 'n8n-noah-patel-coral-grid', 'n8n-aroha-kingi-fernline-demo', 'n8n-jack-morgan-red-earth', 'achintya-bluegum-vector']);
+
+function withVariants(persona: Persona): Persona {
+  const base = letterize(persona);
+  const variants: PersonaVariant[] = [];
+  if (persona.slug === 'n8n-liam-chen-bluegum-vector') {
+    // The customer-supplied AUTH-003 letters: V1 is the persona's own authority document (insufficient), V2 the corrected one.
+    const documents = base.documents.map((entry) => entry.type === 'POA_MOA'
+      ? { type: 'POA_MOA' as const, fileName: 'authority-letter-v1.pdf', fields: classifyDocument(bluegumLetterV1Text)?.fields ?? {}, text: bluegumLetterV1Text, existing: true, note: 'Authority letter V1 (n8n AUTH-003) - day-to-day enquiries only: insufficient evidence' }
+      : entry);
+    return { ...base, documents, variants: [{ type: 'POA_MOA', fileName: 'authority-letter-v2.pdf', note: 'Authority letter V2 (n8n AUTH-003, revised) - explicit ordering, commitments, plan changes, signing: accepted', kind: 'CORRECTED', existing: true }] };
+  }
+  if (persona.slug === 'n8n-marcus-lee-harbour-quartz') {
+    const built = letterDocument({ fileName: 'authority-letter-v1.pdf', company: persona.businessName, rep: persona.representativeName, signer: owner(persona), issued: '2026-08-14', validUntil: '2028-08-14', body: [`${persona.representativeName} is authorised to discuss the account and receive service information from the telecommunications provider.`], caseReference: 'POA-N8N-AUTH-008-V1', ref: 'SIGN-AUTH-008-V1' });
+    variants.push({ type: 'POA_MOA', fileName: 'authority-letter-v1.pdf', note: 'Authority letter V1 (n8n AUTH-008-V1) - discuss the account only: insufficient evidence', kind: 'INSUFFICIENT', text: built.text });
+    return { ...base, documents: base.documents.map((entry) => entry.type === 'POA_MOA' ? { ...entry, note: 'Authority letter V2 (n8n AUTH-008-V2) - explicit clauses: accepted' } : entry), variants };
+  }
+  if (persona.slug === 'hessa-al-noor') {
+    variants.push(explicitLetter(base, 'authority-letter-current.pdf', 'Authority letter - current, signed by the owner, explicit clauses: accepted'));
+    variants[0]!.text = letterDocument({ fileName: 'authority-letter-current.pdf', company: base.businessName, rep: base.representativeName, signer: 'Fatima Al Mansoori', title: 'Owner and Managing Director', issued: shiftDays(-2), validUntil: shiftDays(730), body: explicitClauses(base.businessName, base.representativeName), revised: true, ref: 'SIGN-HESSA-OK' }).text;
+    return { ...base, variants };
+  }
+  if (persona.slug === 'n8n-hana-rangi-kauri-harbour') {
+    variants.push(insufficientLetter(base), explicitLetter(base, 'authority-letter.pdf', 'Authority letter - explicit clauses, signed by the owner: accepted'));
+    return { ...base, variants };
+  }
+  if (reachesAuthority.has(persona.slug)) variants.push(insufficientLetter(base));
+  return variants.length > 0 ? { ...base, variants } : base;
+}
+
 /** Hand-written test persona on top of the retained n8n business Bluegum: valid documents, and an authority letter that covers every requested action. */
 const achintyaBluegum: Persona = {
   slug: 'achintya-bluegum-vector', representativeName: 'Achintya Bundelkhandi', businessName: 'Bluegum Vector Demo Pty Ltd',
-  story: 'Acts for Bluegum Vector under a full Power of Attorney. Try attaching only one document first (the request stays open and asks for the rest), then the full set: the checks run through to a decision.', expectedOutcome: 'APPROVE',
+  story: 'Acts for Bluegum Vector under an explicit authority letter. Try attaching only one document first (the request stays open and asks for the rest), then the full set; the day-to-day-only letter tests insufficient evidence.', expectedOutcome: 'APPROVE',
   documents: [eid('784-1995-4455667-7', 'Achintya Bundelkhandi'), licence('TL-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'Olivia Martin', { issuingAuthority: 'Demo Registry (n8n data)', qrCode: 'QR-TL-N8N-1002' }), card('EC-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'TL-N8N-1002', ['Olivia Martin']), poa('POA-DEMO-2101', 'Olivia Martin', 'Achintya Bundelkhandi', 'Bluegum Vector Demo Pty Ltd', FAR)],
 };
 
-/** The two real-format authority letters of the n8n AUTH-003 case: V1 is insufficient (day-to-day only), V2 explicitly grants the requested authority. */
-const liamLetters: StaticSampleDocument[] = [
-  { type: 'POA_MOA', fileName: 'authority-letter-v1.pdf', note: 'V1 - covers day-to-day enquiries only: insufficient evidence, the assistant asks for a revised letter' },
-  { type: 'POA_MOA', fileName: 'authority-letter-v2.pdf', note: 'V2 - explicitly authorises ordering, plan changes, commitments and signing: accepted' },
-];
-export const personas: Persona[] = [...corePersonas, ...n8nPersonas.map((persona) => persona.slug === 'n8n-liam-chen-bluegum-vector' ? { ...persona, staticDocuments: liamLetters } : persona), achintyaBluegum];
+export const personas: Persona[] = [...corePersonas, ...n8nPersonas, achintyaBluegum].map(withVariants);
 
-export function documentText(document: SampleDocument): string { return renderDocumentText(document.type, document.fields); }
+export function documentText(document: SampleDocument): string { return document.text ?? renderDocumentText(document.type, document.fields); }

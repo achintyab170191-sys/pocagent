@@ -98,12 +98,21 @@ export function looksLikeBareCompany(text: string): string {
 // Opening the case
 // ------------------------------------------------------------------------------------------------------------------
 
-export interface ScenarioSummary { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: Array<{ type: string; fileName: string; path: string }>; }
+export interface ScenarioDocument { type: string; fileName: string; path: string; /** How the file is labelled in the demo panel (for example "Authority letter V1 - insufficient"). */ note?: string; kind?: 'INSUFFICIENT' | 'CORRECTED' | 'OTHER'; }
+export interface ScenarioSummary { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: ScenarioDocument[]; }
 /** Demo aid: the synthetic personas a tester can introduce themselves as, with links to their sample documents. */
 export function listScenarios(): ScenarioSummary[] {
-  return personas.map((persona) => ({ slug: persona.slug, representativeName: persona.representativeName, businessName: persona.businessName, story: persona.story, expectedOutcome: persona.expectedOutcome, documents: [...persona.documents.map((document) => ({ type: document.type, fileName: document.fileName, path: `/samples/${persona.slug}/${document.fileName}` })), ...(persona.staticDocuments ?? []).map((document) => ({ type: document.type, fileName: document.fileName, path: `/samples/${persona.slug}/${document.fileName}` }))] }));
+  const order = ['EMIRATES_ID', 'TRADE_LICENSE', 'ESTABLISHMENT_CARD', 'POA_MOA', 'ADDRESS_PROOF'];
+  const weakFirst = (document: ScenarioDocument): number => (/insufficient|expired/i.test(document.note ?? '') ? 0 : 1);
+  return personas.map((persona) => {
+    const link = (fileName: string): string => `/samples/${persona.slug}/${fileName}`;
+    const documents: ScenarioDocument[] = [
+      ...persona.documents.map((document) => ({ type: document.type, fileName: document.fileName, path: link(document.fileName), note: document.note })),
+      ...(persona.variants ?? []).map((variant) => ({ type: variant.type, fileName: variant.fileName, path: link(variant.fileName), note: variant.note, kind: variant.kind })),
+    ].sort((left, right) => order.indexOf(left.type) - order.indexOf(right.type) || weakFirst(left) - weakFirst(right) || left.fileName.localeCompare(right.fileName));
+    return { slug: persona.slug, representativeName: persona.representativeName, businessName: persona.businessName, story: persona.story, expectedOutcome: persona.expectedOutcome, documents };
+  });
 }
-
 export type IntakeKind = 'KNOWN_BUSINESS' | 'NEW_LEAD';
 export interface OpenedCase { caseRecord: CaseRecord; kind: IntakeKind; }
 

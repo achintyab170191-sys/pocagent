@@ -12,7 +12,7 @@ interface ChatReply {
 }
 interface Turn { role: 'user' | 'agent'; text: string; attachments?: string[]; meta?: ChatReply; }
 interface Guided { slug: string; title: string; representativeName: string; businessName: string; story: string; files: Array<{ fileName: string; type: string; note: string; path: string }>; steps: Array<{ attach: string[]; expect: string }>; }
-interface Persona { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: Array<{ type: string; fileName: string; path: string }>; }
+interface Persona { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: Array<{ type: string; fileName: string; path: string; note?: string; kind?: 'INSUFFICIENT' | 'CORRECTED' | 'OTHER' }>; }
 interface CatalogRequest { id: string; label: string; stage: string; automated: boolean; query: string; }
 interface Category { id: string; title: string; description: string; icon: string; requests: string[]; }
 interface Catalog { stages: Array<{ id: string; name: string }>; categories: Category[]; requests: CatalogRequest[]; featuredQueries: Array<{ requestId: string; text: string }>; }
@@ -260,7 +260,7 @@ export function ChatPage() {
                 <li key={persona.slug} data-testid={`persona-${persona.slug}`}>
                   <div className="persona-head"><button type="button" className="chip" disabled={busy || awaitingEvidence} onClick={() => fillPersona(persona)}>{persona.representativeName} · {persona.businessName}</button> <Badge value={persona.expectedOutcome === 'NEED_MORE_INFORMATION_THEN_APPROVE' ? 'NEEDS A DOCUMENT, THEN APPROVE' : persona.expectedOutcome === 'REJECT' ? 'REJECTION RECOMMENDED' : persona.expectedOutcome} /></div>
                   <p className="muted small">{persona.story}</p>
-                  <p className="small">Sample documents: {persona.documents.map((document, index) => <span key={document.path}>{index > 0 ? ' · ' : ''}<a href={document.path} download>{documentNames[document.type] ?? document.type}</a></span>)}</p>
+                  <ul className="doc-links small" aria-label={`Sample documents for ${persona.representativeName}`}>{persona.documents.map((document) => { const weak = document.kind === 'INSUFFICIENT' || /insufficient|expired/i.test(document.note ?? ''); return <li key={document.path}><a href={document.path} download title={document.fileName}>{document.note ?? documentNames[document.type] ?? document.type}</a>{weak ? <span className="doc-tag doc-tag-weak">test insufficient evidence</span> : document.kind === 'CORRECTED' ? <span className="doc-tag doc-tag-ok">corrected</span> : null}</li>; })}</ul>
                 </li>
               ))}
             </ul>

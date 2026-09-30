@@ -248,7 +248,7 @@ describe('the five checks (To-Be process)', () => {
     expect(reply.outcome).toMatchObject({ governedOutcome: 'NEED_MORE_INFORMATION', primaryReasonCode: 'POA_MOA_MISSING' });
     const first = await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA']);
     expect(first).toMatchObject({ step: 'AWAITING_EVIDENCE', evidenceRequest: { status: 'INSUFFICIENT', attemptCount: 1, maxAttempts: 3 } });
-    expect(first.messages.join(' ')).toContain('The document expired on 2020-01-31.');
+    expect(first.messages.join(' ')).toContain('The letter expired on 2020-01-31.');
     expect((await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA'])).evidenceRequest).toMatchObject({ attemptCount: 2 });
     const third = await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA']);
     expect(third.step).toBe('DONE');
