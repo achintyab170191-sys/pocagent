@@ -1,17 +1,17 @@
 # Conformance report
 
-Generated 2026-09-30T10:23:27.102Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
+Generated 2026-09-30T11:59:44.796Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
 The behaviour under test is the **To-Be New LOA process** (docs/09), not the earlier n8n export.
 
 ## Result
 
 | Measure | Value |
 | --- | ---: |
-| Process steps mapped (docs/05) | 48 |
-| Steps **verified** (implemented + every referenced test passed) | 45 |
+| Process steps mapped (docs/05) | 53 |
+| Steps **verified** (implemented + every referenced test passed) | 50 |
 | Steps out of scope (in the diagrams, not built) | 3 |
 | Steps unverified | 0 |
-| **Conformance of in-scope steps** | **100%** (45/45) |
+| **Conformance of in-scope steps** | **100%** (50/50) |
 
 "Verified" means a mapped implementation exists and every test title referenced in `docs/05` matched at least one passing test in this run. Steps marked SIMULATED run against a synthetic stand-in for an external system; they prove the process logic, not a real integration.
 
@@ -19,9 +19,9 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 396 | 0 | 0 |
+| unit | `npx vitest run` | 438 | 0 | 0 |
 | integration | `npx vitest run --config vitest.integration.config.ts` | 19 | 0 | 0 |
-| e2e | `npx playwright test` | 34 | 0 | 0 |
+| e2e | `npx playwright test` | 37 | 0 | 0 |
 
 ## Demo personas (replayed through the chat with their sample documents)
 
@@ -31,7 +31,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 | Noura Al Falasi / Marina Bay Catering LLC | APPROVE | APPROVE | ALL_CHECKS_PASSED | 5 | yes |
 | Mariam Saeed / Dune Ridge Engineering LLC | APPROVE | APPROVE | ALL_CHECKS_PASSED | 5 | yes |
 | Omar Haddad / Gulf Horizon Contracting LLC | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
-| Hessa Al Ameri / Al Noor Trading LLC | REJECT | REJECT | POA_MOA_NOT_CLEARED | 1 | yes |
+| Hessa Al Ameri / Al Noor Trading LLC | NEED_MORE_INFORMATION | NEED_MORE_INFORMATION | DOCUMENT_INSUFFICIENT | 0 | yes |
 | Sara Khan / Desert Bloom Cafe LLC | REJECT | REJECT | TRADE_LICENSE_EXPIRED | 1 | yes |
 | Rashid Al Ketbi / Falcon Logistics LLC | REJECT | REJECT | IDENTITY_MISMATCH | 2 | yes |
 | Layla Nasser / Pearl Coast Real Estate LLC | REJECT | REJECT | BAD_DEBT_OBSERVED | 4 | yes |
@@ -44,7 +44,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 | Reem Al Hosani / Palm Grove Hospitality LLC | MANUAL_REVIEW | MANUAL_REVIEW | AVCV_UNVERIFIED | 5 | yes |
 | Adel Mansour / Coral Reef Diving LLC | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 1 | yes |
 | Hana Rangi / Kauri Harbour Demo Digital Limited | NEED_MORE_INFORMATION | NEED_MORE_INFORMATION | POA_MOA_MISSING | 3 | yes |
-| Liam Chen / Bluegum Vector Demo Pty Ltd | REJECT | REJECT | POA_MOA_NOT_CLEARED | 1 | yes |
+| Liam Chen / Bluegum Vector Demo Pty Ltd | NEED_MORE_INFORMATION | NEED_MORE_INFORMATION | DOCUMENT_INSUFFICIENT | 0 | yes |
 | Maia Thompson / Tui Peak Demo Services Limited | REJECT | REJECT | TRADE_LICENSE_INACTIVE | 1 | yes |
 | Noah Patel / Coral Grid Demo Solutions Pty Ltd | MANUAL_REVIEW | MANUAL_REVIEW | DUPLICATE_RECORD_CONFLICT | 2 | yes |
 | Aroha Kingi / Fernline Demo Mobility Limited | REJECT | REJECT | AVCV_ADVERSE | 3 | yes |

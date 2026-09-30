@@ -182,7 +182,7 @@ export type IntakeDetails = z.infer<typeof IntakeDetailsSchema>;
 export const ChatSessionStateSchema = z.object({
   sessionId: z.string(),
   caseRunId: z.string(),
-  step: z.enum(['IDLE', 'INTAKE', 'CONFIRM_COMPANY', 'CONFIRM_LEAD', 'REOPEN_PROOF', 'AWAITING_EVIDENCE', 'DONE']),
+  step: z.enum(['IDLE', 'INTAKE', 'CONFIRM_COMPANY', 'CONFIRM_LEAD', 'CONFIRM_REOPEN', 'REOPEN_PROOF', 'AWAITING_EVIDENCE', 'DONE']),
   evidenceRequestId: z.string().default(''),
   /** The request type the customer chose or the bot recognised (catalog id); empty = New LOA by default. */
   requestTypeId: z.string().default(''),
@@ -376,5 +376,8 @@ export function normalizeOutcome(value: string): GovernedOutcome {
 }
 
 export * from './loa.js';
+export * from './authority.js';
+export * from './document-review.js';
+export * from './loa-scenarios.js';
 export * from './loa-personas.js';
 export * from './catalog.js';

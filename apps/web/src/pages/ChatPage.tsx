@@ -11,6 +11,7 @@ interface ChatReply {
   evidenceRequest?: { evidenceRequestId: string; evidenceChannel: string; requestedItems: string[]; status: string; attemptCount: number; maxAttempts: number };
 }
 interface Turn { role: 'user' | 'agent'; text: string; attachments?: string[]; meta?: ChatReply; }
+interface Guided { slug: string; title: string; representativeName: string; businessName: string; story: string; files: Array<{ fileName: string; type: string; note: string; path: string }>; steps: Array<{ attach: string[]; expect: string }>; }
 interface Persona { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: Array<{ type: string; fileName: string; path: string }>; }
 interface CatalogRequest { id: string; label: string; stage: string; automated: boolean; query: string; }
 interface Category { id: string; title: string; description: string; icon: string; requests: string[]; }
@@ -33,6 +34,7 @@ export function ChatPage() {
   const [session, setSession] = useState('');
   const [step, setStep] = useState<Step>('IDLE');
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [guided, setGuided] = useState<Guided[]>([]);
   const [catalog, setCatalog] = useState<Catalog>();
   const [openCategory, setOpenCategory] = useState('');
   const [active, setActive] = useState<RequestInfo>();
@@ -61,7 +63,7 @@ export function ChatPage() {
   }
   useEffect(() => {
     void ensureSession().then((value) => setSession(value.sessionId));
-    void api<{ scenarios: Persona[] }>('/api/scenarios').then((body) => setPersonas(body.scenarios)).catch(() => undefined);
+    void api<{ scenarios: Persona[]; guided?: Guided[] }>('/api/scenarios').then((body) => { setPersonas(body.scenarios); setGuided(body.guided ?? []); }).catch(() => undefined);
     void api<Catalog>('/api/catalog').then(setCatalog).catch(() => undefined);
     if (!initialSync.current) { initialSync.current = true; void syncFromServer(true); }
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void syncFromServer(); }, 5000);
@@ -105,7 +107,7 @@ export function ChatPage() {
     } finally { setBusy(false); textbox.current?.focus(); }
   }
   function submit(event: FormEvent) { event.preventDefault(); void send(input, files); }
-  function fillPersona(persona: Persona) { setInput(`My name is ${persona.representativeName} and I represent ${persona.businessName}.`); textbox.current?.focus(); }
+  function fillPersona(persona: { representativeName: string; businessName: string }) { setInput(`My name is ${persona.representativeName} and I represent ${persona.businessName}.`); textbox.current?.focus(); }
   const choose = (entry: CatalogRequest) => void send(entry.query, [], entry.id);
   const byId = new Map((catalog?.requests ?? []).map((entry) => [entry.id, entry]));
   const canPick = !busy && !awaitingEvidence;
@@ -232,6 +234,24 @@ export function ChatPage() {
             ))}
           </div>
 
+          <details className="card demo" data-testid="guided-scenarios">
+            <summary>Guided scenarios: wrong documents, then corrected ones</summary>
+            <p className="muted small">Each scenario shows the assistant reading the documents, saying exactly what is wrong and asking again — a person is only involved when a document cannot be trusted. Introduce yourself as the customer, then attach the files listed for each step.</p>
+            <ul className="persona-list">
+              {guided.map((scenario) => (
+                <li key={scenario.slug} data-testid={`guided-${scenario.slug}`}>
+                  <div className="persona-head"><button type="button" className="chip" disabled={busy || awaitingEvidence} onClick={() => fillPersona(scenario)}>{scenario.representativeName} · {scenario.businessName}</button></div>
+                  <p className="small"><strong>{scenario.title}</strong></p>
+                  <p className="muted small">{scenario.story}</p>
+                  <ol className="small guided-steps">
+                    {scenario.steps.map((step, index) => (
+                      <li key={index}>Attach {step.attach.map((name, position) => { const file = scenario.files.find((entry) => entry.fileName === name); return <span key={name}>{position > 0 ? ', ' : ''}{file ? <a href={file.path} download title={file.note}>{name}</a> : name}</span>; })} → <span className="muted">{step.expect}</span></li>
+                    ))}
+                  </ol>
+                </li>
+              ))}
+            </ul>
+          </details>
           <details className="card demo">
             <summary>Demo: synthetic customers and sample documents</summary>
             <p className="muted small">Introduce yourself as one of these people, then attach their sample documents when asked. Any company not on this list is treated as a new lead and nothing is verified or approved.</p>

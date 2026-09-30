@@ -9,9 +9,10 @@
  *       INSUFFICIENT: the missing documents are named and the same request stays open; the third failed attempt goes to a human reviewer.
  */
 import { type AgentRuntime } from '@sbo/agent-runtime';
-import { type Evidence, type EvidenceRequest, type HumanReview, type DocumentType, SourceAuditEvents, classifyDocument, documentLabels, mandatoryCheckTypes, requiredDocumentTypes } from '@sbo/domain';
+import { type AuthorityExpectations, type CheckContext, type DocumentFields, type DocumentReviewContext, type Evidence, type EvidenceRequest, type HumanReview, type DocumentType, SourceAuditEvents, assessAuthorityDocument, authorityExpectations, classifyDocument, documentLabels, documentReviewContext, reviewDocument, mandatoryCheckTypes, requiredDocumentTypes } from '@sbo/domain';
 import { type Repository, now, uniqueMillis } from '@sbo/persistence';
 import { resumeAssessment, type AssessmentResult } from './super-agent.js';
+import { loadCaseDocuments } from './utilities.js';
 
 const uploadStatuses = new Set(['OPEN', 'PARTIALLY_RECEIVED', 'INSUFFICIENT']);
 const resolutionStatuses = new Set(['RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICIENT']);
@@ -80,17 +81,47 @@ export async function submitDocumentEvidence(repository: Repository, evidenceReq
 export interface EvidenceResolution { resolutionStatus: 'RESOLVED' | 'INSUFFICIENT'; supportedFacts: string[]; remainingGaps: string[]; }
 export interface MaterializedResolution { nextRequest: EvidenceRequest; retryAllowed: boolean; escalationRequired: boolean; resolution: EvidenceResolution; resolutionStatus: EvidenceResolution['resolutionStatus']; }
 
-export function assessDocuments(request: EvidenceRequest, evidence: Evidence[]): EvidenceResolution {
-  const present = new Set(evidence.map((record) => String(record.structuredData.document_type ?? record.evidenceType)));
-  const required = requiredDocumentTypes(request.originatingCheckType);
-  const missing = required.filter((type) => !present.has(type));
-  return {
-    resolutionStatus: missing.length === 0 ? 'RESOLVED' : 'INSUFFICIENT',
-    supportedFacts: required.filter((type) => present.has(type)).map((type) => `${documentLabels[type]} received.`),
-    remainingGaps: missing.map((type) => `${documentLabels[type]} is still needed.`),
-  };
+/** What each newly received document is read against (see @sbo/domain document-review and authority). */
+export interface ReviewExpectations { authority: AuthorityExpectations; documents: DocumentReviewContext; }
+
+/** The document types an evidence request needs: those it named (when they are document labels), otherwise those its originating check needs. */
+function requiredTypesOf(request: EvidenceRequest): DocumentType[] {
+  const named = request.requestedItems.map((item) => (Object.entries(documentLabels) as Array<[DocumentType, string]>).find(([, label]) => label === item)?.[0]);
+  return named.length > 0 && named.every(Boolean) ? (named as DocumentType[]) : requiredDocumentTypes(request.originatingCheckType);
 }
 
+/**
+ * Completeness of an evidence request: every document type it needs is present. Each newest document is also READ — an authority document
+ * clause by clause, the others for their required details and consistency with the request and the other documents — so a document that is
+ * the right type but not good enough stays "insufficient" with the specific gaps named (the customer uploads again; three failed attempts go
+ * to a human). Content that cannot be trusted (an embedded instruction, contradictory or limited authority) is not judged here: the check
+ * resumes and routes it to a human.
+ */
+export function assessDocuments(request: EvidenceRequest, evidence: Evidence[], expectations?: ReviewExpectations): EvidenceResolution {
+  const typeOf = (record: Evidence): string => String(record.structuredData.document_type ?? record.evidenceType);
+  const present = new Set(evidence.map(typeOf));
+  const required = requiredTypesOf(request);
+  const missing = required.filter((type) => !present.has(type));
+  const supportedFacts = required.filter((type) => present.has(type)).map((type) => `${documentLabels[type]} received.`);
+  const remainingGaps = missing.map((type) => `${documentLabels[type]} is still needed.`);
+  if (expectations) {
+    for (const type of required.filter((entry) => present.has(entry))) {
+      const newest = [...evidence].filter((record) => typeOf(record) === type).sort((left, right) => left.providedAt.localeCompare(right.providedAt)).at(-1);
+      if (!newest) continue;
+      const document = { text: newest.evidenceText, fields: (newest.structuredData.fields ?? {}) as DocumentFields };
+      if (type === 'POA_MOA') {
+        const assessment = assessAuthorityDocument(document, expectations.authority);
+        if (assessment.verdict === 'INSUFFICIENT') { remainingGaps.push(...assessment.gaps); supportedFacts.splice(0, supportedFacts.length, ...supportedFacts.filter((fact) => !fact.startsWith(documentLabels.POA_MOA))); }
+        else supportedFacts.push(...assessment.findings.filter((finding) => finding.status === 'OK').map((finding) => finding.detail));
+        continue;
+      }
+      const reviewed = reviewDocument(type, document, expectations.documents);
+      if (reviewed?.verdict === 'INSUFFICIENT') { remainingGaps.push(...reviewed.gaps.map((gap) => gap.text)); supportedFacts.splice(0, supportedFacts.length, ...supportedFacts.filter((fact) => !fact.startsWith(documentLabels[type]))); }
+      else if (reviewed) supportedFacts.push(...reviewed.facts);
+    }
+  }
+  return { resolutionStatus: remainingGaps.length === 0 ? 'RESOLVED' : 'INSUFFICIENT', supportedFacts, remainingGaps };
+}
 export function materializeResolution(request: EvidenceRequest, resolution: EvidenceResolution): MaterializedResolution {
   const attemptCount = request.attemptCount + 1;
   const timestamp = now();
@@ -127,7 +158,11 @@ async function resolveEvidenceLocked(repository: Repository, evidenceRequestId: 
   if (evidence.length === 0) throw new Error('EVIDENCE_RECORDS_NOT_FOUND');
   // Never spend a customer attempt without a newly received document.
   if (!evidence.some((record) => record.validationStatus === 'RECEIVED')) throw new Error('NO_NEW_EVIDENCE_RECEIVED');
-  const resolution = assessDocuments(request, evidence);
+  // What each new document is read against: the person and company in the request, the licence on record and the other documents of the case (the newest upload of a type wins).
+  const caseRecord = await repository.getCase(caseRunId);
+  const checkContext: CheckContext | undefined = caseRecord ? { businessName: caseRecord.businessName, representativeName: caseRecord.representativeName, asOf: new Date(), documents: await loadCaseDocuments(repository, caseRunId, request.submissionVersion) } : undefined;
+  const expectations: ReviewExpectations | undefined = checkContext ? { authority: authorityExpectations(checkContext), documents: documentReviewContext(checkContext) } : undefined;
+  const resolution = assessDocuments(request, evidence, expectations);
   const materialized = materializeResolution(request, resolution);
   await repository.transaction(async (transaction) => {
     const recordStatus = resolution.resolutionStatus === 'RESOLVED' ? 'ACCEPTED' : 'INSUFFICIENT';

@@ -110,9 +110,9 @@ describe('POST /api/chat/evidence (attachments in the chat window)', () => {
   it('a photo of an unrelated page, or of nothing, is refused with a clear code, nothing is stored, and the request stays open for a retry', async () => {
     const ctx = await start();
     const opened = (await ctx.post('/api/chat', intro)).json();
-    const unrelated = await ctx.attach([{ name: 'letter.png', type: 'image/png', content: ocrFixture }]);
+    const unrelated = await ctx.attach([{ name: 'menu.pdf', type: 'application/pdf', content: makePdf('Weekly cafeteria menu: soup, salad and sandwiches for the whole team on Monday.') }]);
     expect(unrelated.statusCode).toBe(400);
-    expect(unrelated.json()).toEqual({ error: 'DOCUMENT_TYPE_NOT_RECOGNISED', detail: 'letter.png' });
+    expect(unrelated.json()).toEqual({ error: 'DOCUMENT_TYPE_NOT_RECOGNISED', detail: 'menu.pdf' });
     const blank = await ctx.attach([{ name: 'photo.png', type: 'image/png', content: blankPng }]);
     expect(blank.json().error).toBe('DOCUMENT_TEXT_UNAVAILABLE');
     expect(await ctx.store.getEvidence(opened.evidenceRequest.evidenceRequestId)).toEqual([]);

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-30T10:23:27.102Z",
+  "generatedAt": "2026-09-30T11:59:44.796Z",
   "node": "v24.21.0",
   "totals": {
-    "steps": 48,
-    "verified": 45,
+    "steps": 53,
+    "verified": 50,
     "unverified": 0,
     "outOfScope": 3,
     "conformancePercentageOfInScopeSteps": 100
@@ -12,7 +12,7 @@
     {
       "name": "unit",
       "ran": true,
-      "passed": 396,
+      "passed": 438,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run",
@@ -30,7 +30,7 @@
     {
       "name": "e2e",
       "ran": true,
-      "passed": 34,
+      "passed": 37,
       "failed": 0,
       "skipped": 0,
       "command": "npx playwright test",
@@ -77,10 +77,10 @@
     {
       "slug": "hessa-al-noor",
       "customer": "Hessa Al Ameri / Al Noor Trading LLC",
-      "expected": "REJECT",
-      "actual": "REJECT",
-      "reason": "POA_MOA_NOT_CLEARED",
-      "tools": 1,
+      "expected": "NEED_MORE_INFORMATION",
+      "actual": "NEED_MORE_INFORMATION",
+      "reason": "DOCUMENT_INSUFFICIENT",
+      "tools": 0,
       "matches": true
     },
     {
@@ -194,10 +194,10 @@
     {
       "slug": "n8n-liam-chen-bluegum-vector",
       "customer": "Liam Chen / Bluegum Vector Demo Pty Ltd",
-      "expected": "REJECT",
-      "actual": "REJECT",
-      "reason": "POA_MOA_NOT_CLEARED",
-      "tools": 1,
+      "expected": "NEED_MORE_INFORMATION",
+      "actual": "NEED_MORE_INFORMATION",
+      "reason": "DOCUMENT_INSUFFICIENT",
+      "tools": 0,
       "matches": true
     },
     {
@@ -825,6 +825,79 @@
         "tests/loa-process.test.ts › only the key word (or a near miss) of a registered company asks \"Did you mean …?\" before anything is created",
         "tests/loa-process.test.ts › several close matches are listed and nothing is picked for the customer",
         "tests/e2e/portal.spec.ts › only the key word of a company asks \"Did you mean …?\" once (the page polling never repeats it), and yes continues with that company"
+      ]
+    },
+    {
+      "id": "T15",
+      "lane": "Product owner request",
+      "step": "A returning customer is told their case is already in progress (documents outstanding: carries on in the same case; with a specialist, approved or a pending lead: told so, no duplicate); a closed case is offered for reopening so the correct proof can be submitted",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/returning.ts · chat.ts#presentPriorCase",
+      "tests": [
+        "tests/loa-process.test.ts › a returning customer whose documents are still outstanding is told the case is already in progress and carries on in the same case",
+        "tests/loa-process.test.ts › a returning customer whose case is with a specialist, already approved, or a pending lead is told so and no duplicate case is opened",
+        "tests/loa-process.test.ts › a case closed by cancelling its document request is offered for reopening; yes resumes the same case, no leaves it closed",
+        "tests/e2e/portal.spec.ts › a returning customer is told the case is already in progress and carries on in the same case; a closed case is offered for reopening"
+      ]
+    },
+    {
+      "id": "T16",
+      "lane": "Product owner request",
+      "step": "An authority document (POA/MOA/authorised-representative letter) is read clause by clause: company, representative, signatory, validity and every requested clause are checked; a fixable gap (name mismatch, wrong company, unrecorded signatory, expired, a clause not mentioned) is insufficient evidence — the customer is told exactly what is missing and asks to upload again (3 attempts, then a human)",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/authority.ts#assessAuthorityDocument · loa.ts#poaMoaCheck (POA-006/007) · workflows/evidence.ts#assessDocuments",
+      "tests": [
+        "tests/authority.test.ts › the n8n V1 letter (day-to-day only) is INSUFFICIENT",
+        "tests/authority.test.ts › the n8n V2 letter (explicit clauses) is SUFFICIENT",
+        "tests/authority.test.ts › a name mismatch is a sure-shot gap",
+        "tests/authority.test.ts › n8n AUTH-003: V1 is read and found insufficient",
+        "tests/authority.test.ts › a letter for the wrong person is asked for again with the reason",
+        "tests/e2e/portal.spec.ts › an authority letter that does not cover the requested clauses is read and asked for again with the exact gaps, instead of being rejected"
+      ]
+    },
+    {
+      "id": "T17",
+      "lane": "Product owner request",
+      "step": "Only content that does not inspire confidence goes to a human: contradictory or limited authority, an embedded instruction, an unreadable document (specialist review); a withdrawn authority is a recommended rejection a human confirms",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/authority.ts (UNCERTAIN / ADVERSE) · loa.ts#poaMoaCheck (POA-003/004/005/002)",
+      "tests": [
+        "tests/authority.test.ts › a clause that is negated stays a gap",
+        "tests/authority.test.ts › a limitation that needs interpreting, an embedded instruction",
+        "tests/authority.test.ts › content that cannot be trusted goes to a human"
+      ]
+    },
+    {
+      "id": "T18",
+      "lane": "Product owner request",
+      "step": "The supporting documents (Emirates ID, Trade License, Establishment Card, proof of address) get the same due diligence: required details present and valid, consistent with the request and with each other; a fixable gap is insufficient evidence (asked again with the exact reason, 3 attempts, then a human); register-verified adverse facts and untrustworthy content stay with the checks / a human",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/document-review.ts · loa.ts (TL-006, ID-005, AV-005, DOC-001) · workflows/evidence.ts#assessDocuments",
+      "tests": [
+        "tests/document-review.test.ts › a good ID is sufficient",
+        "tests/document-review.test.ts › a genuine ID of ANOTHER person",
+        "tests/document-review.test.ts › a card for another company, for another licence",
+        "tests/document-review.test.ts › the wrong kind, the wrong holder",
+        "tests/document-review.test.ts › any reviewed document containing text aimed at the agent",
+        "tests/document-review.test.ts › a document that fails its review at intake keeps the request open"
+      ]
+    },
+    {
+      "id": "T19",
+      "lane": "Product owner request",
+      "step": "Guided scenarios: realistic-format documents in flawed → corrected pairs (authority letters, Emirates ID, licence and card, proof of address, injection) replay end to end and are shown in the web app with their files",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa-scenarios.ts · scripts/generate-samples.ts · apps/web ChatPage",
+      "tests": [
+        "tests/scenarios.test.ts › every scenario file exists",
+        "tests/scenarios.test.ts › each step ends where the script says",
+        "tests/scenarios.test.ts › the scenarios are listed for the web app",
+        "tests/e2e/portal.spec.ts › a guided scenario: the wrong Emirates ID is explained and the right one is accepted"
       ]
     },
     {
