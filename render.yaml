@@ -1,0 +1,23 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec): one web service, no database (demo mode).
+# In Render: New > Blueprint > pick this repository. You are asked for DEMO_PASSWORD; everything else is filled in.
+services:
+  - type: web
+    name: sbo-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PERSISTENCE
+        value: memory              # cases live in the process and reset on restart; use postgres + DATABASE_URL for a durable deployment
+      - key: AGENT_RUNTIME
+        value: deterministic       # no model, no API key: the same governed checks and outcomes; set to claude + ANTHROPIC_API_KEY + CLAUDE_MODEL to use the model
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: TRUST_PROXY
+        value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1
+      - key: DEMO_PASSWORD
+        sync: false                # asked for once in the Render dashboard; share it with whoever you demo to

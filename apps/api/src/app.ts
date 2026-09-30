@@ -6,6 +6,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError, z } from 'zod';
 import { acceptedFileTypesHint, extractDocumentText, type ExtractedDocument } from './documents.js';
@@ -23,6 +24,10 @@ export interface ApiConfig {
    * address is the first UNtrusted hop from the right, so a client-supplied X-Forwarded-For prefix cannot spoof the rate-limit key.
    */
   trustProxy?: string[];
+  /** Folder with the built web app (apps/web/dist): when set, the API serves the pages too (one URL) and falls back to index.html for client-side routes. */
+  webRoot?: string;
+  /** When set, every route except /health asks for this password (HTTP Basic, any user name). For a shared demo URL; not user management. */
+  demoPassword?: string;
 }
 export interface AppDependencies { repository: Repository; agentRuntime: AgentRuntime; config: ApiConfig; }
 
@@ -60,11 +65,24 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
   const maxUploadBytes = config.maxUploadBytes ?? 5 * 1024 * 1024;
   const trustProxy = config.trustProxy && config.trustProxy.length > 0 ? config.trustProxy : false;
   const app = Fastify({ trustProxy, logger: { level: process.env.NODE_ENV === 'test' ? 'silent' : 'info', redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]', 'req.headers["x-csrf-token"]'] } });
+  // Demo password (optional): checked before anything else, in constant time. Credentials are redacted from the logs.
+  if (config.demoPassword) {
+    const digest = (value: string): Buffer => createHmac('sha256', 'demo-password').update(value).digest();
+    const expectedDigest = digest(config.demoPassword);
+    app.addHook('onRequest', async (request, reply) => {
+      if (request.url === '/health') return;
+      const header = request.headers.authorization ?? '';
+      const supplied = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString('utf8') : '';
+      const password = supplied.includes(':') ? supplied.slice(supplied.indexOf(':') + 1) : '';
+      if (!timingSafeEqual(digest(password), expectedDigest)) return reply.code(401).header('www-authenticate', 'Basic realm="SBO demo", charset="UTF-8"').send({ error: 'DEMO_PASSWORD_REQUIRED' });
+    });
+  }
   // The API only returns JSON: a locked-down CSP. (The static host that serves apps/web must send its own CSP.)
   await app.register(helmet, { contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"], formAction: ["'none'"] } } });
   await app.register(cookie, { secret: config.sessionSecret });
   await app.register(cors, { origin: config.appBaseUrl, credentials: true });
-  await app.register(rateLimit, { max: config.rateLimit?.global ?? 120, timeWindow: '1 minute' });
+  // Pages and assets (served only when webRoot is set) are not rate limited; every /api route still is.
+  await app.register(rateLimit, { max: config.rateLimit?.global ?? 120, timeWindow: '1 minute', allowList: (request) => Boolean(config.webRoot) && !request.url.startsWith('/api') && request.url !== '/health' });
   const maxFilesPerMessage = 3;
   await app.register(multipart, { limits: { fileSize: maxUploadBytes, files: maxFilesPerMessage, fields: 10 } });
 
@@ -289,5 +307,16 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const result = await reopenCase(repository, { caseRunId: caseRunId.toUpperCase(), reviewerName: input.reviewerName, comments: input.comments });
     return { originalCaseRunId: result.original.caseRunId, reopenedCaseRunId: result.reopened.caseRunId, submissionVersion: result.reopened.submissionVersion, evidenceRequestId: result.request.evidenceRequestId, customerNotified: result.customerNotified, syntheticDataDisclaimer: true };
   });
+  // Serve the built web app from the same origin (no proxy, no CORS): static files, then index.html for client-side routes (/review, /operations, /status).
+  if (config.webRoot) {
+    const pageCsp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    const isApi = (url: string): boolean => url.startsWith('/api/') || url === '/api' || url === '/health';
+    await app.register(fastifyStatic, { root: resolve(config.webRoot) });
+    app.addHook('onSend', async (request, reply) => { if (!isApi(request.url)) void reply.header('content-security-policy', pageCsp); });
+    app.setNotFoundHandler(async (request, reply) => {
+      if ((request.method === 'GET' || request.method === 'HEAD') && !isApi(request.url)) return reply.sendFile('index.html');
+      return reply.code(404).send({ error: 'NOT_FOUND' });
+    });
+  }
   return app;
 }
