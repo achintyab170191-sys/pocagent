@@ -61,7 +61,7 @@ test.describe('customer chat (To-Be New LOA process)', () => {
 
   test('only the key word of a company asks "Did you mean …?" once (the page polling never repeats it), and yes continues with that company', async ({ page }) => {
     await page.goto('/');
-    await say(page, 'My name is Achintya Rao and I represent Bluegum');
+    await say(page, 'My name is Achintya Bundelkhandi and I represent Bluegum');
     const log = page.getByTestId('chat-log');
     await expect(log).toContainText('Did you mean Bluegum Vector Demo Pty Ltd?');
     await page.waitForTimeout(6500); // longer than the 5 s server poll

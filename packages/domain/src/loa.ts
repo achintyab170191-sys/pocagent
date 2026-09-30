@@ -211,13 +211,13 @@ const demoEmiratesIds: EmiratesIdRecord[] = [
   { idNumber: '784-1980-9012345-9', fullName: 'Tariq Mahmood', expiryDate: FAR },
   { idNumber: '784-1993-1122334-0', fullName: 'Hessa Al Ameri', expiryDate: FAR },
   { idNumber: '784-1988-2233445-1', fullName: 'Mariam Saeed', expiryDate: FAR },
-  { idNumber: '784-1995-4455667-7', fullName: 'Achintya Rao', expiryDate: FAR },
+  { idNumber: '784-1995-4455667-7', fullName: 'Achintya Bundelkhandi', expiryDate: FAR },
   eid(1, 1986, 'Layth Barakat'), eid(2, 1992, 'Ahmed Yusuf'), eid(3, 1983, 'Jamal Farouk'),
   eid(4, 1979, 'Ibrahim Karam'), eid(5, 1990, 'Reem Al Hosani'), eid(6, 1981, 'Adel Mansour'),
 ];
 
 const demoPoas: PoaRecord[] = [
-  { reference: 'POA-DEMO-2101', grantor: 'Bluegum Vector Director', grantee: 'Achintya Rao', businessName: 'Bluegum Vector Demo Pty Ltd', scopes: [...requiredAuthorityScopes], validUntil: FAR },
+  { reference: 'POA-DEMO-2101', grantor: 'Bluegum Vector Director', grantee: 'Achintya Bundelkhandi', businessName: 'Bluegum Vector Demo Pty Ltd', scopes: [...requiredAuthorityScopes], validUntil: FAR },
   { reference: 'POA-DEMO-2001', grantor: 'Khalid Al Suwaidi', grantee: 'Omar Haddad', businessName: 'Gulf Horizon Contracting LLC', scopes: [...requiredAuthorityScopes], validUntil: FAR },
   { reference: 'POA-DEMO-2002', grantor: 'Fatima Al Mansoori', grantee: 'Hessa Al Ameri', businessName: 'Al Noor Trading LLC', scopes: [...requiredAuthorityScopes], validUntil: PAST },
   { reference: 'POA-DEMO-2003', grantor: 'Khalid Al Suwaidi', grantee: 'Ahmed Yusuf', businessName: 'Gulf Horizon Contracting LLC', scopes: [...requiredAuthorityScopes], validUntil: FAR },

@@ -441,18 +441,18 @@ describe('follow-up questions, lead confirmation and reopening closed cases', ()
     expect(await store.listCases()).toEqual([]);
     const again = await say(store, 'n', 'Achintya');
     expect(again.messages[0]).toContain('full name');
-    const second = await say(store, 'n', 'Achintya Rao');
+    const second = await say(store, 'n', 'Achintya Bundelkhandi');
     expect(second).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: 'AUTH-101' });
-    expect(await store.getCase('AUTH-101')).toMatchObject({ representativeName: 'Achintya Rao', businessName: bluegum });
+    expect(await store.getCase('AUTH-101')).toMatchObject({ representativeName: 'Achintya Bundelkhandi', businessName: bluegum });
     // name only, company later
     const other = await say(store, 'm', 'My name is Achintya');
     expect(other.messages[0]).toContain('full name');
-    expect((await say(store, 'm', 'Achintya Rao')).messages[0]).toContain('Which company');
+    expect((await say(store, 'm', 'Achintya Bundelkhandi')).messages[0]).toContain('Which company');
   });
 
   it('a company that is not on record is confirmed with the customer first; a correction continues the normal flow', async () => {
     const store = newStore();
-    const asked = await say(store, 'c', 'My name is Achintya Rao and I represent Zenith Peak Demo Ltd');
+    const asked = await say(store, 'c', 'My name is Achintya Bundelkhandi and I represent Zenith Peak Demo Ltd');
     expect(asked).toMatchObject({ step: 'INTAKE', caseRunId: '' });
     expect(asked.messages[0]).toContain('please confirm');
     expect(await store.listCases()).toEqual([]);
@@ -462,7 +462,7 @@ describe('follow-up questions, lead confirmation and reopening closed cases', ()
     expect(corrected).toMatchObject({ step: 'AWAITING_EVIDENCE' }); // a known company: the document request, not a lead
     expect(corrected.messages[0]).toContain('found');
     // typing the right name straight into the confirmation also works
-    const direct = await say(store, 'd', 'My name is Achintya Rao and I represent Zenith Peak Demo Ltd');
+    const direct = await say(store, 'd', 'My name is Achintya Bundelkhandi and I represent Zenith Peak Demo Ltd');
     void direct;
     expect((await say(store, 'd', bluegum)).step).toBe('AWAITING_EVIDENCE');
   });
@@ -533,27 +533,27 @@ describe('follow-up questions, lead confirmation and reopening closed cases', ()
 describe('company-name suggestions', () => {
   it('only the key word (or a near miss) of a registered company asks "Did you mean …?" before anything is created', async () => {
     const store = newStore();
-    const asked = await say(store, 'w', 'My name is Achintya Rao and I represent Bluegum');
+    const asked = await say(store, 'w', 'My name is Achintya Bundelkhandi and I represent Bluegum');
     expect(asked).toMatchObject({ step: 'INTAKE', caseRunId: '' });
     expect(asked.messages[0]).toContain('Did you mean **Bluegum Vector Demo Pty Ltd**?');
     expect(await store.listCases()).toEqual([]);
     const yes = await say(store, 'w', 'yes');
     expect(yes).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: 'AUTH-101' });
-    expect(await store.getCase('AUTH-101')).toMatchObject({ businessName: bluegumName, representativeName: 'Achintya Rao' });
+    expect(await store.getCase('AUTH-101')).toMatchObject({ businessName: bluegumName, representativeName: 'Achintya Bundelkhandi' });
     // a typo, and "no" falls back to the lead confirmation for what the customer typed
-    expect((await say(store, 't', 'My name is Achintya Rao and I represent Blugum Vector')).messages[0]).toContain('Did you mean **Bluegum Vector Demo Pty Ltd**?');
+    expect((await say(store, 't', 'My name is Achintya Bundelkhandi and I represent Blugum Vector')).messages[0]).toContain('Did you mean **Bluegum Vector Demo Pty Ltd**?');
     const no = await say(store, 't', 'no');
     expect(no.messages[0]).toContain('please confirm');
     expect(no.messages[0]).toContain('Blugum Vector');
     expect((await say(store, 't', 'yes')).messages.join(' ')).toContain('new lead case');
     // typing the full name in reply carries on with that company
-    await say(store, 'f', 'My name is Achintya Rao and I represent Bluegum');
+    await say(store, 'f', 'My name is Achintya Bundelkhandi and I represent Bluegum');
     expect((await say(store, 'f', bluegumName)).step).toBe('AWAITING_EVIDENCE');
   });
 
   it('several close matches are listed and nothing is picked for the customer', async () => {
     const store = newStore();
-    const asked = await say(store, 'm', 'My name is Achintya Rao and I represent Demo');
+    const asked = await say(store, 'm', 'My name is Achintya Bundelkhandi and I represent Demo');
     expect(asked.messages[0]).toContain('these registered companies are close');
     expect(asked.messages[0]).toContain('Bluegum Vector Demo Pty Ltd');
     const two = await say(store, 'm', 'yes'); // "yes" cannot choose between several: it is asked again
