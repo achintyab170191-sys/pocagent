@@ -190,15 +190,35 @@ describe('agentic chat', () => {
     expect(two.caseRunId).toMatch(/^AUTH-1\d\d$/);
   });
 
-  it('a brand-new customer gets a synthetic case of their own and the full assessment runs (no specialist shortcut)', async () => {
+  it('a company that is not on record gets a NEW LEAD case only: no checks, no decision, never an approval', async () => {
     const store = newStore();
-    const reply = await chat(store, new ScriptedRuntime(), 'x', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
+    const runtime = new ScriptedRuntime();
+    const reply = await chat(store, runtime, 'x', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
     expect(reply.step).toBe('DONE');
-    expect(reply.outcome?.toolsCalled).toHaveLength(7);
-    expect(reply.outcome).toMatchObject({ governedOutcome: 'APPROVE', humanReviewRequired: false });
-    expect(reply.messages.join('\n')).toContain('you are a new customer');
+    expect(reply.outcome).toBeUndefined();
+    expect(reply.caseRunId).toMatch(/^AUTH-1\d\d$/);
+    expect(reply.messages.join('\n')).toContain('new lead case');
+    expect(reply.messages.join('\n')).toContain('nothing has been approved');
+    expect(await store.getCase(reply.caseRunId)).toMatchObject({ businessName: 'Acme Imaginary Holdings Ltd', representativeName: 'Zed Nobody' });
+    expect(await store.getRuntimeResults(reply.caseRunId, 1)).toEqual([]);
+    expect(await store.getDecision(reply.caseRunId)).toBeUndefined();
+    expect(runtime.resolutionRequests).toHaveLength(0);
   });
 
+  it('a company on record with a representative who is not on record is assessed, and must evidence their authority (never auto-approved)', async () => {
+    const store = newStore();
+    const runtime = new ScriptedRuntime([resolved]);
+    const reply = await chat(store, runtime, 'y', 'My name is Zed Nobody and I represent Bluegum Vector Demo Pty Ltd');
+    expect(reply.caseRunId).toMatch(/^AUTH-1\d\d$/);
+    expect(reply.messages[0]).toContain('is not one of its recorded representatives');
+    expect(reply.outcome?.toolsCalled.length).toBeGreaterThan(0);
+    expect(reply.outcome?.governedOutcome).not.toBe('APPROVE');
+    expect(reply.step).toBe('AWAITING_EVIDENCE');
+    expect(await store.getCase(reply.caseRunId)).toMatchObject({ businessName: 'Bluegum Vector Demo Pty Ltd', representativeName: 'Zed Nobody' });
+    const after = await chat(store, runtime, 'y', authorityText);
+    expect(after.messages[0]).toContain('Thank you. The additional evidence has resolved the identified gap.');
+    expect(after.outcome?.governedOutcome).not.toBe('APPROVE');
+  });
   it('re-evaluating a case in chat resets its runtime results (source entry path) rather than resuming', async () => {
     const store = newStore();
     const runtime = new ScriptedRuntime();

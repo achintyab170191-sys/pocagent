@@ -1,6 +1,6 @@
 # Parity report
 
-Generated 2026-09-30T06:13:30.613Z on Node v24.21.0 by `npm run report:parity`. Machine-readable copy: `artifacts/parity-report.json`.
+Generated 2026-09-30T06:31:49.659Z on Node v24.21.0 by `npm run report:parity`. Machine-readable copy: `artifacts/parity-report.json`.
 
 ## Result
 
@@ -21,9 +21,9 @@ Traceability status of the 229 nodes: REPLACED_BY_PLATFORM 37 · PARITY_TESTED_D
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 241 | 0 | 0 |
+| unit | `npx vitest run` | 242 | 0 | 0 |
 | integration | `npx vitest run --config vitest.integration.config.ts` | 20 | 0 | 0 |
-| e2e | `npx playwright test` | 22 | 0 | 0 |
+| e2e | `npx playwright test` | 23 | 0 | 0 |
 
 ## AUTH regression (replayed from the preserved fixtures)
 
