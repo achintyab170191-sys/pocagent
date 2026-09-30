@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T17:42:47.593Z",
+  "generatedAt": "2026-09-30T06:01:39.448Z",
   "node": "v24.21.0",
   "totals": {
     "workflows": 13,
@@ -11,9 +11,9 @@
     "parityPercentageOfAllNodes": 98.7
   },
   "statusCounts": {
-    "REPLACED_BY_PLATFORM": 23,
-    "PARITY_TESTED": 152,
-    "PARITY_TESTED_DEVIATION": 44,
+    "REPLACED_BY_PLATFORM": 37,
+    "PARITY_TESTED_DEVIATION": 42,
+    "PARITY_TESTED": 140,
     "SOURCE_DEFECT_NOT_REPRODUCED": 7,
     "UNSUPPORTED": 3
   },
@@ -21,7 +21,7 @@
     {
       "name": "unit",
       "ran": true,
-      "passed": 231,
+      "passed": 241,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run",
@@ -30,7 +30,7 @@
     {
       "name": "integration",
       "ran": true,
-      "passed": 18,
+      "passed": 20,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run --config vitest.integration.config.ts",
@@ -39,7 +39,7 @@
     {
       "name": "e2e",
       "ran": true,
-      "passed": 21,
+      "passed": 22,
       "failed": 0,
       "skipped": 0,
       "command": "npx playwright test",
@@ -252,11 +252,12 @@
       "nodeId": "39adf6e4-91f9-4387-b342-7649ec07b7c5",
       "nodeName": "Resolve Case Request",
       "nodeType": "n8n-nodes-base.code",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "PARITY_TESTED_DEVIATION",
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/super-agent.ts#resolveCaseRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › greets a new customer by asking for their name and company",
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -264,11 +265,12 @@
       "nodeId": "6562f98d-b5f3-470d-b9d2-a39818d75f06",
       "nodeName": "Prepare Invalid Request Response",
       "nodeType": "n8n-nodes-base.set",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "PARITY_TESTED_DEVIATION",
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/super-agent.ts#resolveCaseRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › greets a new customer by asking for their name and company",
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -280,7 +282,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -292,7 +294,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -304,7 +306,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -312,11 +314,12 @@
       "nodeId": "32e295ba-f3cd-4e30-a5fe-b72d5ab3469b",
       "nodeName": "Case ID Present?",
       "nodeType": "n8n-nodes-base.if",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "PARITY_TESTED_DEVIATION",
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/super-agent.ts#resolveCaseRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › greets a new customer by asking for their name and company",
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -328,7 +331,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "tests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ]
     },
     {
@@ -692,12 +695,12 @@
       "nodeId": "a4384d78-5471-4492-9db5-803b2e791d86",
       "nodeName": "Select Evidence Channel",
       "nodeType": "n8n-nodes-base.switch",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "PARITY_TESTED_DEVIATION",
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#presentAssessment / handleChatMessage",
       "tests": [
-        "tests/chat-audit.test.ts › AUTH-002 (file evidence) goes straight to the upload prompt",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-002 (file evidence) asks for documents in the same chat",
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ]
     },
     {
@@ -705,12 +708,12 @@
       "nodeId": "1ea462bb-9f84-40bc-9ec0-973ed1c88b7c",
       "nodeName": "Ask Customer for Evidence Method",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -718,12 +721,12 @@
       "nodeId": "02e34050-ac01-4e50-8332-455d6aced929",
       "nodeName": "Normalise Evidence Method",
       "nodeType": "n8n-nodes-base.code",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -731,12 +734,12 @@
       "nodeId": "ecdbb965-0e36-4cfe-9448-b5871e2a805f",
       "nodeName": "Evidence Method Valid?",
       "nodeType": "n8n-nodes-base.if",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -744,12 +747,12 @@
       "nodeId": "b0be0e92-10f7-4f17-9f76-39eca2ceef42",
       "nodeName": "Ask Evidence Method Again",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -757,12 +760,12 @@
       "nodeId": "f862473f-719d-448e-9b16-778c5953960e",
       "nodeName": "Normalise Retry Method",
       "nodeType": "n8n-nodes-base.code",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -770,12 +773,12 @@
       "nodeId": "78655667-b5ba-4232-b31a-1cf3a1f98818",
       "nodeName": "Retry Method Valid?",
       "nodeType": "n8n-nodes-base.if",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -783,12 +786,12 @@
       "nodeId": "4b3887f0-7705-47d4-bcf9-bdb49eea8fe9",
       "nodeName": "Send Method Selection Failed",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "tests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ]
     },
     {
@@ -796,12 +799,12 @@
       "nodeId": "4bb38e18-5fb5-49c0-bbc7-62ded7b907c6",
       "nodeName": "Route Selected Method",
       "nodeType": "n8n-nodes-base.switch",
-      "parityStatus": "PARITY_TESTED",
+      "parityStatus": "PARITY_TESTED_DEVIATION",
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#presentAssessment / handleChatMessage",
       "tests": [
-        "tests/chat-audit.test.ts › AUTH-002 (file evidence) goes straight to the upload prompt",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-002 (file evidence) asks for documents in the same chat",
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ]
     },
     {
@@ -811,9 +814,9 @@
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
       "parityStatus": "PARITY_TESTED",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "tests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -823,9 +826,9 @@
       "nodeType": "n8n-nodes-base.code",
       "parityStatus": "PARITY_TESTED",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "tests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -838,7 +841,7 @@
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
         "tests/evidence.test.ts › cancels the request, updates the case",
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -851,7 +854,7 @@
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
         "tests/evidence.test.ts › cancels the request, updates the case",
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -864,7 +867,7 @@
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
         "tests/evidence.test.ts › cancels the request, updates the case",
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -874,9 +877,9 @@
       "nodeType": "n8n-nodes-base.if",
       "parityStatus": "PARITY_TESTED",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "tests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -886,9 +889,9 @@
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
       "parityStatus": "PARITY_TESTED",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "tests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ]
     },
     {
@@ -944,11 +947,12 @@
       "nodeId": "f1ab76ce-e27f-4fa3-8e10-fb9630207a84",
       "nodeName": "Build Evidence Upload Link",
       "nodeType": "n8n-nodes-base.code",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -956,11 +960,12 @@
       "nodeId": "aa9837cb-da36-4312-a016-55bf213e72f8",
       "nodeName": "Ask for Evidence Upload",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -972,7 +977,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ]
     },
@@ -985,7 +990,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ]
     },
@@ -998,7 +1003,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ]
     },
@@ -1007,11 +1012,12 @@
       "nodeId": "8d59af61-1cf3-4cf2-83dc-77b2757efa12",
       "nodeName": "Normalise Upload Reply",
       "nodeType": "n8n-nodes-base.code",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -1023,7 +1029,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ]
     },
@@ -1036,7 +1042,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ]
     },
@@ -1045,11 +1051,12 @@
       "nodeId": "c37f62e2-4143-45f7-95ab-2d283baadece",
       "nodeName": "Get Uploaded Evidence",
       "nodeType": "n8n-nodes-base.dataTable",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -1057,11 +1064,12 @@
       "nodeId": "53430133-7f8a-41ca-bc96-d9b9b630f5cc",
       "nodeName": "Evaluate Upload Availability",
       "nodeType": "n8n-nodes-base.code",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -1069,11 +1077,12 @@
       "nodeId": "69315c48-0ed0-4ad8-9161-e0f5a5ba1129",
       "nodeName": "Evidence Available?",
       "nodeType": "n8n-nodes-base.if",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -1081,11 +1090,12 @@
       "nodeId": "6dcc50ea-923b-481b-b5ba-b6694768e6a6",
       "nodeName": "Ask Customer to Complete Upload",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "tests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ]
     },
     {
@@ -1110,7 +1120,7 @@
       "targetModule": "packages/workflows/src/super-agent.ts#resumeAssessment + chat.ts#afterResolution",
       "tests": [
         "tests/evidence.test.ts › sets the runtime case to ASSESSMENT_RESUMED / AGENTIC_REASSESSMENT before the resumed assessment finalises",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ]
     },
     {
@@ -1123,7 +1133,7 @@
       "targetModule": "packages/workflows/src/super-agent.ts#resumeAssessment + chat.ts#afterResolution",
       "tests": [
         "tests/evidence.test.ts › sets the runtime case to ASSESSMENT_RESUMED / AGENTIC_REASSESSMENT before the resumed assessment finalises",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ]
     },
     {
@@ -1147,7 +1157,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#afterResolution (RETRY)",
       "tests": [
-        "tests/chat-audit.test.ts › insufficient evidence explains the remaining gap and re-asks"
+        "tests/chat-audit.test.ts › insufficient evidence explains the gap and the same prompt returns"
       ]
     },
     {
@@ -1159,7 +1169,7 @@
       "verification": "VERIFIED",
       "targetModule": "packages/workflows/src/chat.ts#afterResolution (RETRY)",
       "tests": [
-        "tests/chat-audit.test.ts › insufficient evidence explains the remaining gap and re-asks"
+        "tests/chat-audit.test.ts › insufficient evidence explains the gap and the same prompt returns"
       ]
     },
     {
@@ -2898,10 +2908,11 @@
       "nodeType": "n8n-nodes-base.formTrigger",
       "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx + GET/POST /api/evidence/:id[/upload]",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (in-chat composer) + POST /api/chat/evidence + GET/POST /api/evidence/:id[/upload]",
       "tests": [
         "tests/api.test.ts › validates the evidence request for the upload page",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › documents are attached in the same chat window",
+        "tests/e2e/portal.spec.ts › there is no separate upload page"
       ]
     },
     {
@@ -2936,10 +2947,10 @@
       "nodeType": "n8n-nodes-base.form",
       "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx (result panels)",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (composer + error notice)",
       "tests": [
         "tests/api.test.ts › rejects %s and leaves the request OPEN with nothing stored",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › an unsupported or unreadable file is refused"
       ]
     },
     {
@@ -2952,6 +2963,8 @@
       "targetModule": "apps/api/src/pdf.ts#extractPdfText + evidence.ts#submitUploadedEvidence (≥ 20 characters)",
       "tests": [
         "tests/api.test.ts › accepts a real text PDF, stores the original",
+        "tests/chat-attachments.test.ts › extracts text from PDF, DOCX and an image (OCR)",
+        "tests/chat-attachments.test.ts › several files of different formats are stored",
         "tests/evidence.test.ts › unreadable PDF (< 20 characters)",
         "tests/security.test.ts › refuses a page bomb from its declared page count"
       ]
@@ -2966,6 +2979,8 @@
       "targetModule": "apps/api/src/pdf.ts#extractPdfText + evidence.ts#submitUploadedEvidence (≥ 20 characters)",
       "tests": [
         "tests/api.test.ts › accepts a real text PDF, stores the original",
+        "tests/chat-attachments.test.ts › extracts text from PDF, DOCX and an image (OCR)",
+        "tests/chat-attachments.test.ts › several files of different formats are stored",
         "tests/evidence.test.ts › unreadable PDF (< 20 characters)",
         "tests/security.test.ts › refuses a page bomb from its declared page count"
       ]
@@ -2980,6 +2995,8 @@
       "targetModule": "apps/api/src/pdf.ts#extractPdfText + evidence.ts#submitUploadedEvidence (≥ 20 characters)",
       "tests": [
         "tests/api.test.ts › accepts a real text PDF, stores the original",
+        "tests/chat-attachments.test.ts › extracts text from PDF, DOCX and an image (OCR)",
+        "tests/chat-attachments.test.ts › several files of different formats are stored",
         "tests/evidence.test.ts › unreadable PDF (< 20 characters)",
         "tests/security.test.ts › refuses a page bomb from its declared page count"
       ]
@@ -2991,10 +3008,10 @@
       "nodeType": "n8n-nodes-base.form",
       "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx (result panels)",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (composer + error notice)",
       "tests": [
         "tests/api.test.ts › rejects %s and leaves the request OPEN with nothing stored",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › an unsupported or unreadable file is refused"
       ]
     },
     {
@@ -3052,10 +3069,10 @@
       "nodeType": "n8n-nodes-base.form",
       "parityStatus": "REPLACED_BY_PLATFORM",
       "verification": "VERIFIED",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx (result panels)",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (composer + error notice)",
       "tests": [
         "tests/api.test.ts › rejects %s and leaves the request OPEN with nothing stored",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › an unsupported or unreadable file is refused"
       ]
     },
     {

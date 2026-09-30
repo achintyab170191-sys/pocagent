@@ -5,12 +5,16 @@ export class ApiError extends Error {
 let csrfToken = '';
 let sessionId = '';
 
+let pending: Promise<void> | undefined;
+
+/** One in-flight session request at a time: concurrent calls on page load must share a single cookie/CSRF pair. */
 export async function ensureSession(): Promise<{ sessionId: string }> {
   if (!csrfToken) {
-    const response = await fetch('/api/session', { credentials: 'same-origin' });
-    const body = await response.json() as { csrfToken: string; sessionId: string };
-    csrfToken = body.csrfToken;
-    sessionId = body.sessionId;
+    pending ??= fetch('/api/session', { credentials: 'same-origin' })
+      .then((response) => response.json() as Promise<{ csrfToken: string; sessionId: string }>)
+      .then((body) => { csrfToken = body.csrfToken; sessionId = body.sessionId; })
+      .finally(() => { pending = undefined; });
+    await pending;
   }
   return { sessionId };
 }
@@ -37,6 +41,15 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 /** Plain-language messages for the business error codes the API returns. */
 export function describeError(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.';
+  const file = error.detail ? ` (${error.detail})` : '';
+  const fileMessages: Record<string, string> = {
+    UNSUPPORTED_FILE_TYPE: `That file type isn't supported${file}. Please attach a PDF, Word (.docx) or image file.`,
+    LEGACY_WORD_NOT_SUPPORTED: `Old-style Word (.doc) files aren't supported${file}. Please save it as .docx or PDF and attach it again.`,
+    DOCUMENT_TEXT_UNAVAILABLE: `I couldn't read enough text from that file${file}. Please attach a clearer document or photo, or type the details. Your request remains open.`,
+    DOCUMENT_TOO_COMPLEX: `That file is too large or complex to read safely${file}. Please attach a shorter document (up to 50 pages). Your request remains open.`,
+  };
+  if (fileMessages[error.code]) return fileMessages[error.code]!;
+  if (error.code === 'RESUBMISSION_NOT_ALLOWED') return `Only a case whose latest outcome is NEED MORE INFORMATION can be resubmitted. Assess the original case in the chat first, and note that a case whose evidence was already accepted has a new outcome.${error.detail ? ` This case's latest outcome is ${error.detail.replaceAll('_', ' ')}.` : ''}`;
   const messages: Record<string, string> = {
     CSRF_VALIDATION_FAILED: 'Your session expired. Refresh the page and try again.',
     RATE_LIMITED: 'Too many requests. Please wait a minute and try again.',
@@ -48,10 +61,10 @@ export function describeError(error: unknown): string {
     EVIDENCE_REQUEST_NOT_OPEN: 'This evidence request is no longer open for submissions.',
     EVIDENCE_REQUEST_ID_NOT_SUPPLIED: 'No evidence request ID was supplied.',
     CASE_RUN_ID_MISMATCH: 'The case does not match the evidence request.',
-    UNSUPPORTED_FILE_TYPE: 'Only PDF files are accepted.',
-    PDF_TEXT_UNAVAILABLE: 'The PDF did not contain enough extractable text. Please upload a clear, text-based PDF. The evidence request remains open.',
+    NO_EVIDENCE_REQUEST_PENDING: 'There is no open evidence request in this conversation, so there is nothing to attach a file to.',
+    TOO_MANY_FILES: 'You can attach up to 3 files at a time.',
+    EVIDENCE_FILE_REQUIRED: 'Please type an answer or attach a file.',
     FILE_TOO_LARGE: 'The file is too large (limit 5 MB).',
-    PDF_TOO_COMPLEX: 'The PDF is too large or complex to read safely (limit: 50 pages). Please upload a shorter text-based PDF. The evidence request remains open.',
     CASE_LOCKED: 'This case has already been reviewed or resubmitted, so it cannot be re-evaluated. An operator must reset the runtime state to run it again.',
     ORIGIN_NOT_ALLOWED: 'This page is not allowed to call the API from its current address.',
     OVERRIDE_REASON_REQUIRED: 'An override reason is required when changing a REJECT recommendation.',

@@ -123,7 +123,7 @@ describe('PDF evidence (Workflow 96 gates)', () => {
 
   it('unreadable PDF (< 20 characters) is rejected and the request stays OPEN with no evidence stored', async () => {
     const { store, request } = await openAuth003();
-    await expect(submitUploadedEvidence(store, request.evidenceRequestId, { fileName: 'scan.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: 'too short' })).rejects.toThrow('PDF_TEXT_UNAVAILABLE');
+    await expect(submitUploadedEvidence(store, request.evidenceRequestId, { fileName: 'scan.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: 'too short' })).rejects.toThrow('DOCUMENT_TEXT_UNAVAILABLE');
     expect(await store.getEvidenceRequest(request.evidenceRequestId)).toMatchObject({ status: 'OPEN' });
     expect(await store.getEvidence(request.evidenceRequestId)).toEqual([]);
   });
@@ -133,10 +133,10 @@ describe('PDF evidence (Workflow 96 gates)', () => {
     await expect(submitUploadedEvidence(store, request.evidenceRequestId, { fileName: 'a.exe', mimeType: 'application/x-msdownload', storageUrl: 'x', extractedText: authorityText })).rejects.toThrow('UNSUPPORTED_FILE_TYPE');
   });
 
-  it('unknown evidence types fall back to OTHER like the source form default', async () => {
+  it('unknown evidence types fall back to a default type from the originating check (G-31)', async () => {
     const { store, request } = await openAuth003();
     const evidence = await submitUploadedEvidence(store, request.evidenceRequestId, { evidenceType: 'PASSPORT', fileName: 'a.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: authorityText });
-    expect(evidence.evidenceType).toBe('OTHER');
+    expect(evidence.evidenceType).toBe('AUTHORITY_DOCUMENT');
   });
 });
 

@@ -31,7 +31,7 @@ Invalid transitions are refused, not ignored: completing a completed review (`RE
 ## 2. Evidence request (`dt_evidence_requests.status`)
 
 ```
-              customer text / PDF                 EVID-001
+              customer text / attachment                 EVID-001
    OPEN ─────────────────────────────▶ RECEIVED ─────────────▶ ACCEPTED
      │                                    │  ▲                    (resolved_at set)
      │                                    │  │ new text / PDF

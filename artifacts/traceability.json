@@ -2,9 +2,9 @@
   "generatedFrom": "artifacts/source-node-catalog.json + scripts/traceability-map.ts",
   "totalNodes": 229,
   "statusCounts": {
-    "REPLACED_BY_PLATFORM": 23,
-    "PARITY_TESTED": 152,
-    "PARITY_TESTED_DEVIATION": 44,
+    "REPLACED_BY_PLATFORM": 37,
+    "PARITY_TESTED_DEVIATION": 42,
+    "PARITY_TESTED": 140,
     "SOURCE_DEFECT_NOT_REPRODUCED": 7,
     "UNSUPPORTED": 3
   },
@@ -35,10 +35,11 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/super-agent.ts#resolveCaseRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › greets a new customer by asking for their name and company",
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33); explicit AUTH-nnn input is still resolved by the source regex."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -50,10 +51,11 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/super-agent.ts#resolveCaseRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › greets a new customer by asking for their name and company",
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33); explicit AUTH-nnn input is still resolved by the source regex."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -65,7 +67,7 @@
       "dependency": "dt_synthetic_cases (get)",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -80,7 +82,7 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -95,7 +97,7 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -110,10 +112,11 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/super-agent.ts#resolveCaseRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › greets a new customer by asking for their name and company",
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33); explicit AUTH-nnn input is still resolved by the source regex."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -125,7 +128,7 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/chat.ts#handleChatMessage",
       "targetTests": [
-        "tests/chat-audit.test.ts › rejects messages without a case id and unknown cases without running an assessment"
+        "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -580,11 +583,11 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/chat.ts#presentAssessment / handleChatMessage",
       "targetTests": [
-        "tests/chat-audit.test.ts › AUTH-002 (file evidence) goes straight to the upload prompt",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-002 (file evidence) asks for documents in the same chat",
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "notes": "The channel is still selected, but every channel now accepts typed text and/or attached files in one prompt (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -592,15 +595,15 @@
       "nodeId": "1ea462bb-9f84-40bc-9ec0-973ed1c88b7c",
       "nodeName": "Ask Customer for Evidence Method",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -608,15 +611,15 @@
       "nodeId": "02e34050-ac01-4e50-8332-455d6aced929",
       "nodeName": "Normalise Evidence Method",
       "nodeType": "n8n-nodes-base.code",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -624,15 +627,15 @@
       "nodeId": "ecdbb965-0e36-4cfe-9448-b5871e2a805f",
       "nodeName": "Evidence Method Valid?",
       "nodeType": "n8n-nodes-base.if",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -640,15 +643,15 @@
       "nodeId": "b0be0e92-10f7-4f17-9f76-39eca2ceef42",
       "nodeName": "Ask Evidence Method Again",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -656,15 +659,15 @@
       "nodeId": "f862473f-719d-448e-9b16-778c5953960e",
       "nodeName": "Normalise Retry Method",
       "nodeType": "n8n-nodes-base.code",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -672,15 +675,15 @@
       "nodeId": "78655667-b5ba-4232-b31a-1cf3a1f98818",
       "nodeName": "Retry Method Valid?",
       "nodeType": "n8n-nodes-base.if",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -688,15 +691,15 @@
       "nodeId": "4b3887f0-7705-47d4-bcf9-bdb49eea8fe9",
       "nodeName": "Send Method Selection Failed",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "inputOutputContract": "TEXT|CHAT|PASTE|TYPE / UPLOAD|FILE|DOCUMENT|PDF; one retry then failure message",
+      "inputOutputContract": "method question removed: the customer types and/or attaches; no TEXT/UPLOAD word is ever required",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts#normaliseEvidenceMethod / handleChatMessage",
+      "targetModule": "packages/workflows/src/chat.ts (single AWAITING_EVIDENCE state)",
       "targetTests": [
-        "tests/chat-audit.test.ts › method selection: one retry prompt",
-        "tests/chat-audit.test.ts › normalises evidence-method replies like the source"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer",
+        "tests/e2e/portal.spec.ts › evidence loop: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Customer request: nobody should be asked to type UPLOAD/UPLOADED/TEXT (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -708,11 +711,11 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/chat.ts#presentAssessment / handleChatMessage",
       "targetTests": [
-        "tests/chat-audit.test.ts › AUTH-002 (file evidence) goes straight to the upload prompt",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-002 (file evidence) asks for documents in the same chat",
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ],
-      "parityStatus": "PARITY_TESTED",
-      "notes": ""
+      "parityStatus": "PARITY_TESTED_DEVIATION",
+      "notes": "The channel is still selected, but every channel now accepts typed text and/or attached files in one prompt (docs/07 G-31)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -722,9 +725,9 @@
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
       "inputOutputContract": "CANCEL|STOP|END|CANCEL REQUEST cancel; empty asks again",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "targetTests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -737,9 +740,9 @@
       "nodeType": "n8n-nodes-base.code",
       "inputOutputContract": "CANCEL|STOP|END|CANCEL REQUEST cancel; empty asks again",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "targetTests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -755,7 +758,7 @@
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
         "tests/evidence.test.ts › cancels the request, updates the case",
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED_DEVIATION",
       "notes": "Source text-path cancel updates only the request; target applies the upload-path behaviour (case → EVIDENCE_REQUEST_CANCELLED + audit) to both (docs/07 G-09)."
@@ -771,7 +774,7 @@
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
         "tests/evidence.test.ts › cancels the request, updates the case",
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED_DEVIATION",
       "notes": "Source text-path cancel updates only the request; target applies the upload-path behaviour (case → EVIDENCE_REQUEST_CANCELLED + audit) to both (docs/07 G-09)."
@@ -787,7 +790,7 @@
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
         "tests/evidence.test.ts › cancels the request, updates the case",
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED_DEVIATION",
       "notes": "Source text-path cancel updates only the request; target applies the upload-path behaviour (case → EVIDENCE_REQUEST_CANCELLED + audit) to both (docs/07 G-09)."
@@ -800,9 +803,9 @@
       "nodeType": "n8n-nodes-base.if",
       "inputOutputContract": "CANCEL|STOP|END|CANCEL REQUEST cancel; empty asks again",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "targetTests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -815,9 +818,9 @@
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
       "inputOutputContract": "CANCEL|STOP|END|CANCEL REQUEST cancel; empty asks again",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_TEXT)",
+      "targetModule": "packages/workflows/src/chat.ts (AWAITING_EVIDENCE, typed answer)",
       "targetTests": [
-        "tests/chat-audit.test.ts › TEXT path: empty input asks again"
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -888,14 +891,15 @@
       "nodeId": "f1ab76ce-e27f-4fa3-8e10-fb9630207a84",
       "nodeName": "Build Evidence Upload Link",
       "nodeType": "n8n-nodes-base.code",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -903,14 +907,15 @@
       "nodeId": "aa9837cb-da36-4312-a016-55bf213e72f8",
       "nodeName": "Ask for Evidence Upload",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -922,7 +927,7 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ],
       "parityStatus": "PARITY_TESTED",
@@ -938,7 +943,7 @@
       "dependency": "dt_evidence_requests (update)",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ],
       "parityStatus": "PARITY_TESTED",
@@ -954,7 +959,7 @@
       "dependency": "dt_cases_runtime (update)",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ],
       "parityStatus": "PARITY_TESTED",
@@ -966,14 +971,15 @@
       "nodeId": "8d59af61-1cf3-4cf2-83dc-77b2757efa12",
       "nodeName": "Normalise Upload Reply",
       "nodeType": "n8n-nodes-base.code",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -985,7 +991,7 @@
       "dependency": "dt_audit_events (insert)",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ],
       "parityStatus": "PARITY_TESTED",
@@ -1001,7 +1007,7 @@
       "dependency": "LLM / agent runtime",
       "targetModule": "packages/workflows/src/evidence.ts#cancelEvidenceRequest + chat.ts",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: CANCEL cancels the request",
+        "tests/chat-audit.test.ts › CANCEL (typed or by button) cancels the evidence request",
         "tests/evidence.test.ts › cancels the request, updates the case"
       ],
       "parityStatus": "PARITY_TESTED",
@@ -1013,14 +1019,15 @@
       "nodeId": "c37f62e2-4143-45f7-95ab-2d283baadece",
       "nodeName": "Get Uploaded Evidence",
       "nodeType": "n8n-nodes-base.dataTable",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "dt_case_evidence (get)",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -1028,14 +1035,15 @@
       "nodeId": "53430133-7f8a-41ca-bc96-d9b9b630f5cc",
       "nodeName": "Evaluate Upload Availability",
       "nodeType": "n8n-nodes-base.code",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -1043,14 +1051,15 @@
       "nodeId": "69315c48-0ed0-4ad8-9161-e0f5a5ba1129",
       "nodeName": "Evidence Available?",
       "nodeType": "n8n-nodes-base.if",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "—",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -1058,14 +1067,15 @@
       "nodeId": "6dcc50ea-923b-481b-b5ba-b6694768e6a6",
       "nodeName": "Ask Customer to Complete Upload",
       "nodeType": "@n8n/n8n-nodes-langchain.chat",
-      "inputOutputContract": "upload link with evidence_request_id + case_run_id; any non-cancel reply checks for uploaded evidence",
+      "inputOutputContract": "no link, no UPLOADED acknowledgement: the attachment itself is the evidence and is assessed immediately",
       "dependency": "LLM / agent runtime",
-      "targetModule": "packages/workflows/src/chat.ts (AWAITING_UPLOAD) + uploadUrlFor",
+      "targetModule": "packages/workflows/src/chat.ts#handleChatEvidenceUpload + POST /api/chat/evidence",
       "targetTests": [
-        "tests/chat-audit.test.ts › UPLOAD path: \"UPLOADED\" without a stored upload"
+        "tests/chat-audit.test.ts › attached documents (text already extracted) are the evidence",
+        "tests/chat-attachments.test.ts › several files of different formats are stored"
       ],
-      "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "Upload link points at the target web app (APP_BASE_URL) instead of the n8n form URL; \"available\" requires a newly RECEIVED record."
+      "parityStatus": "REPLACED_BY_PLATFORM",
+      "notes": "Upload page and UPLOADED acknowledgement replaced by in-chat attachments (docs/07 G-31); Word and image formats added with server-side extraction (G-32)."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -1093,7 +1103,7 @@
       "targetModule": "packages/workflows/src/super-agent.ts#resumeAssessment + chat.ts#afterResolution",
       "targetTests": [
         "tests/evidence.test.ts › sets the runtime case to ASSESSMENT_RESUMED / AGENTIC_REASSESSMENT before the resumed assessment finalises",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -1109,7 +1119,7 @@
       "targetModule": "packages/workflows/src/super-agent.ts#resumeAssessment + chat.ts#afterResolution",
       "targetTests": [
         "tests/evidence.test.ts › sets the runtime case to ASSESSMENT_RESUMED / AGENTIC_REASSESSMENT before the resumed assessment finalises",
-        "tests/chat-audit.test.ts › AUTH-003: asks TEXT or UPLOAD"
+        "tests/chat-audit.test.ts › AUTH-003: the customer just types the answer"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -1139,7 +1149,7 @@
       "dependency": "—",
       "targetModule": "packages/workflows/src/chat.ts#afterResolution (RETRY)",
       "targetTests": [
-        "tests/chat-audit.test.ts › insufficient evidence explains the remaining gap and re-asks"
+        "tests/chat-audit.test.ts › insufficient evidence explains the gap and the same prompt returns"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -1154,7 +1164,7 @@
       "dependency": "LLM / agent runtime",
       "targetModule": "packages/workflows/src/chat.ts#afterResolution (RETRY)",
       "targetTests": [
-        "tests/chat-audit.test.ts › insufficient evidence explains the remaining gap and re-asks"
+        "tests/chat-audit.test.ts › insufficient evidence explains the gap and the same prompt returns"
       ],
       "parityStatus": "PARITY_TESTED",
       "notes": ""
@@ -3314,12 +3324,13 @@
       "nodeId": "2c8835b3-eae4-4124-b501-59253b6d5e81",
       "nodeName": "Open Evidence Upload",
       "nodeType": "n8n-nodes-base.formTrigger",
-      "inputOutputContract": "in: hidden evidence_request_id, case_run_id; fields evidence_type, evidence_notes, evidence_file (.pdf)",
+      "inputOutputContract": "in: evidence_request_id and case_run_id come from the chat session (G-31); attachments evidence_file[] (PDF, DOCX, images) plus optional message",
       "dependency": "—",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx + GET/POST /api/evidence/:id[/upload]",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (in-chat composer) + POST /api/chat/evidence + GET/POST /api/evidence/:id[/upload]",
       "targetTests": [
         "tests/api.test.ts › validates the evidence request for the upload page",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › documents are attached in the same chat window",
+        "tests/e2e/portal.spec.ts › there is no separate upload page"
       ],
       "parityStatus": "REPLACED_BY_PLATFORM",
       "notes": ""
@@ -3363,10 +3374,10 @@
       "nodeType": "n8n-nodes-base.form",
       "inputOutputContract": "form completion pages → HTTP 4xx/200 + UI messages",
       "dependency": "—",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx (result panels)",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (composer + error notice)",
       "targetTests": [
         "tests/api.test.ts › rejects %s and leaves the request OPEN with nothing stored",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › an unsupported or unreadable file is refused"
       ],
       "parityStatus": "REPLACED_BY_PLATFORM",
       "notes": ""
@@ -3382,6 +3393,8 @@
       "targetModule": "apps/api/src/pdf.ts#extractPdfText + evidence.ts#submitUploadedEvidence (≥ 20 characters)",
       "targetTests": [
         "tests/api.test.ts › accepts a real text PDF, stores the original",
+        "tests/chat-attachments.test.ts › extracts text from PDF, DOCX and an image (OCR)",
+        "tests/chat-attachments.test.ts › several files of different formats are stored",
         "tests/evidence.test.ts › unreadable PDF (< 20 characters)",
         "tests/security.test.ts › refuses a page bomb from its declared page count"
       ],
@@ -3399,6 +3412,8 @@
       "targetModule": "apps/api/src/pdf.ts#extractPdfText + evidence.ts#submitUploadedEvidence (≥ 20 characters)",
       "targetTests": [
         "tests/api.test.ts › accepts a real text PDF, stores the original",
+        "tests/chat-attachments.test.ts › extracts text from PDF, DOCX and an image (OCR)",
+        "tests/chat-attachments.test.ts › several files of different formats are stored",
         "tests/evidence.test.ts › unreadable PDF (< 20 characters)",
         "tests/security.test.ts › refuses a page bomb from its declared page count"
       ],
@@ -3416,6 +3431,8 @@
       "targetModule": "apps/api/src/pdf.ts#extractPdfText + evidence.ts#submitUploadedEvidence (≥ 20 characters)",
       "targetTests": [
         "tests/api.test.ts › accepts a real text PDF, stores the original",
+        "tests/chat-attachments.test.ts › extracts text from PDF, DOCX and an image (OCR)",
+        "tests/chat-attachments.test.ts › several files of different formats are stored",
         "tests/evidence.test.ts › unreadable PDF (< 20 characters)",
         "tests/security.test.ts › refuses a page bomb from its declared page count"
       ],
@@ -3430,10 +3447,10 @@
       "nodeType": "n8n-nodes-base.form",
       "inputOutputContract": "form completion pages → HTTP 4xx/200 + UI messages",
       "dependency": "—",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx (result panels)",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (composer + error notice)",
       "targetTests": [
         "tests/api.test.ts › rejects %s and leaves the request OPEN with nothing stored",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › an unsupported or unreadable file is refused"
       ],
       "parityStatus": "REPLACED_BY_PLATFORM",
       "notes": ""
@@ -3506,10 +3523,10 @@
       "nodeType": "n8n-nodes-base.form",
       "inputOutputContract": "form completion pages → HTTP 4xx/200 + UI messages",
       "dependency": "—",
-      "targetModule": "apps/web/src/pages/UploadPage.tsx (result panels)",
+      "targetModule": "apps/web/src/pages/ChatPage.tsx (composer + error notice)",
       "targetTests": [
         "tests/api.test.ts › rejects %s and leaves the request OPEN with nothing stored",
-        "tests/e2e/portal.spec.ts › evidence upload"
+        "tests/e2e/portal.spec.ts › an unsupported or unreadable file is refused"
       ],
       "parityStatus": "REPLACED_BY_PLATFORM",
       "notes": ""

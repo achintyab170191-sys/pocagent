@@ -14,7 +14,7 @@ Chat / API ─▶ SBO.02 Super Agent (Claude Agent SDK — provisional recommend
                                         └─ persisted runtime results  (unique: case_run_id + submission_version + check_type)
             ─▶ Deterministic Finalizer (Workflow 90 — no LLM)
                 └─ decision · draft communication · runtime case · audit   (one transaction)
-            ─▶ Evidence loop (96 upload → 95 resolution → resume) · Human review (91) · Resubmission (92) · Case status
+            ─▶ Evidence loop (96 attachments in chat → 95 resolution → resume) · Human review (91) · Resubmission (92) · Case status
 ```
 
 Monorepo: `apps/api` (Fastify) · `apps/web` (React + Vite) · `packages/{domain,governance,persistence,workflows,agent-runtime,testkit}` · `scripts/` · `docs/`. ORM choice: no ORM — the `postgres` driver with hand-written SQL behind a `Repository` interface, because the schema is small, must be identical for the in-memory test double and PostgreSQL, and the key/constraint behaviour is the thing under test.
@@ -50,12 +50,14 @@ No model key yet? Set `AGENT_RUNTIME=deterministic` in `.env`: the governed tool
 
 ## Demo (web app, `npm run dev`, open http://localhost:5173)
 
+**Start as a customer.** Open the chat and say who you are and which company you represent (e.g. *"My name is Hana Rangi and I represent Kauri Harbour Demo Digital Limited"*). A case (AUTH-101...) is opened and assessed. If evidence is needed, answer in the same window: type, attach PDF / Word (.docx) / image files with the paperclip (or drag them in), or both - there is nothing to type like UPLOAD. Results come from matched synthetic scenarios (docs/07 G-33); an unmatched name/company goes to specialist review.
+
 Every screen shows the synthetic-data banner. The chat has quick buttons for the 11 cases.
 
 | Case | Do this | You should see |
 | --- | --- | --- |
 | **AUTH-001** | Chat → click `AUTH-001` | *Eligible to proceed* — 7 checks passed, tool trace `Document Checks → … → Final Verification`, governed outcome APPROVE / `ALL_CHECKS_PASSED`. |
-| **AUTH-003** | Chat → `AUTH-003` → reply `TEXT` → type e.g. *"The signed authority letter grants account management, service ordering, plan changes and contract approval."* | First: *Additional evidence required* (authority scope ambiguous) with an evidence request and the TEXT/UPLOAD choice. After the evidence: the assessment **resumes from the next incomplete check without re-running passed ones**. Note (source fact, docs/07 G-12): the fixture's downstream rows are `NOT_RUN`, so the governed result is `MANUAL_REVIEW / MANDATORY_CHECKS_INCOMPLETE`. Try `UPLOAD` instead: open the upload link, upload a text PDF, return and type `UPLOADED`. (Needs `AGENT_RUNTIME=claude`.) |
+| **AUTH-003** | Chat → `AUTH-003` (demo shortcut) → simply type e.g. *"The signed authority letter grants account management, service ordering, plan changes and contract approval."* | First: *Additional evidence required* (authority scope ambiguous) with an evidence request and a prompt to type an answer and/or attach documents (PDF, Word, images) in the same chat window; nothing else to type. After the evidence: the assessment **resumes from the next incomplete check without re-running passed ones**. Note (source fact, docs/07 G-12): the fixture's downstream rows are `NOT_RUN`, so the governed result is `MANUAL_REVIEW / MANDATORY_CHECKS_INCOMPLETE`. Try attaching a PDF, .docx or image with the paperclip instead of typing. (Needs `AGENT_RUNTIME=claude`.) |
 | **AUTH-005** | Chat → `AUTH-005`; then *Human review* → `REV-AUTH-005-1` | *Specialist review required*: conflicting CRM legal names, route *Customer Data Reconciliation*. Complete the review once (`NEED_MORE_INFORMATION` + comment); a second attempt is refused. *Case status* → `AUTH-005` shows review, decision, draft communication. |
 | **AUTH-010** | Chat → `AUTH-010` | *Policy review required* — a TBD credit rule triggers control `CTRL-001 / TBD_POLICY`; never an automated approval or rejection. |
 | AUTH-008 | Chat → `AUTH-008-V1`, then *Resubmission* → V1 → V2 | V1 needs more information; V2 is approved; V1 becomes `SUPERSEDED_BY_RESUBMISSION`. |
@@ -83,13 +85,13 @@ Every screen shows the synthetic-data banner. The chat has quick buttons for the
 | --- | --- |
 | Agentic Chat (03) | `POST /api/chat`, `POST /api/cases/:caseRunId/{evaluate,messages}` |
 | Case status (93 — absent, adapter) | `GET /api/cases/:caseRunId/status` |
-| Customer Evidence Upload form (96) | `GET /api/evidence/:id` (validate), `POST /api/evidence/:id/upload`, `POST /api/evidence/:id/text`, `POST /api/evidence/:id/cancel` |
+| Customer Evidence Upload form (96) | `GET /api/evidence/:id` (validate), `POST /api/chat/evidence` (attachments from the chat window, up to 3 files), `POST /api/evidence/:id/upload`, `POST /api/evidence/:id/text`, `GET /api/scenarios`, `POST /api/evidence/:id/cancel` |
 | Evidence Resolution (95, via 03) | `POST /api/evidence/:id/resolve` |
 | Human Review form (91) | `GET /api/reviews/:reviewId`, `POST /api/reviews/:reviewId/complete` |
 | Resubmission form (92) | `POST /api/resubmissions` |
 | — | `GET /api/session` (CSRF token + server-issued conversation session), `GET /api/cases`, `GET /health` |
 
-State-changing routes require the double-submit CSRF header; assessment/evidence/review POSTs are rate-limited; uploads are PDF-only (MIME + `%PDF-` magic, 5 MB), stored outside any web root under generated names.
+State-changing routes require the double-submit CSRF header; assessment/evidence/review POSTs are rate-limited; attachments are PDF, Word (.docx) or image files identified by magic bytes (5 MB each, up to 3 per message; legacy .doc is refused; images are read offline with OCR), stored outside any web root under generated names.
 
 ## Honest limits
 

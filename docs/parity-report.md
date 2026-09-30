@@ -1,6 +1,6 @@
 # Parity report
 
-Generated 2026-09-29T17:42:47.593Z on Node v24.21.0 by `npm run report:parity`. Machine-readable copy: `artifacts/parity-report.json`.
+Generated 2026-09-30T06:01:39.448Z on Node v24.21.0 by `npm run report:parity`. Machine-readable copy: `artifacts/parity-report.json`.
 
 ## Result
 
@@ -14,16 +14,16 @@ Generated 2026-09-29T17:42:47.593Z on Node v24.21.0 by `npm run report:parity`. 
 | **Parity of in-scope nodes** | **100%** (226/226) |
 | Parity of all nodes | 98.7% (226/229) |
 
-Traceability status of the 229 nodes: REPLACED_BY_PLATFORM 23 · PARITY_TESTED 152 · PARITY_TESTED_DEVIATION 44 · SOURCE_DEFECT_NOT_REPRODUCED 7 · UNSUPPORTED 3.
+Traceability status of the 229 nodes: REPLACED_BY_PLATFORM 37 · PARITY_TESTED_DEVIATION 42 · PARITY_TESTED 140 · SOURCE_DEFECT_NOT_REPRODUCED 7 · UNSUPPORTED 3.
 "Verified" means a mapped implementation exists and every test title referenced in `docs/05` matched at least one passing test in this run — it does not mean n8n's runtime is identical in every edge case (see docs/07 for the deviations).
 
 ## Test suites
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 231 | 0 | 0 |
-| integration | `npx vitest run --config vitest.integration.config.ts` | 18 | 0 | 0 |
-| e2e | `npx playwright test` | 21 | 0 | 0 |
+| unit | `npx vitest run` | 241 | 0 | 0 |
+| integration | `npx vitest run --config vitest.integration.config.ts` | 20 | 0 | 0 |
+| e2e | `npx playwright test` | 22 | 0 | 0 |
 
 ## AUTH regression (replayed from the preserved fixtures)
 

@@ -92,11 +92,11 @@ describe('assessment API', () => {
   });
 
   it('keeps one server-issued conversation session across requests (client cannot choose the session id)', async () => {
-    const { post } = await start();
+    const { post } = await start({ runtime: new ScriptedRuntime([insufficient]) });
     const first = (await post('/api/chat', { message: 'Evaluate AUTH-003' })).json();
-    const second = (await post('/api/chat', { message: 'TEXT' })).json();
-    expect(first.step).toBe('AWAITING_METHOD');
-    expect(second.step).toBe('AWAITING_TEXT');
+    const second = (await post('/api/chat', { message: 'a clarification' })).json();
+    expect(first.step).toBe('AWAITING_EVIDENCE');
+    expect(second.step).toBe('AWAITING_EVIDENCE');
     expect(second.sessionId).toBe(first.sessionId);
     await post('/api/chat', { message: 'cancel' }); // ends the pending evidence request; the conversation is idle again
     const spoofed = await post('/api/chat', { message: 'Evaluate AUTH-001', sessionId: 'someone-elses-session' });
@@ -107,7 +107,6 @@ describe('assessment API', () => {
   it('runs the whole chat evidence loop over HTTP and resumes the assessment', async () => {
     const { post, store } = await start({ runtime: new ScriptedRuntime([resolved]) });
     await post('/api/chat', { message: 'Evaluate AUTH-003' });
-    await post('/api/chat', { message: 'text' });
     const done = (await post('/api/chat', { message: authorityText })).json();
     expect(done.messages[0]).toContain('Thank you. The additional evidence has resolved the identified gap.');
     expect(done.outcome.toolsCalled).toEqual(['System Data Check']);
@@ -191,7 +190,7 @@ describe('evidence upload API (Workflow 96)', () => {
   it.each([
     ['non-PDF content type', { name: 'a.txt', type: 'text/plain', content: Buffer.from(authorityText) }, 400, 'UNSUPPORTED_FILE_TYPE'],
     ['executable disguised as a PDF (magic bytes)', { name: 'evil.pdf', type: 'application/pdf', content: Buffer.from('MZ\u0090\u0000 not a pdf at all, just some bytes here') }, 400, 'UNSUPPORTED_FILE_TYPE'],
-    ['PDF without extractable text', { name: 'scan.pdf', type: 'application/pdf', content: makePdf('x') }, 400, 'PDF_TEXT_UNAVAILABLE'],
+    ['PDF without extractable text', { name: 'scan.pdf', type: 'application/pdf', content: makePdf('x') }, 400, 'DOCUMENT_TEXT_UNAVAILABLE'],
   ])('rejects %s and leaves the request OPEN with nothing stored', async (_label, file, status, code) => {
     const { upload, store, requestId, uploadDirectory } = await withRequest();
     const response = await upload(`/api/evidence/${requestId}/upload`, {}, file);

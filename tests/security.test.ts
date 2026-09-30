@@ -75,7 +75,7 @@ describe('SEC-01 PDF parsing is bounded', () => {
     const bomb = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Pages /Count 99999 /Kids [] >>\nendobj\n%%EOF', 'latin1');
     const response = await ctx.upload(`/api/evidence/${requestId}/upload`, bomb);
     expect(response.statusCode).toBe(400);
-    expect(response.json().error).toBe('PDF_TOO_COMPLEX');
+    expect(response.json().error).toBe('DOCUMENT_TOO_COMPLEX');
     expect(readdirSync(ctx.uploadDirectory)).toEqual([]);
     expect(await ctx.store.getEvidence(requestId)).toEqual([]);
   });

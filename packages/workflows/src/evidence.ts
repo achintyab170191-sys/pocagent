@@ -12,6 +12,12 @@ const resolutionStatuses = new Set(['RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICI
 const sequenceByCheck: Record<string, number> = { REQUEST_CLARIFICATION: 0, CUSTOMER_CONFIRMATION: 0, SALES_CONFIRMATION: 0, DOCUMENT_EXTRACTION: 1, BUSINESS_VALIDATION: 2, IDENTITY_VALIDATION: 3, AUTHORITY_VALIDATION: 4, SYSTEM_DATA_CHECK: 5, FINANCIAL_CHECK: 6, FINAL_VERIFICATION: 7 };
 const evidenceTypeByCheck: Record<string, string> = { DOCUMENT_EXTRACTION: 'DOCUMENT_CLARIFICATION', BUSINESS_VALIDATION: 'BUSINESS_CLARIFICATION', IDENTITY_VALIDATION: 'IDENTITY_CLARIFICATION', AUTHORITY_VALIDATION: 'AUTHORITY_CLARIFICATION', SYSTEM_DATA_CHECK: 'SYSTEM_DATA_CLARIFICATION', FINANCIAL_CHECK: 'FINANCIAL_CLARIFICATION', REQUEST_CLARIFICATION: 'CUSTOMER_CLARIFICATION', CUSTOMER_CONFIRMATION: 'CUSTOMER_CONFIRMATION', SALES_CONFIRMATION: 'SALES_CONFIRMATION' };
 export const uploadEvidenceTypes = ['AUTHORITY_DOCUMENT', 'IDENTITY_DOCUMENT', 'BUSINESS_DOCUMENT', 'ADDRESS_PROOF', 'CUSTOMER_CONFIRMATION', 'OTHER'] as const;
+/**
+ * Canonical MIME types accepted as evidence. The source form accepted only `.pdf`; Word (.docx) and common image formats were added at the
+ * customer's request (docs/07 G-33). Text is extracted server-side (PDF text layer, Word body text, image OCR).
+ */
+export const evidenceMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp'] as const;
+const documentTypeByCheck: Record<string, (typeof uploadEvidenceTypes)[number]> = { AUTHORITY_VALIDATION: 'AUTHORITY_DOCUMENT', IDENTITY_VALIDATION: 'IDENTITY_DOCUMENT', BUSINESS_VALIDATION: 'BUSINESS_DOCUMENT' };
 export const cancelWords = ['CANCEL', 'STOP', 'END', 'CANCEL REQUEST'];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -21,14 +27,16 @@ export const cancelWords = ['CANCEL', 'STOP', 'END', 'CANCEL REQUEST'];
 export interface UploadValidation { uploadAllowed: boolean; rejectionReason: string; caseRunId: string; request?: EvidenceRequest; }
 
 /** The stored evidence-request row is authoritative for case identity. */
-export function validateEvidenceRequest(request: EvidenceRequest | undefined, submittedRequestId: string, suppliedCaseRunId = ''): UploadValidation {
+export function validateEvidenceRequest(request: EvidenceRequest | undefined, submittedRequestId: string, suppliedCaseRunId = '', options: { allowReceived?: boolean } = {}): UploadValidation {
   const requestFound = Boolean(request?.evidenceRequestId.trim());
   const requestIdMatches = requestFound && request?.evidenceRequestId === submittedRequestId.trim();
   const stored = request?.caseRunId.trim() ?? '';
   const supplied = suppliedCaseRunId.trim();
   const caseMismatch = Boolean(supplied && stored && supplied !== stored);
   const effective = stored || supplied;
-  const statusPermitted = uploadStatuses.has(request?.status ?? '');
+  // `allowReceived` (chat path): a request still RECEIVED means an earlier answer has not been assessed yet (e.g. the model was unavailable);
+  // the customer may add to it and the assessment is retried, instead of being stuck.
+  const statusPermitted = uploadStatuses.has(request?.status ?? '') || (options.allowReceived === true && request?.status === 'RECEIVED');
   let rejectionReason = '';
   if (!submittedRequestId.trim()) rejectionReason = 'EVIDENCE_REQUEST_ID_NOT_SUPPLIED';
   else if (!requestFound) rejectionReason = 'EVIDENCE_REQUEST_NOT_FOUND';
@@ -48,9 +56,9 @@ async function receiveEvidence(repository: Repository, request: EvidenceRequest,
   });
 }
 
-export async function submitTextEvidence(repository: Repository, evidenceRequestId: string, input: { caseRunId?: string; text: string }): Promise<Evidence> {
+export async function submitTextEvidence(repository: Repository, evidenceRequestId: string, input: { caseRunId?: string; text: string; allowReceived?: boolean }): Promise<Evidence> {
   const request = await repository.getEvidenceRequest(evidenceRequestId);
-  const validation = validateEvidenceRequest(request, evidenceRequestId, input.caseRunId);
+  const validation = validateEvidenceRequest(request, evidenceRequestId, input.caseRunId, { allowReceived: input.allowReceived });
   if (!validation.uploadAllowed || !request) throw new Error(validation.rejectionReason);
   const text = input.text.trim();
   if (!text) throw new Error('EVIDENCE_TEXT_EMPTY');
@@ -59,17 +67,17 @@ export async function submitTextEvidence(repository: Repository, evidenceRequest
   return evidence;
 }
 
-export interface UploadInput { caseRunId?: string; evidenceType?: string; notes?: string; fileName: string; mimeType: string; storageUrl: string; extractedText: string; }
+export interface UploadInput { caseRunId?: string; evidenceType?: string; notes?: string; fileName: string; mimeType: string; storageUrl: string; extractedText: string; allowReceived?: boolean; }
 
-/** PDF text extraction happens in the API layer; this function applies the source's "PDF Text Available?" gate (≥ 20 characters). */
+/** Text extraction happens in the API layer; this function applies the source's "text available?" gate (≥ 20 characters) to every format. */
 export async function submitUploadedEvidence(repository: Repository, evidenceRequestId: string, input: UploadInput): Promise<Evidence> {
   const request = await repository.getEvidenceRequest(evidenceRequestId);
-  const validation = validateEvidenceRequest(request, evidenceRequestId, input.caseRunId);
+  const validation = validateEvidenceRequest(request, evidenceRequestId, input.caseRunId, { allowReceived: input.allowReceived });
   if (!validation.uploadAllowed || !request) throw new Error(validation.rejectionReason);
-  if (input.mimeType !== 'application/pdf') throw new Error('UNSUPPORTED_FILE_TYPE');
+  if (!(evidenceMimeTypes as readonly string[]).includes(input.mimeType)) throw new Error('UNSUPPORTED_FILE_TYPE');
   const text = input.extractedText.trim();
-  if (text.length < 20) throw new Error('PDF_TEXT_UNAVAILABLE');
-  const evidenceType = (uploadEvidenceTypes as readonly string[]).includes(input.evidenceType ?? '') ? input.evidenceType! : 'OTHER';
+  if (text.length < 20) throw new Error('DOCUMENT_TEXT_UNAVAILABLE');
+  const evidenceType = (uploadEvidenceTypes as readonly string[]).includes(input.evidenceType ?? '') ? input.evidenceType! : (documentTypeByCheck[request.originatingCheckType.toUpperCase()] ?? 'OTHER');
   const evidence: Evidence = { evidenceId: `EVIDENCE-${request.caseRunId}-${uniqueMillis()}`, evidenceRequestId, caseRunId: request.caseRunId, submissionVersion: request.submissionVersion, evidenceType, evidenceSource: 'FILE_UPLOAD', fileName: input.fileName, mimeType: input.mimeType, storageUrl: input.storageUrl, evidenceText: text, structuredData: { evidence_notes: input.notes ?? '', extracted_character_count: text.length }, validationStatus: 'RECEIVED', confidence: 0, providedAt: now(), superseded: false };
   await receiveEvidence(repository, request, evidence, 'CUSTOMER_FILE_EVIDENCE_RECEIVED', { fileName: input.fileName });
   return evidence;

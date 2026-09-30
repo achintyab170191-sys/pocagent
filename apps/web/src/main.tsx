@@ -6,11 +6,9 @@ import { ChatPage } from './pages/ChatPage';
 import { ResubmissionPage } from './pages/ResubmissionPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { StatusPage } from './pages/StatusPage';
-import { UploadPage } from './pages/UploadPage';
 
 const routes = [
   { path: '/', label: 'Assessment chat', element: <ChatPage /> },
-  { path: '/upload', label: 'Evidence upload', element: <UploadPage /> },
   { path: '/review', label: 'Human review', element: <ReviewPage /> },
   { path: '/status', label: 'Case status', element: <StatusPage /> },
   { path: '/resubmit', label: 'Resubmission', element: <ResubmissionPage /> },

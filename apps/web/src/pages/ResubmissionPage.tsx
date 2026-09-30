@@ -20,7 +20,7 @@ export function ResubmissionPage() {
   return (
     <section aria-labelledby="resubmit-title" className="page narrow">
       <h2 id="resubmit-title">Submit revised authority evidence</h2>
-      <p className="lead">Synthetic prototype only. Use this form to resubmit a case that previously returned NEED MORE INFORMATION as a later version of the same logical case (for example AUTH-008-V1 → AUTH-008-V2).</p>
+      <p className="lead">Synthetic prototype only. Use this form to resubmit a case whose <strong>latest</strong> outcome is NEED MORE INFORMATION as a later version of the same logical case (for example AUTH-008-V1 → AUTH-008-V2). If you are chatting, you can also use the "Submit a corrected version" button in the chat. A case whose evidence has already been accepted (so its outcome changed) can no longer be resubmitted.</p>
       <form onSubmit={(event) => void submit(event)} className="card">
         <Field label="Original case run ID"><input value={original} onChange={(event) => setOriginal(event.target.value)} required /></Field>
         <Field label="Revised case run ID"><input list="revised-list" value={revised} onChange={(event) => setRevised(event.target.value)} required /><datalist id="revised-list">{cases.map((id) => <option key={id} value={id} />)}</datalist></Field>

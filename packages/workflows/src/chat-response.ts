@@ -69,7 +69,11 @@ export function buildChatResponse(input: { decision: Decision; businessName: str
   const completedTypes = new Set(completed.map((check) => check.checkType));
   const deferred = dedupe(decision.checksNotRun.map(canonicalCheckType).filter((checkType) => checkType && !completedTypes.has(checkType)).map((checkType) => checkNameMap[checkType] ?? titleCaseCode(checkType)));
   const primary = decision.primaryReasonCode.trim().toUpperCase();
-  const reasonText = String(reasonTextMap[primary] || decision.customerSafeSummary || conflicts[0] || (primary ? titleCaseCode(primary) : '') || 'The assessment requires further action.').trim();
+  // Intake cases with no matching synthetic scenario report UNRESOLVED_SOURCE_GAP from every utility (docs/07 G-32): say so plainly.
+  const unmatched = decision.secondaryReasonCodes.includes('UNRESOLVED_SOURCE_GAP');
+  const reasonText = unmatched
+    ? 'These details could not be matched to a record in this synthetic environment, so the checks cannot be completed automatically. The request has been passed to a specialist for review.'
+    : String(reasonTextMap[primary] || decision.customerSafeSummary || conflicts[0] || (primary ? titleCaseCode(primary) : '') || 'The assessment requires further action.').trim();
   const queue = decision.targetQueue.trim().toUpperCase();
   const queueLabel = queue ? (queueLabelMap[queue] ?? titleCaseCode(queue)) : '';
   const sections: string[] = [];

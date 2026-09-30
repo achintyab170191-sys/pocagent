@@ -25,6 +25,8 @@
 
 ## What changed, by finding
 
+**Update (G-32):** the same worker/limit approach now covers DOCX (zip central-directory entry and inflated-size limits, mammoth in a worker) and images (magic-byte sniff, pixel and side caps, 2-slot OCR semaphore, timeout, confidence floor); files are identified by content, never by name or declared type. Residual risk: OCR CPU time is bounded by the timeout and concurrency cap only.
+
 **SEC-01.** `apps/api/src/pdf.ts` runs pdf.js in a worker thread with an 8 s timeout, a 256 MB JS-heap cap, a raw-bytes page-count pre-check (`/Count`) and a 50-page / 200 000-character cap. Hostile PDFs return `PDF_TOO_COMPLEX` (HTTP 400) and store nothing; the event loop stays responsive (tested). *Residual:* pdf.js inflates streams into typed arrays that `resourceLimits` does not cap, so a flate bomb can allocate memory for up to the 8 s timeout. Mitigations in place/recommended: 5 MB upload cap, 10 uploads/min/client, `mem_limit: 1g` in the compose file; for production run the API under a container/cgroup memory limit and consider a child process with a byte-capped inflater.
 
 **SEC-02.** The source lets any chat message re-evaluate any case (reset runtime rows → re-finalize). That destroyed a reviewer's decision in the reviewer's probe. `evaluateCase` now refuses (`CASE_LOCKED`, 409; the chat says so) when the case has a COMPLETED review or is `SUPERSEDED_BY_RESUBMISSION`; an operator resets runtime state deliberately (`npm run reset:runtime`). This is a *deviation from source behaviour*, recorded as docs/07 G-27 and in the traceability matrix; if the process owner wants the original behaviour it is a one-line removal, but it should then be behind authentication.

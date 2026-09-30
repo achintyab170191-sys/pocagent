@@ -10,7 +10,7 @@ Chat / API ─▶ SBO.02 Super Agent (Claude Agent SDK, provisional only)
               └─ governed toolbox ─▶ 7 deterministic utilities (05,06,07A,07B,12,09,10)
                                      └─ persisted runtime results (unique: case_run_id + submission_version + check_type)
            ─▶ Deterministic Finalizer (Workflow 90, NO LLM) ─▶ decision · draft communication · runtime case · audit  (one transaction)
-           ─▶ evidence loop (96 upload → 95 resolution → resume) · human review (91) · resubmission (92) · status view (93 adapter)
+           ─▶ evidence loop (96 attachments in the chat window → 95 resolution → resume) · human review (91) · resubmission (92) · status view (93 adapter)
 ```
 
 | Path | Role |
@@ -22,7 +22,7 @@ Chat / API ─▶ SBO.02 Super Agent (Claude Agent SDK, provisional only)
 | `packages/agent-runtime` | Claude Agent SDK runtime, exact source prompts (`prompts/`), Zod output validation |
 | `packages/testkit` | Test doubles, focused fixtures, PDF generator |
 | `apps/api` | Fastify API (CSRF, rate limits, upload validation) |
-| `apps/web` | React + Vite: chat, evidence upload, human review, case status, resubmission |
+| `apps/web` | React + Vite: chat (new-customer intake + in-chat evidence attachments: PDF/Word/images), human review, case status, resubmission |
 | `scripts/` | migrate, seed, import, reset, traceability, parity report, source verification |
 | root `*.json`, `dt_*.csv` | **Preserved source artifacts. Never edit.** (`npm run verify:sources`) |
 

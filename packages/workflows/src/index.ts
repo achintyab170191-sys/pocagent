@@ -1,6 +1,7 @@
 export * from './utilities.js';
 export * from './super-agent.js';
 export * from './chat-response.js';
+export * from './intake.js';
 export * from './chat.js';
 export * from './evidence.js';
 export * from './human-review.js';

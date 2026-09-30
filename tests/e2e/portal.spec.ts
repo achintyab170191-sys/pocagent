@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import JSZip from 'jszip';
 import { makePdf } from '@sbo/testkit';
 
 const authorityText = 'The signed authority letter grants account management, service ordering, plan changes and contract approval.';
@@ -9,11 +10,36 @@ async function send(page: Page, message: string) {
 }
 async function evaluate(page: Page, caseRunId: string) {
   await page.goto('/');
+  await page.getByText('Demo: synthetic identities you can use').click();
   await page.getByRole('button', { name: caseRunId, exact: true }).click();
 }
+async function introduce(page: Page, name: string, company: string) {
+  await page.goto('/');
+  await send(page, `My name is ${name} and I represent ${company}.`);
+}
 const lastAgentTurn = (page: Page) => page.locator('.turn-agent').last();
+const wordFile = async (text: string) => {
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`);
+  return zip.generateAsync({ type: 'nodebuffer' });
+};
 
 test.describe('chat', () => {
+  test('a new customer introduces themselves; a case is opened and assessed', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('chat-log')).toContainText('tell me your name and the company you represent');
+    await send(page, 'hello');
+    await expect(page.getByTestId('chat-log')).toContainText('the company you represent');
+    await send(page, 'Hi, my name is Liam Chen');
+    await expect(page.getByTestId('chat-log')).toContainText('Which company are you representing?');
+    await send(page, 'Bluegum Vector Demo Pty Ltd');
+    await expect(page.getByTestId('chat-log')).toContainText(/opened case\s+AUTH-1\d\d/);
+    await expect(page.getByTestId('evidence-card')).toContainText('Exact authority clause or revised authority document');
+    await expect(page.getByTestId('chat-log')).not.toContainText(/reply UPLOADED|Reply TEXT/i);
+  });
+
   test('AUTH-001 returns a curated approval with a visible tool trace and synthetic banners', async ({ page }) => {
     await evaluate(page, 'AUTH-001');
     const reply = lastAgentTurn(page);
@@ -43,94 +69,76 @@ test.describe('chat', () => {
     await expect(page.getByTestId('outcome-meta')).not.toContainText('APPROVE');
   });
 
-  test('unknown input and unknown cases get safe messages', async ({ page }) => {
+  test('an unknown case id gets a safe message', async ({ page }) => {
     await page.goto('/');
-    await send(page, 'hello');
-    await expect(page.getByTestId('chat-log')).toContainText('I could not find a supported synthetic Case Run ID.');
     await send(page, 'Evaluate AUTH-999');
     await expect(page.getByTestId('chat-log')).toContainText('was not found. No assessment was performed.');
   });
 
-  test('AUTH-003 evidence loop: TEXT evidence is accepted and the assessment resumes from the next incomplete check', async ({ page }) => {
+  test('an unrecognised customer is routed to a specialist instead of being approved', async ({ page }) => {
+    await introduce(page, 'Zed Nobody', 'Acme Imaginary Holdings Ltd');
+    await expect(page.getByTestId('outcome-meta')).toContainText('MANUAL REVIEW');
+    await expect(page.getByTestId('outcome-meta')).not.toContainText('APPROVE');
+  });
+
+  test('evidence loop: the customer just types the answer (no TEXT/UPLOAD/UPLOADED words) and the assessment resumes', async ({ page }) => {
     await evaluate(page, 'AUTH-003');
-    await expect(page.getByTestId('chat-log')).toContainText('Reply TEXT to enter the clarification directly in this chat.');
     await expect(page.getByTestId('evidence-card')).toContainText('Exact authority clause or revised authority document');
-    await page.getByRole('button', { name: 'TEXT', exact: true }).click();
-    await expect(page.getByTestId('chat-log')).toContainText('Type CANCEL to stop this evidence request.');
+    await expect(page.getByTestId('chat-log')).toContainText('attach documents (PDF, Word or image files)');
     await send(page, authorityText);
     await expect(page.getByTestId('chat-log')).toContainText('Thank you. The additional evidence has resolved the identified gap.');
     await expect(page.getByTestId('outcome-meta').last()).toContainText('Tools called: System Data Check');
     await expect(page.getByTestId('chat-log')).toContainText('Authority validation — Passed');
-    expect(await page.getByTestId('chat-log').innerText()).not.toContain(authorityText.slice(0, 40) + 'X');
   });
 
-  test('AUTH-003 evidence loop: contradictory evidence is escalated to a human evidence reviewer', async ({ page }) => {
+  test('evidence loop: contradictory evidence is escalated to a human evidence reviewer', async ({ page }) => {
     await evaluate(page, 'AUTH-003');
-    await page.getByRole('button', { name: 'TEXT', exact: true }).click();
     await send(page, 'The representative left the company and this CONTRADICTS the earlier letter.');
     await expect(page.getByTestId('chat-log')).toContainText('The new evidence conflicts with previously validated case information.');
     await expect(page.getByTestId('chat-log')).toContainText('No automated reconciliation or final adverse decision has been made.');
   });
 
-  test('AUTH-003 evidence loop: cancel stops the request', async ({ page }) => {
+  test('evidence loop: Cancel request stops the request', async ({ page }) => {
     await evaluate(page, 'AUTH-003');
-    await page.getByRole('button', { name: 'TEXT', exact: true }).click();
-    await page.getByRole('button', { name: 'CANCEL', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel request' }).click();
     await expect(page.getByTestId('chat-log')).toContainText('The additional-evidence request has been cancelled.');
   });
-});
 
-test.describe('evidence upload page', () => {
-  async function openUploadRequest(page: Page, caseRunId = 'AUTH-002') {
-    await evaluate(page, caseRunId);
-    const card = page.getByTestId('evidence-card');
-    await expect(card).toBeVisible();
-    const requestId = (await card.locator('code').first().innerText()).trim();
-    return requestId;
-  }
-
-  test('accepts a text PDF, shows what was received, and the chat can continue with UPLOADED', async ({ page }) => {
-    const requestId = await openUploadRequest(page);
-    await expect(page.getByTestId('chat-log')).toContainText('reply UPLOADED');
-    await page.goto(`/upload?evidence_request_id=${encodeURIComponent(requestId)}&case_run_id=AUTH-002`);
-    await expect(page.getByTestId('upload-form')).toContainText('Authority letter or approved delegation evidence');
-    await page.getByLabel('Evidence type').selectOption('AUTHORITY_DOCUMENT');
-    await page.getByLabel('Evidence notes').fill('Signed letter of authority');
-    await page.getByLabel(/Evidence file/).setInputFiles({ name: 'authority letter.pdf', mimeType: 'application/pdf', buffer: makePdf(authorityText) });
-    await page.getByRole('button', { name: 'Upload evidence' }).click();
-    await expect(page.getByRole('heading', { name: 'Evidence uploaded' })).toBeVisible();
-    await expect(page.getByText('authority letter.pdf')).toBeVisible();
-    await expect(page.getByText('Return to the Agent chat and type')).toBeVisible();
-    // back in the chat (fresh page load starts a fresh UI, but the server session cookie persists)
-    await page.goto('/');
-    await send(page, 'UPLOADED');
+  test('documents are attached in the same chat window: several formats at once, listed before sending', async ({ page }) => {
+    await introduce(page, 'Hana Rangi', 'Kauri Harbour Demo Digital Limited');
+    await expect(page.getByTestId('evidence-card')).toBeVisible();
+    expect(page.url()).toMatch(/\/$/);
+    await page.getByTestId('file-input').setInputFiles([
+      { name: 'authority letter.pdf', mimeType: 'application/pdf', buffer: makePdf(authorityText) },
+      { name: 'authority letter.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: await wordFile(authorityText) },
+    ]);
+    await expect(page.getByLabel('Attached files')).toContainText('authority letter.pdf');
+    await expect(page.getByLabel('Attached files')).toContainText('authority letter.docx');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('chat-log')).toContainText('authority letter.pdf');
     await expect(page.getByTestId('chat-log')).toContainText('Thank you. The additional evidence has resolved the identified gap.');
   });
 
-  test('rejects an unknown request and a mismatched case with the stored row as authority', async ({ page }) => {
-    await page.goto('/upload?evidence_request_id=EVID-NOPE');
-    await expect(page.getByTestId('upload-rejected')).toContainText('EVIDENCE_REQUEST_NOT_FOUND');
-    await expect(page.getByTestId('upload-rejected')).toContainText('No case or evidence record was changed.');
-    const requestId = await openUploadRequest(page, 'AUTH-002');
-    await page.goto(`/upload?evidence_request_id=${encodeURIComponent(requestId)}&case_run_id=AUTH-005`);
-    await expect(page.getByTestId('upload-rejected')).toContainText('CASE_RUN_ID_MISMATCH');
-    await expect(page.getByTestId('upload-rejected')).toContainText('AUTH-002');
+  test('an unsupported or unreadable file is refused with a clear message and the customer can try again in the same window', async ({ page }) => {
+    await introduce(page, 'Hana Rangi', 'Kauri Harbour Demo Digital Limited');
+    await page.getByTestId('file-input').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('plain text') });
+    await expect(page.getByRole('alert')).toContainText('not a supported file');
+    await page.getByTestId('file-input').setInputFiles({ name: 'blank.pdf', mimeType: 'application/pdf', buffer: makePdf('x') });
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByRole('alert')).toContainText("couldn't read enough text");
+    await expect(page.getByRole('alert')).toContainText('Your request remains open.');
+    // still attached, still able to fix it: replace with a good document and send again
+    await page.getByRole('button', { name: /Remove blank.pdf/ }).click();
+    await page.getByTestId('file-input').setInputFiles({ name: 'letter.pdf', mimeType: 'application/pdf', buffer: makePdf(authorityText) });
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('chat-log')).toContainText('Thank you. The additional evidence has resolved the identified gap.');
   });
 
-  test('rejects non-PDF files and PDFs without readable text, leaving the request open', async ({ page }) => {
-    const requestId = await openUploadRequest(page, 'AUTH-002');
-    await page.goto(`/upload?evidence_request_id=${encodeURIComponent(requestId)}&case_run_id=AUTH-002`);
-    await page.getByLabel(/Evidence file/).setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('plain text') });
-    await page.getByRole('button', { name: 'Upload evidence' }).click();
-    await expect(page.getByRole('alert')).toContainText('Only PDF files are accepted.');
-    await page.getByLabel(/Evidence file/).setInputFiles({ name: 'blank.pdf', mimeType: 'application/pdf', buffer: makePdf('x') });
-    await page.getByRole('button', { name: 'Upload evidence' }).click();
-    await expect(page.getByRole('alert')).toContainText('did not contain enough extractable text');
-    await expect(page.getByRole('alert')).toContainText('The evidence request remains open.');
-    await expect(page.getByTestId('upload-form')).toBeVisible();
+  test('there is no separate upload page or navigation entry', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /upload/i })).toHaveCount(0);
   });
 });
-
 test.describe('human review portal', () => {
   test('completes a review once and blocks the duplicate submission', async ({ page }) => {
     await evaluate(page, 'AUTH-005');
@@ -221,7 +229,7 @@ test.describe('resubmission', () => {
 });
 
 test.describe('layout and accessibility', () => {
-  for (const path of ['/', '/upload', '/review', '/status', '/resubmit']) {
+  for (const path of ['/', '/review', '/status', '/resubmit']) {
     test(`${path} has landmarks, a synthetic banner and no horizontal scroll on a phone`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(path);

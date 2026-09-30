@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyContinuation, evaluateCase, handleChatMessage, normaliseEvidenceMethod, resolveCaseRequest, resolveEvidenceAndContinue, submitTextEvidence, submitUploadedEvidence, completeHumanReview, createResubmission, cancelEvidenceRequest, uploadUrlFor } from '@sbo/workflows';
+import { classifyContinuation, evaluateCase, handleChatMessage, handleChatEvidenceUpload, resolveCaseRequest, resolveEvidenceAndContinue, submitTextEvidence, completeHumanReview, createResubmission, cancelEvidenceRequest } from '@sbo/workflows';
 import { completeAuth003Downstream, contradictory, insufficient, newStore, newStoreWith, resolved, ScriptedRuntime } from '@sbo/testkit';
 
 const base = 'http://localhost:5173';
@@ -13,11 +13,6 @@ describe('Resolve Case Request', () => {
     expect(resolveCaseRequest(text, 's')).toMatchObject({ caseIdFound: true, caseRunId, submissionVersion: version });
   });
   it('reports when no case id is present', () => { expect(resolveCaseRequest('hello there')).toMatchObject({ caseIdFound: false, caseRunId: '', submissionVersion: null }); });
-  it('normalises evidence-method replies like the source', () => {
-    expect(['upload', 'FILE', ' Document ', 'pdf'].map(normaliseEvidenceMethod)).toEqual(['FILE_UPLOAD', 'FILE_UPLOAD', 'FILE_UPLOAD', 'FILE_UPLOAD']);
-    expect(['text', 'CHAT', 'paste', 'Type'].map(normaliseEvidenceMethod)).toEqual(['CHAT_TEXT', 'CHAT_TEXT', 'CHAT_TEXT', 'CHAT_TEXT']);
-    expect(['maybe', ''].map(normaliseEvidenceMethod)).toEqual(['', '']);
-  });
   it('classifies continuation exactly as the source table', () => {
     const c = (primaryReasonCode: string, outcome = 'MANUAL_REVIEW', missingInformation: string[] = []) => classifyContinuation({ outcome: outcome as never, primaryReasonCode, missingInformation });
     expect(c('DOCUMENT_MISSING', 'NEED_MORE_INFORMATION', ['AUTHORITY_LETTER'])).toMatchObject({ remediable: true, channel: 'FILE_UPLOAD', checkType: 'DOCUMENT_EXTRACTION', requestedItems: ['AUTHORITY_LETTER'] });
@@ -30,9 +25,17 @@ describe('Resolve Case Request', () => {
 });
 
 describe('agentic chat', () => {
-  it('rejects messages without a case id and unknown cases without running an assessment', async () => {
+  it('greets a new customer by asking for their name and company instead of a case id, and runs no assessment', async () => {
     const store = newStore();
-    expect((await chat(store, new ScriptedRuntime(), 's', 'hello')).messages).toEqual(['I could not find a supported synthetic Case Run ID. Enter a case such as AUTH-001, AUTH-003, or AUTH-008-V2.']);
+    const hello = await chat(store, new ScriptedRuntime(), 's', 'hello');
+    expect(hello).toMatchObject({ step: 'IDLE', caseRunId: '' });
+    expect(hello.messages[0]).toContain('your name');
+    expect(hello.messages[0]).toContain('the company you represent');
+    expect(hello.outcome).toBeUndefined();
+  });
+
+  it('unknown case ids are not assessed', async () => {
+    const store = newStore();
     const missing = await chat(store, new ScriptedRuntime(), 's', 'Evaluate AUTH-999');
     expect(missing.messages).toEqual(['Synthetic case AUTH-999 was not found. No assessment was performed.']);
     expect(await store.getRuntimeResults('AUTH-999', 1)).toEqual([]);
@@ -66,66 +69,65 @@ describe('agentic chat', () => {
     expect(text).not.toMatch(/SEC-001|REG-003|CRM-002|PROMPT_INJECTION_TEST_STRING|security_flag/);
   });
 
-  it('AUTH-002 (file evidence) goes straight to the upload prompt with the secure form link', async () => {
+  it('AUTH-002 (file evidence) asks for documents in the same chat: no link, no method question, no "UPLOADED" instruction', async () => {
     const reply = await chat(newStore(), new ScriptedRuntime(), 's', 'Evaluate AUTH-002');
-    expect(reply.step).toBe('AWAITING_UPLOAD');
+    expect(reply.step).toBe('AWAITING_EVIDENCE');
     expect(reply.evidenceRequest).toMatchObject({ evidenceChannel: 'FILE_UPLOAD', status: 'OPEN', requestedItems: ['Authority letter or approved delegation evidence'] });
     const text = reply.messages.join('\n');
-    expect(text).toContain('Additional documentary evidence is required to continue case AUTH-002.');
-    expect(text).toContain(`${base}/upload?evidence_request_id=${encodeURIComponent(reply.evidenceRequest!.evidenceRequestId)}&case_run_id=AUTH-002`);
-    expect(text).toContain('reply UPLOADED');
-    expect(reply.evidenceRequest!.uploadUrl).toBe(uploadUrlFor(base, { evidenceRequestId: reply.evidenceRequest!.evidenceRequestId, caseRunId: 'AUTH-002' }));
+    expect(text).toContain('Please provide the following additional evidence:');
+    expect(text).toContain('attach documents (PDF, Word or image files)');
+    expect(text).not.toMatch(/\/upload|reply UPLOADED|Reply TEXT|UPLOAD or TEXT/i);
   });
 
-  it('AUTH-003: asks TEXT or UPLOAD, accepts TEXT, resolves the evidence and resumes (EVID-001 path)', async () => {
+  it('AUTH-003: the customer just types the answer — no TEXT/UPLOAD question — and the evidence loop resumes (EVID-001 path)', async () => {
     const store = newStore();
     const runtime = new ScriptedRuntime([resolved]);
     const first = await chat(store, runtime, 'sess', 'Evaluate AUTH-003');
-    expect(first.step).toBe('AWAITING_METHOD');
-    expect(first.messages[0]).toContain('Reply TEXT to enter the clarification directly in this chat.');
-    const second = await chat(store, runtime, 'sess', 'text');
-    expect(second.step).toBe('AWAITING_TEXT');
-    expect(second.messages[0]).toContain('Type CANCEL to stop this evidence request.');
-    const third = await chat(store, runtime, 'sess', authorityText);
-    expect(third.messages[0]).toBe('Thank you. The additional evidence has resolved the identified gap.\n\nI will now continue from the next incomplete validation check.');
-    expect(third.outcome).toMatchObject({ governedOutcome: 'MANUAL_REVIEW', primaryReasonCode: 'MANDATORY_CHECKS_INCOMPLETE', toolsCalled: ['System Data Check'] });
-    expect(third.step).toBe('DONE');
+    expect(first.step).toBe('AWAITING_EVIDENCE');
+    expect(first.messages.join('\n')).not.toMatch(/Reply TEXT|reply UPLOADED/i);
+    const second = await chat(store, runtime, 'sess', authorityText);
+    expect(second.messages[0]).toBe('Thank you. The additional evidence has resolved the identified gap.\n\nI will now continue from the next incomplete validation check.');
+    expect(second.outcome).toMatchObject({ governedOutcome: 'MANUAL_REVIEW', primaryReasonCode: 'MANDATORY_CHECKS_INCOMPLETE', toolsCalled: ['System Data Check'] });
+    expect(second.step).toBe('DONE');
     expect((await store.getEvidenceRequest(first.evidenceRequest!.evidenceRequestId))?.status).toBe('ACCEPTED');
-    expect(JSON.stringify(third)).not.toContain(authorityText);
+    expect(JSON.stringify(second)).not.toContain(authorityText);
   });
 
   it('AUTH-003 with a complete downstream fixture ends in a curated APPROVE after the evidence loop', async () => {
     const store = newStoreWith(completeAuth003Downstream);
     const runtime = new ScriptedRuntime([resolved]);
     await chat(store, runtime, 'sess', 'Evaluate AUTH-003');
-    await chat(store, runtime, 'sess', 'TEXT');
     const done = await chat(store, runtime, 'sess', authorityText);
     expect(done.messages.join('\n')).toContain('## ✅ Eligible to proceed');
     expect(done.messages.join('\n')).toContain('- ✓ Authority validation — Passed');
   });
 
-  it('method selection: one retry prompt, then a failure message that leaves the case WAITING_FOR_EVIDENCE', async () => {
+  it('attached documents (text already extracted) are the evidence: stored, assessed, then the case resumes', async () => {
     const store = newStore();
-    const runtime = new ScriptedRuntime();
-    const first = await chat(store, runtime, 's', 'Evaluate AUTH-003');
-    const retry = await chat(store, runtime, 's', 'whatever');
-    expect(retry.step).toBe('AWAITING_METHOD');
-    expect(retry.messages[0]).toContain('I could not identify the evidence method from your response.');
-    const failed = await chat(store, runtime, 's', 'still no idea');
-    expect(failed.step).toBe('IDLE');
-    expect(failed.messages[0]).toContain('The case will remain in WAITING_FOR_EVIDENCE status.');
-    expect((await store.getRuntimeCase('AUTH-003'))?.status).toBe('WAITING_FOR_EVIDENCE');
-    expect((await store.getEvidenceRequest(first.evidenceRequest!.evidenceRequestId))?.status).toBe('OPEN');
+    const runtime = new ScriptedRuntime([resolved]);
+    const first = await chat(store, runtime, 's', 'Evaluate AUTH-002');
+    const requestId = first.evidenceRequest!.evidenceRequestId;
+    const reply = await handleChatEvidenceUpload({ repository: store, agentRuntime: runtime, appBaseUrl: base }, { sessionId: 's', files: [
+      { fileName: 'authority.pdf', mimeType: 'application/pdf', storageUrl: 'a', extractedText: authorityText },
+      { fileName: 'scan.png', mimeType: 'image/png', storageUrl: 'b', extractedText: 'Signed by the director, valid for account management.' },
+    ] });
+    expect(reply.messages[0]).toContain('Thank you. The additional evidence has resolved the identified gap.');
+    expect(runtime.resolutionRequests).toHaveLength(1);
+    expect((await store.getEvidence(requestId)).map((row) => row.fileName)).toEqual(expect.arrayContaining(['authority.pdf', 'scan.png']));
+    expect((await store.getEvidenceRequest(requestId))?.status).toBe('ACCEPTED');
   });
 
-  it('TEXT path: empty input asks again; CANCEL cancels the request and the case', async () => {
+  it('attaching a file with no pending evidence request is refused', async () => {
+    await expect(handleChatEvidenceUpload({ repository: newStore(), agentRuntime: new ScriptedRuntime(), appBaseUrl: base }, { sessionId: 'none', files: [{ fileName: 'a.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: authorityText }] })).rejects.toThrow('NO_EVIDENCE_REQUEST_PENDING');
+  });
+
+  it('CANCEL (typed or by button) cancels the evidence request and the case; nothing is assessed', async () => {
     const store = newStore();
     const runtime = new ScriptedRuntime();
     const first = await chat(store, runtime, 's', 'Evaluate AUTH-003');
-    await chat(store, runtime, 's', 'TEXT');
     const empty = await chat(store, runtime, 's', '   ');
-    expect(empty.messages[0]).toContain('I did not receive any evidence text.');
-    expect(empty.step).toBe('AWAITING_TEXT');
+    expect(empty.messages[0]).toContain('I did not receive anything.');
+    expect(empty.step).toBe('AWAITING_EVIDENCE');
     const cancelled = await chat(store, runtime, 's', 'cancel');
     expect(cancelled.messages[0]).toBe('The additional-evidence request has been cancelled.\n\nThe case remains unresolved and no further automated processing has been performed.');
     expect(cancelled.step).toBe('DONE');
@@ -134,43 +136,16 @@ describe('agentic chat', () => {
     expect(runtime.resolutionRequests).toHaveLength(0);
   });
 
-  it('UPLOAD path: "UPLOADED" without a stored upload re-prompts; after the upload the chat resolves it', async () => {
-    const store = newStore();
-    const runtime = new ScriptedRuntime([resolved]);
-    const first = await chat(store, runtime, 's', 'Evaluate AUTH-003');
-    const requestId = first.evidenceRequest!.evidenceRequestId;
-    const upload = await chat(store, runtime, 's', 'UPLOAD');
-    expect(upload.step).toBe('AWAITING_UPLOAD');
-    const missing = await chat(store, runtime, 's', 'UPLOADED');
-    expect(missing.messages[0]).toContain(`I could not find an uploaded evidence record for request ${requestId}.`);
-    expect(runtime.resolutionRequests).toHaveLength(0);
-    await submitUploadedEvidence(store, requestId, { fileName: 'authority.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: authorityText });
-    const resolvedReply = await chat(store, runtime, 's', 'UPLOADED');
-    expect(resolvedReply.messages[0]).toContain('Thank you. The additional evidence has resolved the identified gap.');
-    expect(runtime.resolutionRequests).toHaveLength(1);
-  });
-
-  it('UPLOAD path: CANCEL cancels the request', async () => {
-    const store = newStore();
-    const runtime = new ScriptedRuntime();
-    const first = await chat(store, runtime, 's', 'Evaluate AUTH-002');
-    const cancelled = await chat(store, runtime, 's', 'STOP');
-    expect(cancelled.messages[0]).toBe('The evidence-upload request has been cancelled.\n\nThe case remains unresolved, and no further automated processing has been performed.');
-    expect((await store.getEvidenceRequest(first.evidenceRequest!.evidenceRequestId))?.status).toBe('CANCELLED');
-  });
-
-  it('insufficient evidence explains the remaining gap and re-asks; the third attempt escalates to a human evidence reviewer', async () => {
+  it('insufficient evidence explains the gap and the same prompt returns; re-upload is always possible; the third attempt escalates', async () => {
     const store = newStore();
     const runtime = new ScriptedRuntime([insufficient, insufficient, insufficient]);
     await chat(store, runtime, 's', 'Evaluate AUTH-003');
-    await chat(store, runtime, 's', 'TEXT');
     const one = await chat(store, runtime, 's', 'First partial clarification of authority.');
-    expect(one.step).toBe('AWAITING_METHOD');
+    expect(one.step).toBe('AWAITING_EVIDENCE');
     expect(one.messages[0]).toBe('The evidence does not yet resolve the identified gap.\n\nRemaining requirements:\n• Signed authority wording is still missing.\n\nPlease provide a revised clarification or document.');
-    await chat(store, runtime, 's', 'TEXT');
-    const two = await chat(store, runtime, 's', 'Second partial clarification of authority.');
-    expect(two.step).toBe('AWAITING_METHOD');
-    await chat(store, runtime, 's', 'TEXT');
+    expect(one.messages[1]).toContain('attach documents');
+    const two = await handleChatEvidenceUpload({ repository: store, agentRuntime: runtime, appBaseUrl: base }, { sessionId: 's', files: [{ fileName: 'again.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', storageUrl: 'x', extractedText: 'Second partial clarification of authority.' }] });
+    expect(two.step).toBe('AWAITING_EVIDENCE');
     const three = await chat(store, runtime, 's', 'Third partial clarification of authority.');
     expect(three).toMatchObject({ step: 'DONE', messages: ['The available evidence remains insufficient after the allowed number of attempts.\n\nThe case has been routed to a human evidence reviewer. No final adverse decision has been made.'] });
     expect((await store.getReview('REV-AUTH-003-EVIDENCE-1'))?.reviewStatus).toBe('PENDING');
@@ -180,7 +155,6 @@ describe('agentic chat', () => {
     const store = newStore();
     const runtime = new ScriptedRuntime([contradictory]);
     await chat(store, runtime, 's', 'Evaluate AUTH-003');
-    await chat(store, runtime, 's', 'TEXT');
     const reply = await chat(store, runtime, 's', 'The named representative left the company last year.');
     expect(reply.messages[0]).toBe('The new evidence conflicts with previously validated case information.\n\nThe case has been routed to a human evidence reviewer. No automated reconciliation or final adverse decision has been made.');
     expect((await store.getReview('REV-AUTH-003-EVIDENCE-1'))).toMatchObject({ agentRecommendation: 'MANUAL_REVIEW' });
@@ -190,9 +164,38 @@ describe('agentic chat', () => {
     const store = newStore();
     const runtime = new ScriptedRuntime();
     await chat(store, runtime, 'a', 'Evaluate AUTH-003');
-    const other = await chat(store, runtime, 'b', 'TEXT');
-    expect(other.messages).toEqual(['I could not find a supported synthetic Case Run ID. Enter a case such as AUTH-001, AUTH-003, or AUTH-008-V2.']);
-    expect((await store.getSession('a'))?.step).toBe('AWAITING_METHOD');
+    const other = await chat(store, runtime, 'b', 'some clarification');
+    expect(other.step).toBe('IDLE');
+    expect(other.messages[0]).toContain('your name');
+    expect((await store.getSession('a'))?.step).toBe('AWAITING_EVIDENCE');
+  });
+
+  it('a new customer introduces themselves; a case is opened and assessed against the matched scenario', async () => {
+    const store = newStore();
+    const runtime = new ScriptedRuntime();
+    const reply = await chat(store, runtime, 'new', 'Hi, my name is Liam Chen and I represent Bluegum Vector Demo Pty Ltd.');
+    expect(reply.caseRunId).toMatch(/^AUTH-1\d\d$/);
+    expect(reply.messages[0]).toContain(`opened case **${reply.caseRunId}**`);
+    expect(reply.step).toBe('AWAITING_EVIDENCE');
+    expect(await store.getCase(reply.caseRunId)).toMatchObject({ representativeName: 'Liam Chen', businessName: 'Bluegum Vector Demo Pty Ltd' });
+  });
+
+  it('intake asks only for what is missing, over several turns', async () => {
+    const store = newStore();
+    const runtime = new ScriptedRuntime();
+    const one = await chat(store, runtime, 'i', 'My name is Liam Chen');
+    expect(one).toMatchObject({ step: 'INTAKE', caseRunId: '' });
+    expect(one.messages[0]).toContain('Which company');
+    const two = await chat(store, runtime, 'i', 'Bluegum Vector Demo Pty Ltd');
+    expect(two.caseRunId).toMatch(/^AUTH-1\d\d$/);
+  });
+
+  it('an unrecognised customer gets a case and is routed to a specialist — no rule is invented', async () => {
+    const store = newStore();
+    const reply = await chat(store, new ScriptedRuntime(), 'x', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
+    expect(reply.step).toBe('DONE');
+    expect(reply.outcome).toMatchObject({ governedOutcome: 'MANUAL_REVIEW', humanReviewRequired: true });
+    expect(reply.messages.join('\n')).toContain('no synthetic scenario matched');
   });
 
   it('re-evaluating a case in chat resets its runtime results (source entry path) rather than resuming', async () => {

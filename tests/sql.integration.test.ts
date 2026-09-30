@@ -8,7 +8,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostgresRepository, historicalRuntimeTables, importHistoricalRuntime, loadSourceData, loadSourceDataFromDb, migrate, parseCsvMatrix, seedStaticFixtures, staticFixtureTables } from '@sbo/persistence';
-import { completeHumanReview, evaluateCase, resolveEvidence, resolveEvidenceAndContinue, submitTextEvidence } from '@sbo/workflows';
+import { openIntakeCase, completeHumanReview, createResubmission, evaluateCase, resolveEvidence, resolveEvidenceAndContinue, submitTextEvidence } from '@sbo/workflows';
 import { finalizeDecision } from '@sbo/governance';
 import { resolved, ScriptedRuntime } from '@sbo/testkit';
 
@@ -33,7 +33,7 @@ const runtimeTables = ['runtime_utility_results', 'runtime_cases', 'decisions', 
 
 describe('migrations', () => {
   it('are recorded once and re-running is a no-op', async () => {
-    expect((await sql<{ name: string }[]>`SELECT name FROM schema_migrations ORDER BY name`).map((row) => row.name)).toEqual(['0001_runtime.sql', '0002_chat_sessions.sql', '0003_constraints.sql']);
+    expect((await sql<{ name: string }[]>`SELECT name FROM schema_migrations ORDER BY name`).map((row) => row.name)).toEqual(['0001_runtime.sql', '0002_chat_sessions.sql', '0003_constraints.sql', '0004_intake_cases.sql']);
     expect(await migrate(sql)).toEqual([]);
   });
 });
@@ -154,6 +154,17 @@ describe('PostgresRepository — full workflows on real SQL', () => {
     expect(await repository.getEvidenceRequest(id)).toMatchObject({ status: 'INSUFFICIENT', attemptCount: 1 });
   });
 
+  it('versioned resubmission works on real SQL: V1 needs information, V2 is approved, V1 is superseded', async () => {
+    await repository.resetRuntime();
+    const runtime = new ScriptedRuntime();
+    expect((await evaluateCase(repository, runtime, 'AUTH-008-V1', 's')).decision.outcome).toBe('NEED_MORE_INFORMATION');
+    const revised = await createResubmission(repository, { originalCaseRunId: 'AUTH-008-V1', revisedCaseRunId: 'AUTH-008-V2', resubmissionComments: 'Updated authority letter.' }, runtime);
+    expect(revised.decision).toMatchObject({ outcome: 'APPROVE', caseRunId: 'AUTH-008-V2', submissionVersion: 2 });
+    expect(await repository.getRuntimeCase('AUTH-008-V1')).toMatchObject({ status: 'SUPERSEDED_BY_RESUBMISSION' });
+    expect((await repository.getAudit('AUTH-008-V1')).map((event) => event.eventType)).toContain('CASE_RESUBMITTED');
+    await repository.resetRuntime();
+  });
+
   it('a reviewed case cannot be re-evaluated against real SQL either (CASE_LOCKED)', async () => {
     await repository.resetRuntime();
     const review = (await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-004', 's')).review!;
@@ -181,6 +192,17 @@ describe('PostgresRepository — full workflows on real SQL', () => {
     expect(await repository.getEvidenceRequest('EVID-X')).toBeUndefined();
   });
 
+  it('intake cases: sequential ids, scenario-backed evaluation on SQL, and reset restarts the sequence', async () => {
+    const opened = await openIntakeCase(repository, { representativeName: 'Liam Chen', businessName: 'Bluegum Vector Demo Pty Ltd', businessIdentifier: '' });
+    expect(opened.caseRecord.caseRunId).toMatch(/^AUTH-1\d\d$/);
+    expect(opened.scenario?.caseRunId).toBe('AUTH-003');
+    const again = await openIntakeCase(repository, { representativeName: 'Zed Nobody', businessName: 'Acme Imaginary Holdings Ltd', businessIdentifier: '' });
+    expect(Number(again.caseRecord.caseRunId.slice(5))).toBe(Number(opened.caseRecord.caseRunId.slice(5)) + 1);
+    expect((await evaluateCase(repository, new ScriptedRuntime(), again.caseRecord.caseRunId, 's')).decision.outcome).toBe('MANUAL_REVIEW');
+    await repository.resetRuntime();
+    expect((await openIntakeCase(repository, { representativeName: 'Liam Chen', businessName: 'Bluegum Vector Demo Pty Ltd', businessIdentifier: '' })).caseRecord.caseRunId).toBe('AUTH-101');
+    await repository.resetRuntime();
+  });
   it('resetRuntime clears runtime state and leaves source fixtures, rules and migrations intact', async () => {
     await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-001', 's');
     expect(await count('runtime_utility_results')).toBeGreaterThan(0);
@@ -188,7 +210,7 @@ describe('PostgresRepository — full workflows on real SQL', () => {
     for (const table of runtimeTables) expect(await count(table), table).toBe(0);
     expect(await count('source.dt_decision_rules')).toBe(csvRows('dt_decision_rules'));
     expect(await count('source.dt_mock_utility_results')).toBe(csvRows('dt_mock_utility_results'));
-    expect(await count('schema_migrations')).toBe(3);
+    expect(await count('schema_migrations')).toBe(4);
     // and the same case can be evaluated again from the clean baseline
     expect((await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-001', 's')).decision.outcome).toBe('APPROVE');
   });

@@ -59,7 +59,14 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .turn-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--border); font-size: 0.85rem; color: var(--muted); }
 .turn-meta .override { color: var(--warn); font-weight: 600; } .turn-meta .trace { flex-basis: 100%; }
 .quick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-.composer { display: flex; gap: 0.5rem; } .composer input { flex: 1; }
+.composer { display: flex; flex-direction: column; gap: 0.4rem; } .composer-row { display: flex; gap: 0.5rem; align-items: flex-end; } .composer textarea { flex: 1; resize: vertical; }
+.composer-drop, .chat-drop { outline: 2px dashed var(--accent, #2563eb); outline-offset: 2px; }
+.composer-foot { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.file-chips, .attachments { list-style: none; margin: 0.25rem 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.file-chips li { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.85rem; }
+.file-chips button, button.link { background: none; border: 0; cursor: pointer; text-decoration: underline; padding: 0 0.25rem; }
+.file-chips button { text-decoration: none; }
+.attach { white-space: nowrap; } .small { font-size: 0.85rem; } .demo { margin-top: 1rem; } .scenario-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .evidence-card ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
 
 .markdown h3 { font-size: 1.05rem; margin-bottom: 0.4rem; } .markdown h4 { margin: 0.7rem 0 0.15rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }

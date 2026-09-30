@@ -8,11 +8,11 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError, z } from 'zod';
-import { extractPdfText } from './pdf.js';
+import { acceptedFileTypesHint, extractDocumentText, type ExtractedDocument } from './documents.js';
 import { type AgentRuntime } from '@sbo/agent-runtime';
 import { ReviewCompletionInputSchema, ResubmissionInputSchema, TextEvidenceInputSchema } from '@sbo/domain';
 import { type Repository } from '@sbo/persistence';
-import { buildChatResponse, cancelEvidenceRequest, completeHumanReview, createResubmission, getCaseStatus, getReviewPackage, handleChatMessage, resolveEvidenceAndContinue, submitTextEvidence, submitUploadedEvidence, uploadEvidenceTypes, validateEvidenceRequest, type ChatReply } from '@sbo/workflows';
+import { buildChatResponse, cancelEvidenceRequest, completeHumanReview, createResubmission, getCaseStatus, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listScenarios, resolveEvidenceAndContinue, submitTextEvidence, submitUploadedEvidence, uploadEvidenceTypes, validateEvidenceRequest, type ChatReply } from '@sbo/workflows';
 
 export interface ApiConfig {
   appBaseUrl: string; sessionSecret: string; uploadDirectory: string; secureCookies?: boolean; maxUploadBytes?: number;
@@ -35,13 +35,14 @@ const csrfCookie = 'sbo_csrf';
 /** Business-safe error codes → HTTP status. Anything else is an opaque 500 (no internals leaked). */
 const errorStatus: Array<[RegExp, number]> = [
   [/^(CASE_NOT_FOUND|REVIEW_NOT_FOUND|EVIDENCE_REQUEST_NOT_FOUND|RESUBMISSION_CASE_NOT_FOUND|DECISION_NOT_FOUND)/, 404],
-  [/^(REVIEW_ALREADY_COMPLETED|EVIDENCE_REQUEST_NOT_OPEN|EVIDENCE_REQUEST_NOT_READY_FOR_RESOLUTION|RESUBMISSION_NOT_ALLOWED|RESUBMISSION_ALREADY_CREATED|NO_NEW_EVIDENCE_RECEIVED|CASE_LOCKED)/, 409],
+  [/^(REVIEW_ALREADY_COMPLETED|EVIDENCE_REQUEST_NOT_OPEN|EVIDENCE_REQUEST_NOT_READY_FOR_RESOLUTION|RESUBMISSION_NOT_ALLOWED|RESUBMISSION_ALREADY_CREATED|NO_NEW_EVIDENCE_RECEIVED|CASE_LOCKED|NO_EVIDENCE_REQUEST_PENDING|CASE_ALREADY_EXISTS)/, 409],
   [/^(EVIDENCE_RESOLUTION)/, 502],
-  [/^(EVIDENCE_REQUEST_ID_|CASE_RUN_ID_|SUBMISSION_VERSION_MISMATCH|EVIDENCE_RECORDS_NOT_FOUND|EVIDENCE_TEXT_EMPTY|EVIDENCE_FILE_REQUIRED|UNSUPPORTED_FILE_TYPE|PDF_|INVALID_REVISED_VERSION|OVERRIDE_REASON_REQUIRED|REVIEWER_|UNSUPPORTED_REVIEWER_DECISION|CASE_ID_NOT_SUPPORTED|FILE_TOO_LARGE)/, 400],
+  [/^(INTAKE_CASE_LIMIT_REACHED)/, 503],
+  [/^(EVIDENCE_REQUEST_ID_|CASE_RUN_ID_|SUBMISSION_VERSION_MISMATCH|EVIDENCE_RECORDS_NOT_FOUND|EVIDENCE_TEXT_EMPTY|EVIDENCE_FILE_REQUIRED|UNSUPPORTED_FILE_TYPE|LEGACY_WORD_NOT_SUPPORTED|DOCUMENT_|TOO_MANY_FILES|INVALID_REVISED_VERSION|OVERRIDE_REASON_REQUIRED|REVIEWER_|UNSUPPORTED_REVIEWER_DECISION|CASE_ID_NOT_SUPPORTED|FILE_TOO_LARGE)/, 400],
 ];
 
-/** Only these codes may carry a `detail` back to the client (it is a user-supplied identifier, never internal text). */
-const detailCodes = new Set(['CASE_NOT_FOUND', 'UNSUPPORTED_REVIEWER_DECISION']);
+/** Only these codes may carry a `detail` back to the client: a user-supplied identifier or the (sanitised) name of the customer's own file. */
+const detailCodes = new Set(['CASE_NOT_FOUND', 'UNSUPPORTED_REVIEWER_DECISION', 'UNSUPPORTED_FILE_TYPE', 'LEGACY_WORD_NOT_SUPPORTED', 'DOCUMENT_TEXT_UNAVAILABLE', 'DOCUMENT_TOO_COMPLEX']);
 /** Best-effort removal of key material / connection strings from anything written to server logs. */
 export function redactSecrets(text: string): string {
   return text.replace(/sk-ant-[A-Za-z0-9_-]+/g, 'sk-ant-[redacted]').replace(/(postgres(?:ql)?:\/\/)[^\s@/]+@/gi, '$1[redacted]@').replace(/((?:api[_-]?key|secret|password|token)\s*[=:]\s*)\S+/gi, '$1[redacted]');
@@ -64,7 +65,8 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
   await app.register(cookie, { secret: config.sessionSecret });
   await app.register(cors, { origin: config.appBaseUrl, credentials: true });
   await app.register(rateLimit, { max: config.rateLimit?.global ?? 120, timeWindow: '1 minute' });
-  await app.register(multipart, { limits: { fileSize: maxUploadBytes, files: 1, fields: 10 } });
+  const maxFilesPerMessage = 3;
+  await app.register(multipart, { limits: { fileSize: maxUploadBytes, files: maxFilesPerMessage, fields: 10 } });
 
   const strict = { config: { rateLimit: { max: config.rateLimit?.strict ?? 20, timeWindow: '1 minute' } } };
 
@@ -89,6 +91,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const err = error as { code?: string; message?: string; statusCode?: number };
     if (err.statusCode === 429) return reply.code(429).send({ error: 'RATE_LIMITED' });
     if (err.code === 'FST_REQ_FILE_TOO_LARGE') return reply.code(413).send({ error: 'FILE_TOO_LARGE' });
+    if (err.code === 'FST_FILES_LIMIT') return reply.code(400).send({ error: 'TOO_MANY_FILES' });
     if (err.code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE' || err.code === 'FST_ERR_CTP_EMPTY_JSON_BODY') return reply.code(415).send({ error: 'UNSUPPORTED_MEDIA_TYPE' });
     const message = error instanceof Error ? error.message : '';
     const known = errorStatus.find(([pattern]) => pattern.test(message));
@@ -128,6 +131,9 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     return { cases: cases.map((entry) => ({ caseRunId: entry.caseRunId, caseId: entry.caseId, submissionVersion: entry.submissionVersion, businessName: entry.businessName })), syntheticDataDisclaimer: true };
   });
 
+  // Demo aid: the synthetic identities that match a scenario (so a tester knows whose name / company to introduce themselves with).
+  app.get('/api/scenarios', async () => ({ scenarios: await listScenarios(repository), acceptedFileTypes: acceptedFileTypesHint, maxFilesPerMessage, maxFileBytes: maxUploadBytes, syntheticDataDisclaimer: true }));
+
   // n8n "Agentic Chat" trigger → chat message (also handles the evidence-loop replies).
   app.post('/api/chat', strict, async (request, reply) => {
     const body = z.object({ message: z.string().max(10_000) }).parse(request.body);
@@ -158,8 +164,69 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const evidence = await submitTextEvidence(repository, evidenceRequestId, { caseRunId: input.caseRunId, text: input.text });
     return { evidenceId: evidence.evidenceId, status: evidence.validationStatus, syntheticDataDisclaimer: true };
   });
-  // Uploads are the most expensive public route (file buffering + PDF parsing): never more than 10/min/client even if `strict` is raised.
+  // Uploads are the most expensive public routes (file buffering + document parsing / OCR): never more than 10/min/client even if `strict` is raised.
   const uploadLimit = { config: { rateLimit: { max: Math.min(config.rateLimit?.strict ?? 20, 10), timeWindow: '1 minute' } } };
+
+  /** Reads the customer's document: type from its bytes, then text. Throws a coded error (detail = the sanitised file name). */
+  async function readDocument(bytes: Buffer, fileName: string): Promise<ExtractedDocument> {
+    const label = safeName(fileName);
+    let document: ExtractedDocument;
+    try { document = await extractDocumentText(bytes); } catch (error) {
+      throw new Error(`${error instanceof Error ? error.message : 'UNSUPPORTED_FILE_TYPE'}:${label}`);
+    }
+    if (document.error) throw new Error(`${document.error}:${label}`);
+    if (document.text.length < 20) throw new Error(`DOCUMENT_TEXT_UNAVAILABLE:${label}`);
+    return document;
+  }
+  async function storeFile(bytes: Buffer, fileName: string): Promise<{ storedName: string; storedPath: string }> {
+    const destination = resolve(config.uploadDirectory);
+    await mkdir(destination, { recursive: true });
+    const storedName = `${randomUUID()}-${safeName(fileName)}`;
+    const storedPath = join(destination, storedName);
+    await writeFile(storedPath, bytes, { flag: 'wx' });
+    return { storedName, storedPath };
+  }
+  /** Collects up to three files (each buffered under the size limit) and the text fields of a multipart request. */
+  async function readMultipart(request: FastifyRequest): Promise<{ files: Array<{ fileName: string; bytes: Buffer }>; fields: Record<string, string> }> {
+    const files: Array<{ fileName: string; bytes: Buffer }> = [];
+    const fields: Record<string, string> = {};
+    for await (const part of request.parts()) {
+      if (part.type === 'file') files.push({ fileName: part.filename, bytes: await part.toBuffer() });
+      else if (typeof part.value === 'string') fields[part.fieldname] = part.value.slice(0, 10_000);
+    }
+    return { files, fields };
+  }
+
+  // Customer chat: answer an open evidence request with typed text and/or attached documents in the SAME conversation
+  // (replaces the source's separate upload form + "type UPLOADED"; docs/07 G-31).
+  app.post('/api/chat/evidence', uploadLimit, async (request, reply) => {
+    const session = sessionId(request, reply);
+    if ((await repository.getSession(session))?.step !== 'AWAITING_EVIDENCE') {
+      for await (const part of request.parts()) if (part.type === 'file') part.file.resume();
+      throw new Error('NO_EVIDENCE_REQUEST_PENDING');
+    }
+    const { files, fields } = await readMultipart(request);
+    const note = (fields.message ?? '').trim();
+    if (files.length === 0 && !note) throw new Error('EVIDENCE_FILE_REQUIRED');
+    // Read every file BEFORE storing or recording anything: one unreadable attachment rejects the whole message and nothing is kept.
+    const documents = [];
+    for (const file of files) documents.push({ file, document: await readDocument(file.bytes, file.fileName) });
+    const storedPaths: string[] = [];
+    try {
+      const attached = [];
+      for (const { file, document } of documents) {
+        const stored = await storeFile(file.bytes, file.fileName);
+        storedPaths.push(stored.storedPath);
+        attached.push({ fileName: safeName(file.fileName), mimeType: document.mimeType, storageUrl: stored.storedName, extractedText: document.text });
+      }
+      return publicReply(await handleChatEvidenceUpload({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: session, files: attached, note }));
+    } catch (error) {
+      for (const path of storedPaths) await unlink(path).catch(() => undefined); // SEC-10: no orphaned files when the step is refused
+      throw error;
+    }
+  });
+
+  // Workflow 96 (source form route, kept for API parity): one file against an explicit evidence request.
   app.post('/api/evidence/:evidenceRequestId/upload', uploadLimit, async (request) => {
     const { evidenceRequestId } = evidenceParams.parse(request.params);
     const part = await request.file();
@@ -173,21 +240,13 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const suppliedCaseRunId = caseFrom(part.fields);
     const validation = validateEvidenceRequest(await repository.getEvidenceRequest(evidenceRequestId), evidenceRequestId, suppliedCaseRunId);
     if (!validation.uploadAllowed) throw new Error(validation.rejectionReason);
-    if (part.mimetype !== 'application/pdf' || buffer.subarray(0, 5).toString('latin1') !== '%PDF-') throw new Error('UNSUPPORTED_FILE_TYPE');
-    const extraction = await extractPdfText(buffer);
-    if (extraction.error === 'PDF_TOO_COMPLEX') throw new Error('PDF_TOO_COMPLEX');
-    const extracted = extraction.text;
-    if (extracted.length < 20) throw new Error('PDF_TEXT_UNAVAILABLE');
-    const destination = resolve(config.uploadDirectory);
-    await mkdir(destination, { recursive: true });
-    const storedName = `${randomUUID()}-${safeName(part.filename)}`;
-    const storedPath = join(destination, storedName);
-    await writeFile(storedPath, buffer, { flag: 'wx' });
+    const document = await readDocument(buffer, part.filename);
+    const stored = await storeFile(buffer, part.filename);
     try {
-      const evidence = await submitUploadedEvidence(repository, evidenceRequestId, { caseRunId: suppliedCaseRunId || undefined, evidenceType: fieldValue(part.fields.evidence_type) ?? fieldValue(part.fields.evidenceType), notes: fieldValue(part.fields.notes) ?? fieldValue(part.fields.evidence_notes) ?? '', fileName: safeName(part.filename), mimeType: part.mimetype, storageUrl: storedName, extractedText: extracted });
-      return { evidenceId: evidence.evidenceId, status: evidence.validationStatus, extractedCharacterCount: extracted.length, syntheticDataDisclaimer: true };
+      const evidence = await submitUploadedEvidence(repository, evidenceRequestId, { caseRunId: suppliedCaseRunId || undefined, evidenceType: fieldValue(part.fields.evidence_type) ?? fieldValue(part.fields.evidenceType), notes: fieldValue(part.fields.notes) ?? fieldValue(part.fields.evidence_notes) ?? '', fileName: safeName(part.filename), mimeType: document.mimeType, storageUrl: stored.storedName, extractedText: document.text });
+      return { evidenceId: evidence.evidenceId, status: evidence.validationStatus, extractedCharacterCount: document.text.length, syntheticDataDisclaimer: true };
     } catch (error) {
-      await unlink(storedPath).catch(() => undefined); // SEC-10: no orphaned file when the database step is refused (e.g. a racing upload)
+      await unlink(stored.storedPath).catch(() => undefined); // SEC-10: no orphaned file when the database step is refused (e.g. a racing upload)
       throw error;
     }
   });

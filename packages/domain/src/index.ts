@@ -162,12 +162,28 @@ export const TargetAuditEvents = {
 export const EvidenceRequestStatuses = ['OPEN', 'RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICIENT', 'ACCEPTED', 'ESCALATED', 'CANCELLED'] as const;
 export type EvidenceRequestStatus = (typeof EvidenceRequestStatuses)[number];
 
+/**
+ * Details collected in the opening conversation before a case exists (target-side intake adapter, docs/07 G-32 — the n8n chat starts from a
+ * known Case Run ID). Free text from the customer: untrusted, length-limited, never used to select behaviour except scenario matching.
+ */
+export const IntakeDetailsSchema = z.object({
+  representativeName: z.string().max(120).default(''),
+  businessName: z.string().max(160).default(''),
+  businessIdentifier: z.string().max(60).default(''),
+});
+export type IntakeDetails = z.infer<typeof IntakeDetailsSchema>;
+
+/**
+ * IDLE: no open conversation step · INTAKE: collecting name / company · AWAITING_EVIDENCE: an evidence request is open and the customer can
+ * answer with text and/or attached documents in the same window · DONE: assessment finished.
+ * (The source's TEXT/UPLOAD method choice and "UPLOADED" acknowledgement are gone — docs/07 G-31.)
+ */
 export const ChatSessionStateSchema = z.object({
   sessionId: z.string(),
   caseRunId: z.string(),
-  step: z.enum(['IDLE', 'AWAITING_METHOD', 'AWAITING_TEXT', 'AWAITING_UPLOAD', 'DONE']),
+  step: z.enum(['IDLE', 'INTAKE', 'AWAITING_EVIDENCE', 'DONE']),
   evidenceRequestId: z.string().default(''),
-  methodAttempts: z.number().int().nonnegative().default(0),
+  intake: IntakeDetailsSchema.default({ representativeName: '', businessName: '', businessIdentifier: '' }),
   updatedAt: z.string(),
 });
 export type ChatSessionState = z.infer<typeof ChatSessionStateSchema>;
