@@ -10,14 +10,14 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { ZodError, z } from 'zod';
 import { acceptedFileTypesHint, extractDocumentText, type ExtractedDocument } from './documents.js';
 import { type AgentRuntime } from '@sbo/agent-runtime';
-import { ReviewCompletionInputSchema, ResubmissionInputSchema, TextEvidenceInputSchema } from '@sbo/domain';
+import { ReopenInputSchema, ReviewCompletionInputSchema, featuredQueries, requestCategories, requestTypes, stages } from '@sbo/domain';
 import { type Repository } from '@sbo/persistence';
-import { buildChatResponse, cancelEvidenceRequest, completeHumanReview, createResubmission, getCaseStatus, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listScenarios, resolveEvidenceAndContinue, submitTextEvidence, submitUploadedEvidence, uploadEvidenceTypes, validateEvidenceRequest, type ChatReply } from '@sbo/workflows';
+import { buildChatResponse, cancelEvidenceRequest, completeHumanReview, describeChatState, getCaseStatus, getOperationsOverview, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listReviewDashboard, listScenarios, readEvidenceDocument, reopenCase, resolveEvidenceAndContinue, submitDocumentEvidence, validateEvidenceRequest, type ChatReply } from '@sbo/workflows';
 
 export interface ApiConfig {
   appBaseUrl: string; sessionSecret: string; uploadDirectory: string; secureCookies?: boolean; maxUploadBytes?: number;
   /** Requests per minute per client: `global` for every route, `strict` for the public assessment / evidence / review POST routes. */
-  rateLimit?: { global?: number; strict?: number };
+  rateLimit?: { global?: number; strict?: number; upload?: number };
   /**
    * Addresses / CIDRs of reverse proxies whose X-Forwarded-For is trusted (empty = ignore the header, use the socket address). The client
    * address is the first UNtrusted hop from the right, so a client-supplied X-Forwarded-For prefix cannot spoof the rate-limit key.
@@ -34,15 +34,15 @@ const csrfCookie = 'sbo_csrf';
 
 /** Business-safe error codes → HTTP status. Anything else is an opaque 500 (no internals leaked). */
 const errorStatus: Array<[RegExp, number]> = [
-  [/^(CASE_NOT_FOUND|REVIEW_NOT_FOUND|EVIDENCE_REQUEST_NOT_FOUND|RESUBMISSION_CASE_NOT_FOUND|DECISION_NOT_FOUND)/, 404],
-  [/^(REVIEW_ALREADY_COMPLETED|EVIDENCE_REQUEST_NOT_OPEN|EVIDENCE_REQUEST_NOT_READY_FOR_RESOLUTION|RESUBMISSION_NOT_ALLOWED|RESUBMISSION_ALREADY_CREATED|NO_NEW_EVIDENCE_RECEIVED|CASE_LOCKED|NO_EVIDENCE_REQUEST_PENDING|CASE_ALREADY_EXISTS)/, 409],
+  [/^(CASE_NOT_FOUND|REVIEW_NOT_FOUND|EVIDENCE_REQUEST_NOT_FOUND|DECISION_NOT_FOUND)/, 404],
+  [/^(REVIEW_ALREADY_COMPLETED|EVIDENCE_REQUEST_NOT_OPEN|EVIDENCE_REQUEST_NOT_READY_FOR_RESOLUTION|REOPEN_NOT_ALLOWED|NO_NEW_EVIDENCE_RECEIVED|CASE_LOCKED|NO_EVIDENCE_REQUEST_PENDING|CASE_ALREADY_EXISTS)/, 409],
   [/^(EVIDENCE_RESOLUTION)/, 502],
   [/^(INTAKE_CASE_LIMIT_REACHED)/, 503],
-  [/^(EVIDENCE_REQUEST_ID_|CASE_RUN_ID_|SUBMISSION_VERSION_MISMATCH|EVIDENCE_RECORDS_NOT_FOUND|EVIDENCE_TEXT_EMPTY|EVIDENCE_FILE_REQUIRED|UNSUPPORTED_FILE_TYPE|LEGACY_WORD_NOT_SUPPORTED|DOCUMENT_|TOO_MANY_FILES|INVALID_REVISED_VERSION|OVERRIDE_REASON_REQUIRED|REVIEWER_|UNSUPPORTED_REVIEWER_DECISION|CASE_ID_NOT_SUPPORTED|FILE_TOO_LARGE)/, 400],
+  [/^(EVIDENCE_REQUEST_ID_|CASE_RUN_ID_|SUBMISSION_VERSION_MISMATCH|EVIDENCE_RECORDS_NOT_FOUND|EVIDENCE_FILE_REQUIRED|UNSUPPORTED_FILE_TYPE|LEGACY_WORD_NOT_SUPPORTED|DOCUMENT_|TOO_MANY_FILES|OVERRIDE_REASON_REQUIRED|REVIEWER_|UNSUPPORTED_REVIEWER_DECISION|CASE_ID_NOT_SUPPORTED|FILE_TOO_LARGE)/, 400],
 ];
 
 /** Only these codes may carry a `detail` back to the client: a user-supplied identifier or the (sanitised) name of the customer's own file. */
-const detailCodes = new Set(['CASE_NOT_FOUND', 'UNSUPPORTED_REVIEWER_DECISION', 'UNSUPPORTED_FILE_TYPE', 'LEGACY_WORD_NOT_SUPPORTED', 'DOCUMENT_TEXT_UNAVAILABLE', 'DOCUMENT_TOO_COMPLEX']);
+const detailCodes = new Set(['CASE_NOT_FOUND', 'UNSUPPORTED_REVIEWER_DECISION', 'UNSUPPORTED_FILE_TYPE', 'LEGACY_WORD_NOT_SUPPORTED', 'DOCUMENT_TEXT_UNAVAILABLE', 'DOCUMENT_TOO_COMPLEX', 'DOCUMENT_TYPE_NOT_RECOGNISED']);
 /** Best-effort removal of key material / connection strings from anything written to server logs. */
 export function redactSecrets(text: string): string {
   return text.replace(/sk-ant-[A-Za-z0-9_-]+/g, 'sk-ant-[redacted]').replace(/(postgres(?:ql)?:\/\/)[^\s@/]+@/gi, '$1[redacted]@').replace(/((?:api[_-]?key|secret|password|token)\s*[=:]\s*)\S+/gi, '$1[redacted]');
@@ -115,7 +115,15 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     return id;
   }
 
-  const publicReply = (reply: ChatReply) => ({ ...reply });
+  /**
+   * What the customer's browser may see. A recommended rejection is not final and is never communicated externally before a human confirms it,
+   * so the outcome and reason code of a REJECT are masked here (the dashboard and the audit trail keep the truth).
+   */
+  const publicReply = (reply: ChatReply) => {
+    if (reply.outcome?.governedOutcome !== 'REJECT' && reply.outcome?.provisionalOutcome !== 'REJECT') return { ...reply };
+    const masked = reply.outcome.governedOutcome === 'REJECT';
+    return { ...reply, outcome: { ...reply.outcome, governedOutcome: masked ? 'PENDING_CONFIRMATION' : reply.outcome.governedOutcome, primaryReasonCode: masked ? 'UNDER_REVIEW' : reply.outcome.primaryReasonCode, provisionalOutcome: reply.outcome.provisionalOutcome === 'REJECT' ? 'PENDING_CONFIRMATION' : reply.outcome.provisionalOutcome, governanceOverride: false } };
+  };
 
   app.get('/health', async () => ({ status: 'ok', syntheticDataOnly: true }));
 
@@ -126,27 +134,24 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     return { csrfToken: token, sessionId: session, syntheticDataOnly: true };
   });
 
+  // The operating model and the customer-facing request catalog (categories, request types, ready-made questions).
+  app.get('/api/catalog', async () => ({ stages, categories: requestCategories, requests: requestTypes, featuredQueries, syntheticDataDisclaimer: true }));
+  app.get('/api/operations', async () => getOperationsOverview(repository));
+
   app.get('/api/cases', async () => {
     const cases = await repository.listCases();
     return { cases: cases.map((entry) => ({ caseRunId: entry.caseRunId, caseId: entry.caseId, submissionVersion: entry.submissionVersion, businessName: entry.businessName })), syntheticDataDisclaimer: true };
   });
 
   // Demo aid: the synthetic identities that match a scenario (so a tester knows whose name / company to introduce themselves with).
-  app.get('/api/scenarios', async () => ({ scenarios: await listScenarios(repository), acceptedFileTypes: acceptedFileTypesHint, maxFilesPerMessage, maxFileBytes: maxUploadBytes, syntheticDataDisclaimer: true }));
+  app.get('/api/scenarios', async () => ({ scenarios: listScenarios(), acceptedFileTypes: acceptedFileTypesHint, maxFilesPerMessage, maxFileBytes: maxUploadBytes, syntheticDataDisclaimer: true }));
 
-  // n8n "Agentic Chat" trigger → chat message (also handles the evidence-loop replies).
+  // Chat message: intake (name + company) and replies while a document request is open.
+  // What the conversation is waiting for (e.g. the customer returns after a reviewer reopened the case).
+  app.get('/api/chat/state', async (request, reply) => ({ state: (await describeChatState(repository, sessionId(request, reply))) ?? null, syntheticDataDisclaimer: true }));
   app.post('/api/chat', strict, async (request, reply) => {
-    const body = z.object({ message: z.string().max(10_000) }).parse(request.body);
-    return publicReply(await handleChatMessage({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: sessionId(request, reply), message: body.message }));
-  });
-  app.post('/api/cases/:caseRunId/messages', strict, async (request, reply) => {
-    const { caseRunId } = caseParams.parse(request.params);
-    const body = z.object({ message: z.string().max(10_000) }).parse(request.body);
-    return publicReply(await handleChatMessage({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: sessionId(request, reply), message: body.message, caseRunIdHint: caseRunId.toUpperCase() }));
-  });
-  app.post('/api/cases/:caseRunId/evaluate', strict, async (request, reply) => {
-    const { caseRunId } = caseParams.parse(request.params);
-    return publicReply(await handleChatMessage({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: sessionId(request, reply), message: `Evaluate ${caseRunId.toUpperCase()}` }));
+    const body = z.object({ message: z.string().max(10_000), intent: z.string().max(60).optional() }).parse(request.body);
+    return publicReply(await handleChatMessage({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: sessionId(request, reply), message: body.message, intent: body.intent }));
   });
   app.get('/api/cases/:caseRunId/status', async (request) => getCaseStatus(repository, caseParamsUpper(request)));
 
@@ -156,16 +161,10 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const query = z.object({ case_run_id: z.string().max(100).optional() }).parse(request.query);
     const stored = await repository.getEvidenceRequest(evidenceRequestId);
     const validation = validateEvidenceRequest(stored, evidenceRequestId, query.case_run_id ?? '');
-    return { uploadAllowed: validation.uploadAllowed, rejectionReason: validation.rejectionReason, caseRunId: validation.caseRunId, evidenceRequestId, status: stored?.status ?? '', requestedItems: stored?.requestedItems ?? [], customerMessage: stored?.customerMessage ?? '', acceptedEvidenceTypes: uploadEvidenceTypes, syntheticDataDisclaimer: true };
+    return { uploadAllowed: validation.uploadAllowed, rejectionReason: validation.rejectionReason, caseRunId: validation.caseRunId, evidenceRequestId, status: stored?.status ?? '', requestedItems: stored?.requestedItems ?? [], customerMessage: stored?.customerMessage ?? '', syntheticDataDisclaimer: true };
   });
-  app.post('/api/evidence/:evidenceRequestId/text', strict, async (request) => {
-    const { evidenceRequestId } = evidenceParams.parse(request.params);
-    const input = TextEvidenceInputSchema.parse(request.body);
-    const evidence = await submitTextEvidence(repository, evidenceRequestId, { caseRunId: input.caseRunId, text: input.text });
-    return { evidenceId: evidence.evidenceId, status: evidence.validationStatus, syntheticDataDisclaimer: true };
-  });
-  // Uploads are the most expensive public routes (file buffering + document parsing / OCR): never more than 10/min/client even if `strict` is raised.
-  const uploadLimit = { config: { rateLimit: { max: Math.min(config.rateLimit?.strict ?? 20, 10), timeWindow: '1 minute' } } };
+  // Uploads are the most expensive public routes (file buffering + document parsing / OCR): never more than 10/min/client unless rateLimit.upload is set explicitly (tests only).
+  const uploadLimit = { config: { rateLimit: { max: config.rateLimit?.upload ?? Math.min(config.rateLimit?.strict ?? 20, 10), timeWindow: '1 minute' } } };
 
   /** Reads the customer's document: type from its bytes, then text. Throws a coded error (detail = the sanitised file name). */
   async function readDocument(bytes: Buffer, fileName: string): Promise<ExtractedDocument> {
@@ -176,6 +175,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     }
     if (document.error) throw new Error(`${document.error}:${label}`);
     if (document.text.length < 20) throw new Error(`DOCUMENT_TEXT_UNAVAILABLE:${label}`);
+    try { readEvidenceDocument(document.text); } catch { throw new Error(`DOCUMENT_TYPE_NOT_RECOGNISED:${label}`); }
     return document;
   }
   async function storeFile(bytes: Buffer, fileName: string): Promise<{ storedName: string; storedPath: string }> {
@@ -197,8 +197,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     return { files, fields };
   }
 
-  // Customer chat: answer an open evidence request with typed text and/or attached documents in the SAME conversation
-  // (replaces the source's separate upload form + "type UPLOADED"; docs/07 G-31).
+  // Customer chat: answer an open document request by attaching documents in the SAME conversation (no separate upload page, nothing to type).
   app.post('/api/chat/evidence', uploadLimit, async (request, reply) => {
     const session = sessionId(request, reply);
     if ((await repository.getSession(session))?.step !== 'AWAITING_EVIDENCE') {
@@ -206,8 +205,8 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
       throw new Error('NO_EVIDENCE_REQUEST_PENDING');
     }
     const { files, fields } = await readMultipart(request);
-    const note = (fields.message ?? '').trim();
-    if (files.length === 0 && !note) throw new Error('EVIDENCE_FILE_REQUIRED');
+    void fields; // typed text is never evidence
+    if (files.length === 0) throw new Error('EVIDENCE_FILE_REQUIRED');
     // Read every file BEFORE storing or recording anything: one unreadable attachment rejects the whole message and nothing is kept.
     const documents = [];
     for (const file of files) documents.push({ file, document: await readDocument(file.bytes, file.fileName) });
@@ -219,7 +218,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
         storedPaths.push(stored.storedPath);
         attached.push({ fileName: safeName(file.fileName), mimeType: document.mimeType, storageUrl: stored.storedName, extractedText: document.text });
       }
-      return publicReply(await handleChatEvidenceUpload({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: session, files: attached, note }));
+      return publicReply(await handleChatEvidenceUpload({ repository, agentRuntime, appBaseUrl: config.appBaseUrl }, { sessionId: session, files: attached }));
     } catch (error) {
       for (const path of storedPaths) await unlink(path).catch(() => undefined); // SEC-10: no orphaned files when the step is refused
       throw error;
@@ -243,7 +242,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const document = await readDocument(buffer, part.filename);
     const stored = await storeFile(buffer, part.filename);
     try {
-      const evidence = await submitUploadedEvidence(repository, evidenceRequestId, { caseRunId: suppliedCaseRunId || undefined, evidenceType: fieldValue(part.fields.evidence_type) ?? fieldValue(part.fields.evidenceType), notes: fieldValue(part.fields.notes) ?? fieldValue(part.fields.evidence_notes) ?? '', fileName: safeName(part.filename), mimeType: document.mimeType, storageUrl: stored.storedName, extractedText: document.text });
+      const evidence = await submitDocumentEvidence(repository, evidenceRequestId, { caseRunId: suppliedCaseRunId || undefined, fileName: safeName(part.filename), mimeType: document.mimeType, storageUrl: stored.storedName, extractedText: document.text });
       return { evidenceId: evidence.evidenceId, status: evidence.validationStatus, extractedCharacterCount: document.text.length, syntheticDataDisclaimer: true };
     } catch (error) {
       await unlink(stored.storedPath).catch(() => undefined); // SEC-10: no orphaned file when the database step is refused (e.g. a racing upload)
@@ -259,7 +258,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const caseRecord = resumed ? await repository.getCase(resumed.decision.caseRunId) : undefined;
     return {
       route: continuation.route, resolutionStatus: continuation.resolution.resolutionStatus, requestStatus: continuation.resolution.request.status, attemptCount: continuation.resolution.request.attemptCount, maxAttempts: continuation.resolution.request.maxAttempts, remainingGaps: continuation.remainingGaps, reviewId: continuation.review?.reviewId ?? null,
-      resumedAssessment: resumed ? { governedOutcome: resumed.decision.outcome, primaryReasonCode: resumed.decision.primaryReasonCode, toolsCalled: resumed.trace.map((step) => step.tool), curated: buildChatResponse({ decision: resumed.decision, businessName: caseRecord?.businessName ?? '', representativeName: caseRecord?.representativeName ?? '' }).output } : null,
+      resumedAssessment: resumed ? { governedOutcome: resumed.decision.outcome === 'REJECT' ? 'PENDING_CONFIRMATION' : resumed.decision.outcome, primaryReasonCode: resumed.decision.outcome === 'REJECT' ? 'UNDER_REVIEW' : resumed.decision.primaryReasonCode, toolsCalled: resumed.trace.map((step) => step.tool), curated: buildChatResponse({ decision: resumed.decision, businessName: caseRecord?.businessName ?? '', representativeName: caseRecord?.representativeName ?? '' }).output } : null,
       syntheticDataDisclaimer: true,
     };
   });
@@ -270,7 +269,8 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     return { evidenceRequestId: cancelled.evidenceRequestId, status: cancelled.status, syntheticDataDisclaimer: true };
   });
 
-  // Workflow 91
+  // Review ID dashboard + review detail + completion + reopen
+  app.get('/api/reviews', async () => ({ reviews: await listReviewDashboard(repository), syntheticDataDisclaimer: true }));
   app.get('/api/reviews/:reviewId', async (request) => {
     const { reviewId } = reviewParams.parse(request.params);
     return { review: await getReviewPackage(repository, reviewId), allowedDecisions: ['APPROVE', 'NEED_MORE_INFORMATION', 'REJECT'], syntheticDataDisclaimer: true };
@@ -281,14 +281,12 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
     const result = await completeHumanReview(repository, reviewId, input);
     return { reviewId, reviewStatus: result.review.reviewStatus, outcome: result.decision.outcome, primaryReasonCode: result.decision.primaryReasonCode, nextAction: result.decision.nextAction, targetQueue: result.decision.targetQueue, communication: { subject: result.communication.subject, body: result.communication.body, status: result.communication.status }, syntheticDataDisclaimer: true };
   });
-
-  // Workflow 92
-  app.post('/api/resubmissions', strict, async (request) => {
-    const input = ResubmissionInputSchema.parse(request.body);
-    const assessment = await createResubmission(repository, input, agentRuntime);
-    const revised = await repository.getCase(assessment.decision.caseRunId);
-    return { revisedCaseRunId: assessment.decision.caseRunId, submissionVersion: assessment.decision.submissionVersion, outcome: assessment.decision.outcome, primaryReasonCode: assessment.decision.primaryReasonCode, summary: assessment.decision.customerSafeSummary, nextAction: assessment.decision.nextAction, communication: { subject: assessment.communication.subject, body: assessment.communication.body, status: assessment.communication.status }, curated: buildChatResponse({ decision: assessment.decision, businessName: revised?.businessName ?? '', representativeName: revised?.representativeName ?? '' }).output, syntheticDataDisclaimer: true };
+  // A rejected / incomplete / manual-review case is reopened from the dashboard: a new version, and the customer's chat asks for documents again.
+  app.post('/api/cases/:caseRunId/reopen', strict, async (request) => {
+    const { caseRunId } = caseParams.parse(request.params);
+    const input = ReopenInputSchema.parse(request.body);
+    const result = await reopenCase(repository, { caseRunId: caseRunId.toUpperCase(), reviewerName: input.reviewerName, comments: input.comments });
+    return { originalCaseRunId: result.original.caseRunId, reopenedCaseRunId: result.reopened.caseRunId, submissionVersion: result.reopened.submissionVersion, evidenceRequestId: result.request.evidenceRequestId, customerNotified: result.customerNotified, syntheticDataDisclaimer: true };
   });
-
   return app;
 }

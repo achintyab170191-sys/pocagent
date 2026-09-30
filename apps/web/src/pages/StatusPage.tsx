@@ -13,7 +13,7 @@ interface Status {
 }
 
 export function StatusPage() {
-  const [caseRunId, setCaseRunId] = useState(new URLSearchParams(window.location.search).get('case_run_id') ?? 'AUTH-001');
+  const [caseRunId, setCaseRunId] = useState(new URLSearchParams(window.location.search).get('case_run_id') ?? 'AUTH-101');
   const [cases, setCases] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>();
   const [error, setError] = useState('');

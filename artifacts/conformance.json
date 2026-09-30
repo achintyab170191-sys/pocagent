@@ -1,0 +1,748 @@
+{
+  "source": "E&SMB-BO To-Be Process, profiling, pages 12-13 (photographed), plus product-owner requests",
+  "totalSteps": 43,
+  "statusCounts": {
+    "IMPLEMENTED": 22,
+    "SIMULATED": 7,
+    "PLATFORM": 2,
+    "TARGET_ADDITION": 9,
+    "OUT_OF_SCOPE": 3
+  },
+  "steps": [
+    {
+      "id": "C1",
+      "lane": "B2B Customer",
+      "step": "Customer logs in and places a request with the conversational chatbot",
+      "module": "apps/web/src/pages/ChatPage.tsx · apps/api/src/app.ts (POST /api/chat)",
+      "tests": [
+        [
+          "tests/e2e/portal.spec.ts",
+          "a new customer starts with a name and a company"
+        ],
+        [
+          "tests/api.test.ts",
+          "a new customer introduces themselves, attaches the documents"
+        ]
+      ],
+      "status": "PLATFORM",
+      "note": "The B2B portal login is not modelled; the chat is the portal. Sessions are cookie-based and synthetic."
+    },
+    {
+      "id": "C2",
+      "lane": "B2B Customer",
+      "step": "Chatbot analyses the customer intent and asks for the required valid information",
+      "module": "packages/workflows/src/chat.ts#handleChatMessage · intake.ts#extractIntake",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "greets a new customer and asks for a name and a company"
+        ]
+      ],
+      "status": "IMPLEMENTED",
+      "note": "Intent is fixed to New LOA (deterministic name/company extraction, no model); other intents in the diagrams are out of scope."
+    },
+    {
+      "id": "C3",
+      "lane": "B2B Customer",
+      "step": "Customer needs further guidance? Customer provides the chatbot with the details",
+      "module": "packages/workflows/src/chat.ts (INTAKE state)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "asks only for what is missing, over several turns"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "C4",
+      "lane": "B2B Customer",
+      "step": "Chatbot connects the customer with a human agent; the human agent creates the ticket",
+      "module": "packages/workflows/src/chat.ts (NEW_LEAD) · intake.ts#openIntakeCase",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a company that is NOT on record becomes a new lead"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "a company that is not on record becomes a new lead"
+        ]
+      ],
+      "status": "SIMULATED",
+      "note": "A company that is not on record gets a new-lead case and a specialist follow-up; nothing is verified or approved. There is no live human hand-over."
+    },
+    {
+      "id": "O1",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Converts the request into a ticket and creates it in BCRM",
+      "module": "packages/workflows/src/intake.ts#openIntakeCase · persistence createIntakeCase",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a company on record: opens a case and asks for the Emirates ID"
+        ],
+        [
+          "tests/sql.integration.test.ts",
+          "intake cases: sequential ids"
+        ]
+      ],
+      "status": "PLATFORM",
+      "note": "BCRM is replaced by the case store (AUTH-101, AUTH-102, ...)."
+    },
+    {
+      "id": "O2",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Validates the request and asks for / collects the documents (Emirates ID, Trade License, Establishment Card)",
+      "module": "packages/workflows/src/chat.ts · evidence.ts#submitDocumentEvidence / resolveEvidence",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "missing documents are named and the same request stays open"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "after three attempts that still miss documents"
+        ],
+        [
+          "tests/chat-attachments.test.ts",
+          "documents in different formats (a Word file and two PDFs)"
+        ]
+      ],
+      "status": "IMPLEMENTED",
+      "note": "Documents are the only evidence (PDF, Word, images); typed text is refused."
+    },
+    {
+      "id": "O3",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Triggers SBO.02 for New LOA Processing",
+      "module": "packages/workflows/src/evidence.ts#resolveEvidenceAndContinue → super-agent.ts#resumeAssessment",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Fatima (licence owner, valid documents): all five checks pass in order"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "O4",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Documents not uploaded / discrepancies: SBO.11 drafts an email for the pending information",
+      "module": "packages/workflows/src/super-agent.ts#classifyContinuation · governance COMM-NEED-INFO",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Omar (not the licence owner): a POA is requested"
+        ],
+        [
+          "tests/governance.test.ts",
+          "derives missing information, conflicts and a customer-safe summary"
+        ]
+      ],
+      "status": "IMPLEMENTED",
+      "note": "The request is made in the chat itself; the drafted email is a draft only."
+    },
+    {
+      "id": "O5",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Could not classify: route the request to the exception queue for manual review",
+      "module": "packages/workflows/src/super-agent.ts#createReviewForDecision · human-review.ts#listReviewDashboard",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a known company but a person that is not in the identity register"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "lists every review with its case"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S1",
+      "lane": "SBO.02 Super Agent",
+      "step": "Triggers SBO.06 (Trade License Check agent) to perform the TL and EC checks",
+      "module": "packages/domain/src/loa.ts#tradeLicenseCheck · workflows/src/utilities.ts",
+      "tests": [
+        [
+          "tests/persistence.test.ts",
+          "exposes exactly the five specialist tools"
+        ],
+        [
+          "tests/agent-runtime.test.ts",
+          "exposes exactly the five specialist tools"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S2",
+      "lane": "SBO.06 Trade License agent",
+      "step": "Extracts the EC and TL fields; matches the Establishment Card and Trade License name",
+      "module": "packages/domain/src/loa.ts#classifyDocument / extractFields",
+      "tests": [
+        [
+          "tests/chat-attachments.test.ts",
+          "is read and recognised"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "reads fields even when a PDF or OCR puts the whole document on one line"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S3",
+      "lane": "SBO.06 Trade License agent",
+      "step": "Trade License not readable: perform the QR check",
+      "module": "packages/domain/src/loa.ts#resolveLicense",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Mariam: the licence number is unreadable, so the QR code is used"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a licence with neither a readable number nor a QR code asks the customer"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S4",
+      "lane": "SBO.06 Trade License agent",
+      "step": "Uses the DUL API to verify the TL details and structures the output",
+      "module": "packages/domain/src/loa.ts (tradeLicenseRegister, dulApiAvailable)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Fatima (licence owner, valid documents): all five checks pass in order"
+        ]
+      ],
+      "status": "SIMULATED",
+      "note": "The DUL API is a synthetic register."
+    },
+    {
+      "id": "S5",
+      "lane": "SBO.06 Trade License agent",
+      "step": "DUL API failure: log in to the government portal with UAE Pass and validate the TL",
+      "module": "packages/domain/src/loa.ts#tradeLicenseCheck (GOVERNMENT_PORTAL_UAE_PASS)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Noura: the DUL API is down"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "Noura: the DUL API is down"
+        ]
+      ],
+      "status": "SIMULATED",
+      "note": "No portal or UAE Pass call is made; the fallback path is modelled and reported as PASS_WITH_FLAG."
+    },
+    {
+      "id": "S6",
+      "lane": "SBO.02 Super Agent",
+      "step": "Collects the output and decides the next step (stops at a terminal result)",
+      "module": "packages/workflows/src/super-agent.ts#createToolbox · governance determineDecision",
+      "tests": [
+        [
+          "tests/persistence.test.ts",
+          "stops after a terminal result: later tools are refused"
+        ],
+        [
+          "tests/governance.test.ts",
+          "an explicit terminal business rule takes precedence"
+        ],
+        [
+          "tests/agent-runtime.test.ts",
+          "an LLM that forces APPROVE on an expired licence is overridden"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S7",
+      "lane": "SBO.02 Super Agent",
+      "step": "TL expired: reject the request, SBO.11 emails the customer, SBO.20 RCA agent analyses the reason",
+      "module": "packages/domain/src/loa.ts (TL-002) · super-agent.ts#requestRootCauseAnalysis",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "%s → REJECT %s: stops at the failing check"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "a rejection is recommended"
+        ]
+      ],
+      "status": "IMPLEMENTED",
+      "note": "Every rejection waits for a human to confirm it on the review dashboard; the email is a draft and the RCA is a deterministic summary."
+    },
+    {
+      "id": "S8",
+      "lane": "SBO.02 Super Agent",
+      "step": "Name does not match: reject the request (SBO.11 + SBO.20)",
+      "module": "packages/domain/src/loa.ts (TL-004, ID-001)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "the Emirates ID name must match the name in the request"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "%s → REJECT %s: stops at the failing check"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S9",
+      "lane": "SBO.02 Super Agent",
+      "step": "Triggers SBO.07 for identity validation",
+      "module": "packages/domain/src/loa.ts#identityValidation",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "an expired Emirates ID is a fixable gap"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S10",
+      "lane": "SBO.07 Identity agent",
+      "step": "Cross-checks the EID and EC with the TL name and returns a structured output",
+      "module": "packages/domain/src/loa.ts#identityValidation (recordedPerson)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Fatima (licence owner, valid documents): all five checks pass in order"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a known company but a person that is not in the identity register"
+        ]
+      ],
+      "status": "SIMULATED",
+      "note": "The identity register is synthetic."
+    },
+    {
+      "id": "S11",
+      "lane": "SBO.02 Super Agent",
+      "step": "EID, EC and TL name mismatch observed: reject",
+      "module": "packages/domain/src/loa.ts (ID-001)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "%s → REJECT %s: stops at the failing check"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S12",
+      "lane": "SBO.02 Super Agent",
+      "step": "Triggers the POA/MOA workflow: document available? checks cleared / not cleared",
+      "module": "packages/domain/src/loa.ts#poaMoaCheck",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Omar (not the licence owner): a POA is requested"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "Hessa: acts under an expired POA"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S12a",
+      "lane": "SBO.02 Super Agent",
+      "step": "Who is authorised without a POA/MOA (product owner rule): ID verified; recorded as owner, manager with representative authority or authorised signatory in the approved source; capacity covers the requested action; licence current and consistent; no conflicting evidence or limitation",
+      "module": "packages/domain/src/loa.ts#poaMoaCheck (RecordedPerson, POA-004)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a manager recorded with full representative authority needs no POA"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a manager whose recorded capacity does not cover every requested action still needs a POA"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a person on the establishment card without a recorded authority"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a recorded limitation or conflicting evidence on the person"
+        ]
+      ],
+      "status": "IMPLEMENTED",
+      "note": "Broader than owner-only, narrower than anyone listed on the Establishment Card."
+    },
+    {
+      "id": "S13",
+      "lane": "SBO.02 / SBO.09 / SBO.08",
+      "step": "Triggers SBO.09 for the bad-debt and blue-collar checks; SBO.08 cross-checks duplicate PDs in BCRM",
+      "module": "packages/domain/src/loa.ts#badDebtCheck",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Layla: the bad-debt check sees the duplicate party IDs"
+        ]
+      ],
+      "status": "SIMULATED",
+      "note": "BCRM is a synthetic party register."
+    },
+    {
+      "id": "S14",
+      "lane": "SBO.02 / SBO.10",
+      "step": "No bad debt or blue-collar behaviour: SBO.02 triggers SBO.10 to run the AVCV (Address Verification and Credit Verification) workflow",
+      "module": "packages/domain/src/loa.ts#avcvVerification (address + credit outcomes)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "Fatima (licence owner, valid documents): all five checks pass in order"
+        ]
+      ],
+      "status": "SIMULATED",
+      "note": "AVCV is a synthetic register with one outcome for the address and one for the credit profile (positive, negative, discrepancy, unable to verify, refer, insufficient information); no field visit or bureau lookup happens."
+    },
+    {
+      "id": "S14a",
+      "lane": "SBO.10 AVCV",
+      "step": "AVCV outcomes: only an adverse result is a rejection; a discrepancy, unable-to-verify or refer goes to a specialist; insufficient information asks for proof of address",
+      "module": "packages/domain/src/loa.ts (AV-001..004)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "%s → MANUAL_REVIEW %s (%s)"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "insufficient information for the address verification asks for proof of address"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a proof of address held by someone else does not satisfy the verification"
+        ]
+      ],
+      "status": "SIMULATED"
+    },
+    {
+      "id": "S15",
+      "lane": "SBO.02 Super Agent",
+      "step": "AVCV successful: approve the request and SBO.11 shares the communication with the stakeholders",
+      "module": "packages/governance/src/index.ts (FINAL-001, COMM-APPROVE)",
+      "tests": [
+        [
+          "tests/governance.test.ts",
+          "approves only when every mandatory check passes (FINAL-001)"
+        ],
+        [
+          "tests/sql.integration.test.ts",
+          "Fatima approves: five unique rows"
+        ]
+      ],
+      "status": "IMPLEMENTED",
+      "note": "The communication is a draft; nothing is sent and nothing is written to a production system."
+    },
+    {
+      "id": "S16",
+      "lane": "SBO.02 Super Agent",
+      "step": "AVCV adverse: reject the request (SBO.11 + SBO.20)",
+      "module": "packages/domain/src/loa.ts (AV-001)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "%s → REJECT %s: stops at the failing check"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "S17",
+      "lane": "SBO.02 Super Agent",
+      "step": "A lookup that is unavailable or unmatched is never treated as proof of invalidity: a specialist decides",
+      "module": "packages/domain/src/loa.ts (TL-005, ID-003, POA-003, AV-002)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a known company but a person that is not in the identity register"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "G1",
+      "lane": "Governance",
+      "step": "The deterministic finalizer, not the model, issues every final outcome; the model only recommends",
+      "module": "packages/governance/src/index.ts (no model dependency)",
+      "tests": [
+        [
+          "tests/governance.test.ts",
+          "is deterministic and contains no model dependency"
+        ],
+        [
+          "tests/agent-runtime.test.ts",
+          "an LLM that stops early and recommends APPROVE cannot override deterministic governance"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "G2",
+      "lane": "Governance",
+      "step": "Runtime results are unique per case_run_id + submission_version + check_type",
+      "module": "packages/persistence (runtime_utility_results)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "the persisted result key is the three-part case_run_id + submission_version + check_type"
+        ],
+        [
+          "tests/persistence.test.ts",
+          "rerunning the same utility is idempotent"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "G3",
+      "lane": "Governance",
+      "step": "Customer documents are data, never instructions",
+      "module": "packages/domain/src/loa.ts#classifyDocument (regex reader, no model)",
+      "tests": [
+        [
+          "tests/security.test.ts",
+          "instructions written inside a document change nothing"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "a file that is none of the four supported document types"
+        ]
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "id": "T1",
+      "lane": "Product owner request",
+      "step": "Evidence is documents only: typed text is never accepted as evidence",
+      "module": "packages/workflows/src/chat.ts · evidence.ts · apps/api (no text route)",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "typed text is not evidence"
+        ],
+        [
+          "tests/security.test.ts",
+          "typed text can never become evidence, by any route"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "documents only: while a document request is open there is no text box"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T2",
+      "lane": "Product owner request",
+      "step": "Documents are attached in the same chat window (PDF, Word, images); a missing or replaced document is requested again in the same window",
+      "module": "apps/web/src/pages/ChatPage.tsx · POST /api/chat/evidence",
+      "tests": [
+        [
+          "tests/e2e/portal.spec.ts",
+          "Omar is not the licence owner"
+        ],
+        [
+          "tests/chat-attachments.test.ts",
+          "re-upload is always possible"
+        ],
+        [
+          "tests/api.test.ts",
+          "a POA is requested in the same conversation"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T3",
+      "lane": "Product owner request",
+      "step": "Review dashboard: every review with its Review ID, status, checks, documents and root-cause analysis",
+      "module": "apps/web/src/pages/ReviewPage.tsx · GET /api/reviews[/:id]",
+      "tests": [
+        [
+          "tests/api.test.ts",
+          "lists every review on the dashboard"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "the dashboard lists the review with its Review ID"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T4",
+      "lane": "Product owner request",
+      "step": "Reopen a rejected or incomplete request from the review dashboard; the customer answers in the chat (replaces the resubmission page)",
+      "module": "packages/workflows/src/reopen.ts · POST /api/cases/:id/reopen",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a reviewer reopens a rejected case"
+        ],
+        [
+          "tests/api.test.ts",
+          "reopening a rejected case creates a new version"
+        ],
+        [
+          "tests/sql.integration.test.ts",
+          "reopen works on real SQL"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "reopen: the reviewer reopens a rejected case"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T5",
+      "lane": "Product owner request",
+      "step": "A company that is not on record is only a new lead: never approved",
+      "module": "packages/workflows/src/intake.ts#openIntakeCase",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "a company that is NOT on record becomes a new lead"
+        ],
+        [
+          "tests/api.test.ts",
+          "a company that is not on record becomes a new lead over HTTP"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T6",
+      "lane": "Product owner request",
+      "step": "The agent may recommend a rejection, but a rejection is never final or communicated externally without human confirmation",
+      "module": "packages/workflows/src/chat-response.ts · apps/api/src/app.ts#publicReply",
+      "tests": [
+        [
+          "tests/api.test.ts",
+          "a recommended rejection is never shown to the customer"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "drafts the email (SBO.11), requests root-cause analysis (SBO.20) and waits for a human"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "a rejection is recommended"
+        ]
+      ],
+      "status": "TARGET_ADDITION",
+      "note": "The customer sees \"awaiting specialist confirmation\"; the reason and the decision are visible only on the review dashboard."
+    },
+    {
+      "id": "T7",
+      "lane": "Product owner request",
+      "step": "Customer-facing request catalog: eight intent categories and every request type of the operating model (profiling, verifier task, processing), with a stage owner for each",
+      "module": "packages/domain/src/catalog.ts · GET /api/catalog",
+      "tests": [
+        [
+          "tests/catalog.test.ts",
+          "offers the eight customer-facing categories"
+        ],
+        [
+          "tests/catalog.test.ts",
+          "assigns request types to the stage that owns them"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "the assistant offers eight topics"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T8",
+      "lane": "Product owner request",
+      "step": "Pre-populated standard queries and free-text intent recognition start a request in one step",
+      "module": "packages/domain/src/catalog.ts#matchRequestType · workflows/src/chat.ts",
+      "tests": [
+        [
+          "tests/catalog.test.ts",
+          "recognises \"%s\" as %s"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "pre-populated standard queries start a request in one click"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "typing a request in your own words is recognised"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T9",
+      "lane": "Product owner request",
+      "step": "Requests that are not automated are captured and routed to the stage that owns them (profiling, verifier task, processing) — never checked, approved or changed",
+      "module": "packages/workflows/src/capture.ts · operations.ts · GET /api/operations",
+      "tests": [
+        [
+          "tests/catalog.test.ts",
+          "a chosen request that is not automated is captured and routed"
+        ],
+        [
+          "tests/catalog.test.ts",
+          "the operations overview counts captured requests per stage"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "the Operations page shows the six stages"
+        ]
+      ],
+      "status": "TARGET_ADDITION",
+      "note": "Only New LOA is automated. Control tower, governance and reporting are shown for the operating model only."
+    },
+    {
+      "id": "X1",
+      "lane": "Not built",
+      "step": "Other To-Be processes: Mobile Re-Registration, Document Update, Combo (Document Update + LOA / LOA + Re-Registration), Regularization, PMP, TASK/TKT, Data Quality Assurance",
+      "module": "-",
+      "tests": [],
+      "status": "OUT_OF_SCOPE",
+      "note": "Only the New LOA chatbot-triggered process was built. The other diagrams reuse SBO.05 (document extraction), SBO.12 (system data check / reconciliation) and other utility agents that are not implemented."
+    },
+    {
+      "id": "X3",
+      "lane": "Not built",
+      "step": "Automation of the verifier task (MNP, activations, transfer of ownership, SIM replacement, AVCV field work, legal letters, biometric verification), processing (order creation, quality checks, contract validation, delivery, lifecycle tracking), the control tower, governance and reporting",
+      "module": "-",
+      "tests": [],
+      "status": "OUT_OF_SCOPE",
+      "note": "Requests for these are captured and routed (T9); nothing runs on them."
+    },
+    {
+      "id": "X2",
+      "lane": "Not built",
+      "step": "Ticket-triggered and channel-partner-triggered variants of New LOA; SBO.05 document extraction agent; SBO.13 order execution; SBO.14 case lifecycle tracking",
+      "module": "-",
+      "tests": [],
+      "status": "OUT_OF_SCOPE",
+      "note": "The chat variant is the only entry point. The ticket variants share the same five checks and could be added on top."
+    }
+  ]
+}

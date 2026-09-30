@@ -1,8 +1,8 @@
 /**
- * Workflow 91 — Human Review Portal, ported exactly as the uploaded JSON defines it (dispositions: APPROVE / NEED_MORE_INFORMATION / REJECT).
- * The newer exception-level dispositions (e.g. RESOLVED_PASS) are NOT in the upload and are only proposed in docs/post-parity-enhancements.md.
+ * Human review (review dashboard). A rejection or manual-review decision creates a review; a human confirms or overrides it (APPROVE / NEED_MORE_INFORMATION / REJECT).
+ * Every review, open or completed, is listed on the dashboard; a rejected or incomplete case can be reopened from it (reopen.ts).
  */
-import { type Communication, type Decision, type HumanReview, SourceAuditEvents } from '@sbo/domain';
+import { type Communication, type Decision, type HumanReview, SourceAuditEvents, TargetAuditEvents } from '@sbo/domain';
 import { fillTemplate } from '@sbo/governance';
 import { type Repository, now, uniqueMillis } from '@sbo/persistence';
 
@@ -10,32 +10,61 @@ export const reviewOpenStatuses = ['PENDING', 'PENDING_REJECTION_CONFIRMATION'];
 export type ReviewerDecision = 'APPROVE' | 'NEED_MORE_INFORMATION' | 'REJECT';
 
 const outcomeConfiguration: Record<ReviewerDecision, { targetQueue: string; nextAction: string; templateId: string; summary: string; status: string }> = {
-  APPROVE: { targetQueue: 'ORDER_READINESS', nextAction: 'Proceed to the next controlled operational step. No production write-back has been performed.', templateId: 'TPL-APPROVE', summary: 'A human reviewer approved the request after reviewing the available evidence.', status: 'READY_TO_PROCEED' },
-  NEED_MORE_INFORMATION: { targetQueue: 'CUSTOMER_FOLLOW_UP', nextAction: 'Request the additional information identified by the reviewer and keep the case open.', templateId: 'TPL-NMI', summary: 'A human reviewer determined that additional information is required before the assessment can be completed.', status: 'WAITING_FOR_INFORMATION' },
-  REJECT: { targetQueue: 'CASE_CLOSURE', nextAction: 'Prepare the rejection communication for approval and close the synthetic case after the communication is confirmed.', templateId: 'TPL-REJECT', summary: 'A human reviewer confirmed that the request cannot proceed based on the current evidence and prototype rules.', status: 'REJECTED_CONFIRMED' },
+  APPROVE: { targetQueue: 'ORDER_READINESS', nextAction: 'Proceed to the next controlled operational step. No production write-back has been performed.', templateId: 'COMM-APPROVE', summary: 'A human reviewer approved the request after reviewing the available evidence.', status: 'READY_TO_PROCEED' },
+  NEED_MORE_INFORMATION: { targetQueue: 'CUSTOMER_FOLLOW_UP', nextAction: 'Request the additional information identified by the reviewer and keep the case open.', templateId: 'COMM-NEED-INFO', summary: 'A human reviewer determined that additional information is required before the assessment can be completed.', status: 'WAITING_FOR_INFORMATION' },
+  REJECT: { targetQueue: 'CASE_CLOSURE', nextAction: 'Prepare the rejection communication for approval and close the synthetic case after the communication is confirmed.', templateId: 'COMM-REJECT', summary: 'A human reviewer confirmed that the request cannot proceed based on the current evidence and prototype rules.', status: 'REJECTED_CONFIRMED' },
 };
 
 export interface ReviewPackage {
-  reviewId: string; caseRunId: string; requestedAt: string; reviewQueue: string; reviewStatus: string; agentRecommendation: string; submissionVersion: number;
+  reviewId: string; caseRunId: string; requestedAt: string; reviewQueue: string; reviewStatus: string; reviewOpen: boolean; agentRecommendation: string; submissionVersion: number;
+  reviewerName: string; reviewerDecision: string; reviewerComments: string; completedAt: string;
   originalDecisionId: string; originalOutcome: string; originalPrimaryReasonCode: string; originalSecondaryReasonCodes: string[]; originalTargetQueue: string; originalNextAction: string; originalCustomerSafeSummary: string; originalMissingInformation: string[]; originalConflicts: string[];
-  businessName: string; businessIdentifier: string; customerId: string; representativeName: string; representativeRole: string; requestedAuthority: string; requestNarrative: string; country: string; prototypeData: true;
+  businessName: string; businessIdentifier: string; representativeName: string; requestedAuthority: string; requestNarrative: string; country: string;
+  checks: Array<{ sequence: number; agentId: string; utilityName: string; checkType: string; status: string; reasonCodes: string[] }>;
+  documents: Array<{ documentType: string; fileName: string; validationStatus: string }>;
+  rootCause: { failedCheck: string; rootCause: string; recommendedAction: string } | null;
+  /** false for an evidence escalation on a case that never reached the checks: the reviewer can only reopen it. */
+  decisionAvailable: boolean; reopenAvailable: boolean; prototypeData: true;
 }
 
-/** "Check Review Status" + "Prepare Review Package". Throws REVIEW_NOT_FOUND / REVIEW_ALREADY_COMPLETED (source "Show Review Already Completed"). */
+async function caseDocuments(repository: Repository, caseRunId: string, submissionVersion: number): Promise<ReviewPackage['documents']> {
+  const requests = (await repository.getEvidenceRequests(caseRunId)).filter((request) => request.submissionVersion === submissionVersion);
+  const records = (await Promise.all(requests.map((request) => repository.getEvidence(request.evidenceRequestId)))).flat().filter((record) => record.evidenceSource === 'FILE_UPLOAD');
+  return records.map((record) => ({ documentType: record.evidenceType, fileName: record.fileName, validationStatus: record.validationStatus }));
+}
+
+export const reopenableOutcomes = ['REJECT', 'NEED_MORE_INFORMATION', 'MANUAL_REVIEW'];
+
+/** "Prepare Review Package". Completed reviews stay readable (read-only); only completing an already-completed review is refused. */
 export async function getReviewPackage(repository: Repository, reviewId: string): Promise<ReviewPackage> {
   const review = await repository.getReview(reviewId.trim());
   if (!review) throw new Error('REVIEW_NOT_FOUND');
-  if (!reviewOpenStatuses.includes(review.reviewStatus.toUpperCase())) throw new Error('REVIEW_ALREADY_COMPLETED');
-  const [decision, caseRecord] = await Promise.all([repository.getDecision(review.caseRunId), repository.getCase(review.caseRunId)]);
-  if (!decision) throw new Error('DECISION_NOT_FOUND');
+  const [decision, caseRecord, runtimeCase, audit] = await Promise.all([repository.getDecision(review.caseRunId), repository.getCase(review.caseRunId), repository.getRuntimeCase(review.caseRunId), repository.getAudit(review.caseRunId)]);
   if (!caseRecord) throw new Error(`CASE_NOT_FOUND:${review.caseRunId}`);
+  const rca = [...audit].reverse().find((event) => event.eventType === TargetAuditEvents.RCA_REQUESTED);
+  const details = (rca?.details ?? {}) as { failedCheck?: string; rootCause?: string; recommendedAction?: string };
   return {
-    reviewId: review.reviewId, caseRunId: review.caseRunId, requestedAt: review.requestedAt, reviewQueue: review.reviewQueue, reviewStatus: review.reviewStatus, agentRecommendation: review.agentRecommendation, submissionVersion: decision.submissionVersion,
-    originalDecisionId: decision.decisionId, originalOutcome: decision.outcome, originalPrimaryReasonCode: decision.primaryReasonCode, originalSecondaryReasonCodes: decision.secondaryReasonCodes, originalTargetQueue: decision.targetQueue, originalNextAction: decision.nextAction, originalCustomerSafeSummary: decision.customerSafeSummary, originalMissingInformation: decision.missingInformation, originalConflicts: decision.conflicts,
-    businessName: caseRecord.businessName, businessIdentifier: caseRecord.businessIdentifier, customerId: caseRecord.customerId, representativeName: caseRecord.representativeName, representativeRole: caseRecord.representativeRole, requestedAuthority: caseRecord.requestedAuthority, requestNarrative: caseRecord.requestNarrative, country: caseRecord.country, prototypeData: true,
+    reviewId: review.reviewId, caseRunId: review.caseRunId, requestedAt: review.requestedAt, reviewQueue: review.reviewQueue, reviewStatus: review.reviewStatus, reviewOpen: reviewOpenStatuses.includes(review.reviewStatus.toUpperCase()), agentRecommendation: review.agentRecommendation, submissionVersion: decision?.submissionVersion ?? caseRecord.submissionVersion,
+    reviewerName: review.reviewerName, reviewerDecision: review.reviewerDecision, reviewerComments: review.reviewerComments, completedAt: review.completedAt,
+    originalDecisionId: decision?.decisionId ?? '', originalOutcome: decision?.outcome ?? '', originalPrimaryReasonCode: decision?.primaryReasonCode ?? '', originalSecondaryReasonCodes: decision?.secondaryReasonCodes ?? [], originalTargetQueue: decision?.targetQueue ?? review.reviewQueue, originalNextAction: decision?.nextAction ?? 'The customer did not supply the requested documents. Reopen the case so the customer can attach them again.', originalCustomerSafeSummary: decision?.customerSafeSummary ?? 'The requested documents were not received after the allowed number of attempts.', originalMissingInformation: decision?.missingInformation ?? [], originalConflicts: decision?.conflicts ?? [],
+    businessName: caseRecord.businessName, businessIdentifier: caseRecord.businessIdentifier, representativeName: caseRecord.representativeName, requestedAuthority: caseRecord.requestedAuthority, requestNarrative: caseRecord.requestNarrative, country: caseRecord.country,
+    checks: (decision?.completedChecks ?? []).map((check) => ({ sequence: check.sequence, agentId: check.agentId, utilityName: check.utilityName, checkType: check.checkType, status: check.status, reasonCodes: check.reasonCodes })),
+    documents: await caseDocuments(repository, caseRecord.caseRunId, caseRecord.submissionVersion),
+    rootCause: rca ? { failedCheck: details.failedCheck ?? '', rootCause: details.rootCause ?? '', recommendedAction: details.recommendedAction ?? '' } : null,
+    decisionAvailable: Boolean(decision), reopenAvailable: (decision ? reopenableOutcomes.includes(decision.outcome) : reviewOpenStatuses.includes(review.reviewStatus.toUpperCase())) && runtimeCase?.status !== 'REOPENED_AS_NEW_VERSION', prototypeData: true,
   };
 }
 
+export interface DashboardRow { reviewId: string; caseRunId: string; businessName: string; representativeName: string; reviewStatus: string; reviewOpen: boolean; agentRecommendation: string; reviewQueue: string; primaryReasonCode: string; requestedAt: string; completedAt: string; }
+
+/** Review ID dashboard: every review, newest first. */
+export async function listReviewDashboard(repository: Repository): Promise<DashboardRow[]> {
+  const reviews = await repository.listReviews();
+  return Promise.all(reviews.map(async (review) => {
+    const [caseRecord, decision] = await Promise.all([repository.getCase(review.caseRunId), repository.getDecision(review.caseRunId)]);
+    return { reviewId: review.reviewId, caseRunId: review.caseRunId, businessName: caseRecord?.businessName ?? '', representativeName: caseRecord?.representativeName ?? '', reviewStatus: review.reviewStatus, reviewOpen: reviewOpenStatuses.includes(review.reviewStatus.toUpperCase()), agentRecommendation: review.agentRecommendation, reviewQueue: review.reviewQueue, primaryReasonCode: decision?.primaryReasonCode ?? '', requestedAt: review.requestedAt, completedAt: review.completedAt };
+  }));
+}
 export interface ReviewCompletionInput { reviewerName: string; reviewerDecision: ReviewerDecision; reviewerComments: string; overrideReason?: string; }
 export interface ReviewCompletionResult { decision: Decision; review: HumanReview; communication: Communication; }
 

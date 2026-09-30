@@ -15,6 +15,8 @@ import {
   type HumanReview,
   type RuntimeCase,
   type UtilityResult,
+  loaCommunicationTemplates,
+  loaDecisionRules,
   parseFindings,
   splitSemi,
   toBoolean,
@@ -32,23 +34,15 @@ export interface SourceData {
 
 export type UtilityResultFixture = Omit<UtilityResult, 'resultId' | 'submissionVersion' | 'isTerminal' | 'terminalOutcome' | 'prototypeData' | 'superseded' | 'createdAt'>;
 
-export interface IntakeCaseInput { record: Omit<CaseRecord, 'caseRunId' | 'caseId'> & { caseRunId?: string; caseId?: string }; templateCaseRunId: string; }
+export interface IntakeCaseInput { record: Omit<CaseRecord, 'caseRunId' | 'caseId'> & { caseRunId?: string; caseId?: string }; }
 
 export interface Repository {
   transaction<T>(operation: (repository: Repository) => Promise<T>): Promise<T>;
   getCase(caseRunId: string): Promise<CaseRecord | undefined>;
   listCases(): Promise<CaseRecord[]>;
-  /**
-   * Opens a case from the intake conversation. `templateCaseRunId` is the synthetic scenario whose pre-computed utility results the case is
-   * assessed against ('' = no scenario matched → every utility reports UNRESOLVED_SOURCE_GAP → MANUAL_REVIEW). Ids: AUTH-101, AUTH-102 …
-   * unless `record.caseRunId` is given (used for a later version of the same logical case, e.g. AUTH-101-V2).
-   */
+  /** Opens a case from the intake conversation. Ids: AUTH-101, AUTH-102 ... unless `record.caseRunId` is given (a later version of the same logical case, e.g. AUTH-101-V2). */
   createIntakeCase(input: IntakeCaseInput): Promise<CaseRecord>;
-  /** The scenario a case is assessed against: itself for fixtures, the matched template for intake cases. */
-  getScenarioFor(caseRunId: string): Promise<string>;
   getRules(): Promise<DecisionRule[]>;
-  getMockResult(caseRunId: string, checkType: string): Promise<UtilityResultFixture | undefined>;
-  getMockResults(caseRunId: string): Promise<UtilityResultFixture[]>;
   getTemplate(templateId: string): Promise<CommunicationTemplate | undefined>;
   getRuntimeResults(caseRunId: string, submissionVersion: number): Promise<UtilityResult[]>;
   /** Idempotent write keyed exactly by case_run_id + submission_version + check_type. */
@@ -68,6 +62,8 @@ export interface Repository {
   persistEvidence(evidence: Evidence): Promise<void>;
   getReview(reviewId: string): Promise<HumanReview | undefined>;
   getReviews(caseRunId: string): Promise<HumanReview[]>;
+  /** Every review, newest first (review dashboard). */
+  listReviews(): Promise<HumanReview[]>;
   persistReview(review: HumanReview): Promise<void>;
   persistCommunication(communication: Communication): Promise<void>;
   getCommunications(caseRunId: string): Promise<Communication[]>;
@@ -187,7 +183,8 @@ export class InMemoryRepository implements Repository {
   private intakeSequence = 100;
   private readonly transactionContext = new AsyncLocalStorage<boolean>();
   private lock: Promise<void> = Promise.resolve();
-  public constructor(private readonly source: SourceData) {}
+  /** The n8n fixture tables are archived reference data (docs/09); the To-Be process keeps its registers and rules in @sbo/domain, so source is optional. */
+  public constructor(_source?: SourceData) {}
   private key(caseRunId: string, submissionVersion: number, checkType: string): string { return `${caseRunId}|${submissionVersion}|${checkType.toUpperCase()}`; }
   /** Serialises top-level transactions (like Postgres row locks) while letting nested calls join the enclosing one. */
   public async transaction<T>(operation: (repository: Repository) => Promise<T>): Promise<T> {
@@ -214,22 +211,19 @@ export class InMemoryRepository implements Repository {
       throw error;
     }
   }
-  public async getCase(caseRunId: string): Promise<CaseRecord | undefined> { return deepCopy(this.source.cases.get(caseRunId) ?? this.intakeCases.get(caseRunId)?.record); }
-  public async listCases(): Promise<CaseRecord[]> { return deepCopy([...this.source.cases.values(), ...[...this.intakeCases.values()].map((entry) => entry.record)]); }
+  public async getCase(caseRunId: string): Promise<CaseRecord | undefined> { return deepCopy(this.intakeCases.get(caseRunId)?.record); }
+  public async listCases(): Promise<CaseRecord[]> { return deepCopy([...this.intakeCases.values()].map((entry) => entry.record)); }
   public async createIntakeCase(input: IntakeCaseInput): Promise<CaseRecord> {
     this.intakeSequence += 1;
     if (this.intakeSequence > 999) throw new Error('INTAKE_CASE_LIMIT_REACHED');
     const caseRunId = input.record.caseRunId ?? `AUTH-${this.intakeSequence}`;
-    if (this.source.cases.has(caseRunId) || this.intakeCases.has(caseRunId)) throw new Error(`CASE_ALREADY_EXISTS:${caseRunId}`);
+    if (this.intakeCases.has(caseRunId)) throw new Error(`CASE_ALREADY_EXISTS:${caseRunId}`);
     const record: CaseRecord = { ...input.record, caseRunId, caseId: input.record.caseId ?? caseRunId };
-    this.intakeCases.set(caseRunId, { record: deepCopy(record), template: input.templateCaseRunId });
+    this.intakeCases.set(caseRunId, { record: deepCopy(record), template: '' });
     return deepCopy(record);
   }
-  public async getScenarioFor(caseRunId: string): Promise<string> { return this.source.cases.has(caseRunId) ? caseRunId : this.intakeCases.get(caseRunId)?.template ?? ''; }
-  public async getRules(): Promise<DecisionRule[]> { return deepCopy(this.source.rules); }
-  public async getMockResult(caseRunId: string, checkType: string): Promise<UtilityResultFixture | undefined> { return findMockResult(this.source, await this.getScenarioFor(caseRunId), checkType); }
-  public async getMockResults(caseRunId: string): Promise<UtilityResultFixture[]> { const scenario = await this.getScenarioFor(caseRunId); return deepCopy([...this.source.mockResults.values()].filter((row) => scenario !== '' && row.caseRunId === scenario).sort((left, right) => left.sequence - right.sequence)); }
-  public async getTemplate(templateId: string): Promise<CommunicationTemplate | undefined> { return deepCopy(this.source.templates.get(templateId)); }
+  public async getRules(): Promise<DecisionRule[]> { return deepCopy(loaDecisionRules); }
+  public async getTemplate(templateId: string): Promise<CommunicationTemplate | undefined> { return deepCopy(loaCommunicationTemplates.find((entry) => entry.templateId === templateId)); }
   public async deleteRuntimeResults(caseRunId: string, submissionVersion: number): Promise<void> { for (const [key, row] of this.utilityResults) if (row.caseRunId === caseRunId && row.submissionVersion === submissionVersion) this.utilityResults.delete(key); }
   public async getSession(sessionId: string): Promise<ChatSessionState | undefined> { return deepCopy(this.sessions.get(sessionId)); }
   public async saveSession(session: ChatSessionState): Promise<void> { this.sessions.set(session.sessionId, deepCopy(session)); }
@@ -246,6 +240,7 @@ export class InMemoryRepository implements Repository {
   public async persistEvidence(evidence: Evidence): Promise<void> { this.evidence.set(evidence.evidenceId, deepCopy(evidence)); }
   public async getReview(reviewId: string): Promise<HumanReview | undefined> { return deepCopy(this.reviews.get(reviewId)); }
   public async getReviews(caseRunId: string): Promise<HumanReview[]> { return deepCopy([...this.reviews.values()].filter((row) => row.caseRunId === caseRunId)); }
+  public async listReviews(): Promise<HumanReview[]> { return deepCopy([...this.reviews.values()].sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))); }
   public async persistReview(review: HumanReview): Promise<void> { this.reviews.set(review.reviewId, deepCopy(review)); }
   public async persistCommunication(communication: Communication): Promise<void> { this.communications.set(communication.communicationId, deepCopy(communication)); }
   public async getCommunications(caseRunId: string): Promise<Communication[]> { return deepCopy([...this.communications.values()].filter((row) => row.caseRunId === caseRunId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))); }
@@ -272,14 +267,12 @@ export class PostgresRepository implements Repository {
     return this.sql.begin(async (transactionSql) => operation(new PostgresRepository(transactionSql as unknown as Sql, this.source, true))) as Promise<T>;
   }
   public async getCase(caseRunId: string): Promise<CaseRecord | undefined> {
-    const fixture = this.source.cases.get(caseRunId);
-    if (fixture) return deepCopy(fixture);
     const rows = await this.sql<PayloadRecord[]>`SELECT payload FROM intake_cases WHERE case_run_id = ${caseRunId} LIMIT 1`;
     return rows.length ? rows[0]?.payload as CaseRecord : undefined;
   }
   public async listCases(): Promise<CaseRecord[]> {
     const rows = await this.sql<PayloadRecord[]>`SELECT payload FROM intake_cases ORDER BY created_at, case_run_id`;
-    return [...deepCopy([...this.source.cases.values()]), ...rows.map((row) => row.payload as CaseRecord)];
+    return rows.map((row) => row.payload as CaseRecord);
   }
   public async createIntakeCase(input: IntakeCaseInput): Promise<CaseRecord> {
     let caseRunId = input.record.caseRunId;
@@ -287,20 +280,12 @@ export class PostgresRepository implements Repository {
       const [row] = await this.sql<{ n: string }[]>`SELECT nextval('intake_case_seq')::text AS n`;
       caseRunId = `AUTH-${(row?.n ?? '').padStart(3, '0')}`;
     }
-    if (this.source.cases.has(caseRunId)) throw new Error(`CASE_ALREADY_EXISTS:${caseRunId}`);
     const record: CaseRecord = { ...input.record, caseRunId, caseId: input.record.caseId ?? caseRunId };
-    await this.sql`INSERT INTO intake_cases (case_run_id, template_case_run_id, payload) VALUES (${caseRunId}, ${input.templateCaseRunId}, ${this.sql.json(record as never)})`;
+    await this.sql`INSERT INTO intake_cases (case_run_id, template_case_run_id, payload) VALUES (${caseRunId}, '', ${this.sql.json(record as never)})`;
     return record;
   }
-  public async getScenarioFor(caseRunId: string): Promise<string> {
-    if (this.source.cases.has(caseRunId)) return caseRunId;
-    const rows = await this.sql<{ template_case_run_id: string }[]>`SELECT template_case_run_id FROM intake_cases WHERE case_run_id = ${caseRunId} LIMIT 1`;
-    return rows[0]?.template_case_run_id ?? '';
-  }
-  public async getRules(): Promise<DecisionRule[]> { return deepCopy(this.source.rules); }
-  public async getMockResult(caseRunId: string, checkType: string): Promise<UtilityResultFixture | undefined> { return findMockResult(this.source, await this.getScenarioFor(caseRunId), checkType); }
-  public async getMockResults(caseRunId: string): Promise<UtilityResultFixture[]> { const scenario = await this.getScenarioFor(caseRunId); return deepCopy([...this.source.mockResults.values()].filter((row) => scenario !== '' && row.caseRunId === scenario).sort((left, right) => left.sequence - right.sequence)); }
-  public async getTemplate(templateId: string): Promise<CommunicationTemplate | undefined> { return deepCopy(this.source.templates.get(templateId)); }
+  public async getRules(): Promise<DecisionRule[]> { return deepCopy(loaDecisionRules); }
+  public async getTemplate(templateId: string): Promise<CommunicationTemplate | undefined> { return deepCopy(loaCommunicationTemplates.find((entry) => entry.templateId === templateId)); }
   public async deleteRuntimeResults(caseRunId: string, submissionVersion: number): Promise<void> { await this.sql`DELETE FROM runtime_utility_results WHERE case_run_id = ${caseRunId} AND submission_version = ${submissionVersion}`; }
   public async getSession(sessionId: string): Promise<ChatSessionState | undefined> { return this.getOne<ChatSessionState>('chat_sessions', 'session_id', sessionId); }
   public async saveSession(session: ChatSessionState): Promise<void> { await this.sql`INSERT INTO chat_sessions (session_id, payload) VALUES (${session.sessionId}, ${this.sql.json(session as never)}) ON CONFLICT (session_id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`; }
@@ -322,6 +307,7 @@ export class PostgresRepository implements Repository {
     return rows.length ? rows[0]?.payload as HumanReview : undefined;
   }
   public async getReviews(caseRunId: string): Promise<HumanReview[]> { const rows = await this.sql<PayloadRecord[]>`SELECT payload FROM human_reviews WHERE case_run_id = ${caseRunId}`; return rows.map((row) => row.payload as HumanReview); }
+  public async listReviews(): Promise<HumanReview[]> { const rows = await this.sql<PayloadRecord[]>`SELECT payload FROM human_reviews ORDER BY created_at DESC`; return rows.map((row) => row.payload as HumanReview); }
   public async persistReview(review: HumanReview): Promise<void> { await this.sql`INSERT INTO human_reviews (review_id, case_run_id, payload) VALUES (${review.reviewId}, ${review.caseRunId}, ${this.sql.json(review as never)}) ON CONFLICT (review_id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`; }
   public async persistCommunication(communication: Communication): Promise<void> { await this.sql`INSERT INTO communications (communication_id, case_run_id, payload) VALUES (${communication.communicationId}, ${communication.caseRunId}, ${this.sql.json(communication as never)}) ON CONFLICT (communication_id) DO UPDATE SET payload = EXCLUDED.payload`; }
   public async getCommunications(caseRunId: string): Promise<Communication[]> { const rows = await this.sql<PayloadRecord[]>`SELECT payload FROM communications WHERE case_run_id = ${caseRunId} ORDER BY created_at DESC`; return rows.map((row) => row.payload as Communication); }

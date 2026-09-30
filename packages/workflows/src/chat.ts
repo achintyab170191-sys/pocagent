@@ -1,23 +1,22 @@
 /**
- * Conversation layer (Workflow 03's Agentic Chat + evidence loop) with a customer-first flow:
+ * Conversation layer (SBO.01 orchestrator, docs/09). A brand-new customer just chats:
  *
- *   new customer → "my name is …, I represent …" → intake → case opened → checks run → curated result
- *                 → evidence needed? answer in the same window with TEXT and/or ATTACHED FILES (PDF / Word / image) — nothing to type but the answer
- *                 → insufficient? the same prompt returns and the customer simply adds more text or files
- *                 → needs a corrected version? "Submit corrected version" → versioned resubmission
+ *   "my name is … I represent …"  → company on record?  no  → NEW LEAD case, nothing verified or approved
+ *                                                      yes → case opened, the chatbot asks for Emirates ID, Trade License, Establishment Card
+ *   attach documents (PDF / Word / image, in the same window)  → completeness check → SBO.02 runs the five checks
+ *   a check needs another document (e.g. POA/MOA) → the same prompt asks for it → attach → the assessment resumes from that check
+ *   approve → SBO.11 draft email · reject → SBO.11 draft email + SBO.20 RCA + human confirmation on the review dashboard
  *
- * The source's TEXT/UPLOAD method question and the "UPLOADED" acknowledgement are intentionally removed (docs/07 G-31); every other
- * routing rule (resolve → resume / retry / escalate, cancel words, max attempts) is unchanged. `sendAndWait` pauses become persisted
- * ChatSessionState, so the API is stateless between requests.
+ * Evidence is documents only: anything typed while a document request is open is not evidence (the customer is told to attach the document).
  */
 import { type AgentRuntime } from '@sbo/agent-runtime';
-import { type ChatSessionState, type EvidenceRequest, type IntakeDetails } from '@sbo/domain';
+import { type ChatSessionState, type EvidenceRequest, type IntakeDetails, type RequestType, documentLabels, intakeDocumentTypes, matchRequestType, requestTypeById, requestTypes, stageById } from '@sbo/domain';
 import { type Repository, now } from '@sbo/persistence';
-import { buildChatResponse } from './chat-response.js';
-import { cancelEvidenceRequest, cancelWords, resolveEvidenceAndContinue, submitTextEvidence, submitUploadedEvidence, type EvidenceContinuation } from './evidence.js';
-import { ensureRevisedCase, extractIntake, introMessage, looksLikeBareCompany, looksLikeBareName, nextVersionScenario, openIntakeCase } from './intake.js';
-import { caseNotFoundMessage, evaluateCase, resolveCaseRequest, type AssessmentResult } from './super-agent.js';
-import { createResubmission } from './resubmission.js';
+import { buildChatResponse, customerReason } from './chat-response.js';
+import { cancelEvidenceRequest, cancelWords, readEvidenceDocument, resolveEvidenceAndContinue, submitDocumentEvidence, type EvidenceContinuation } from './evidence.js';
+import { captureRequest } from './capture.js';
+import { documentRequestMessage, extractIntake, introMessage, looksLikeBareCompany, looksLikeBareName, openIntakeCase } from './intake.js';
+import { openEvidenceRequest, type AssessmentResult } from './super-agent.js';
 
 export interface ChatReply {
   sessionId: string;
@@ -27,8 +26,8 @@ export interface ChatReply {
   /** Curated outcome fields only — never raw prompts, tool JSON, rule rows, or chain-of-thought. */
   outcome?: { governedOutcome: string; primaryReasonCode: string; humanReviewRequired: boolean; provisionalOutcome: string; governanceOverride: boolean; toolsCalled: string[] };
   evidenceRequest?: { evidenceRequestId: string; evidenceChannel: string; requestedItems: string[]; status: string; attemptCount: number; maxAttempts: number };
-  /** Buttons the client may offer (each simply sends a normal chat message, so nothing here is privileged). */
-  actions?: { resubmit: boolean };
+  /** The request type in play (chosen from the catalog or recognised from the message). */
+  requestType?: { id: string; label: string; stage: string; stageName: string; automated: boolean };
   syntheticDataDisclaimer: true;
 }
 
@@ -37,11 +36,10 @@ export interface ChatDependencies { repository: Repository; agentRuntime: AgentR
 export interface AttachedEvidence { fileName: string; mimeType: string; storageUrl: string; extractedText: string; }
 
 const emptyIntake: IntakeDetails = { representativeName: '', businessName: '', businessIdentifier: '' };
-const resubmitPattern = /\b(?:resubmit|re-submit|corrected version|revised version)\b/i;
-const evidenceHint = 'You can type your answer below, attach documents (PDF, Word or image files), or both. To stop, choose "Cancel request".';
-const cancelledMessage = 'The additional-evidence request has been cancelled.\n\nThe case remains unresolved and no further automated processing has been performed.';
+export const attachHint = 'Attach the document(s) with the paperclip (PDF, Word or image files). Typed answers are not accepted as evidence. To stop, choose "Cancel request".';
+const cancelledMessage = 'The document request has been cancelled.\n\nThe case remains unresolved and no further automated processing has been performed.';
 
-function session(sessionId: string, caseRunId: string, step: ChatSessionState['step'], evidenceRequestId = '', intake: IntakeDetails = emptyIntake): ChatSessionState { return { sessionId, caseRunId, step, evidenceRequestId, intake, updatedAt: now() }; }
+function session(sessionId: string, caseRunId: string, step: ChatSessionState['step'], evidenceRequestId = '', intake: IntakeDetails = emptyIntake, requestTypeId = ''): ChatSessionState { return { sessionId, caseRunId, step, evidenceRequestId, requestTypeId, intake, updatedAt: now() }; }
 
 function outcomeView(result: AssessmentResult): NonNullable<ChatReply['outcome']> {
   return { governedOutcome: result.decision.outcome, primaryReasonCode: result.decision.primaryReasonCode, humanReviewRequired: result.decision.humanReviewRequired, provisionalOutcome: result.provisional.provisionalOutcome, governanceOverride: result.governanceOverride, toolsCalled: result.trace.map((step) => step.tool) };
@@ -49,45 +47,35 @@ function outcomeView(result: AssessmentResult): NonNullable<ChatReply['outcome']
 function requestView(request: EvidenceRequest): NonNullable<ChatReply['evidenceRequest']> {
   return { evidenceRequestId: request.evidenceRequestId, evidenceChannel: request.evidenceChannel, requestedItems: request.requestedItems, status: request.status, attemptCount: request.attemptCount, maxAttempts: request.maxAttempts };
 }
-const evidencePrompt = (request: EvidenceRequest): string => `${request.customerMessage}\n\n${evidenceHint}`;
+const evidencePrompt = (request: EvidenceRequest): string => `${request.customerMessage}\n\n${attachHint}`;
 
-async function resubmitAvailable(repository: Repository, caseRunId: string, outcome: string): Promise<boolean> {
-  if (outcome !== 'NEED_MORE_INFORMATION') return false;
-  return Boolean(await nextVersionScenario(repository, caseRunId));
-}
-
-/** Present an assessment: an evidence prompt when the decision is customer-remediable, otherwise the curated response. */
+/** Present an assessment: a document prompt when the finding is fixable by a document, otherwise the curated response. */
 async function presentAssessment(deps: ChatDependencies, sessionId: string, result: AssessmentResult, prefix: string[] = []): Promise<ChatReply> {
   const caseRecord = await deps.repository.getCase(result.decision.caseRunId);
   const outcome = outcomeView(result);
-  const canResubmit = await resubmitAvailable(deps.repository, result.decision.caseRunId, result.decision.outcome);
   if (result.evidenceRequest) {
     const request = result.evidenceRequest;
     await deps.repository.saveSession(session(sessionId, request.caseRunId, 'AWAITING_EVIDENCE', request.evidenceRequestId));
-    return { sessionId, step: 'AWAITING_EVIDENCE', messages: [...prefix, evidencePrompt(request)], caseRunId: request.caseRunId, outcome, evidenceRequest: requestView(request), actions: { resubmit: canResubmit }, syntheticDataDisclaimer: true };
+    const why = customerReason(result.decision.primaryReasonCode);
+    return { sessionId, step: 'AWAITING_EVIDENCE', messages: [...prefix, `${why ? `${why}\n\n` : ''}${evidencePrompt(request)}`], caseRunId: request.caseRunId, outcome, evidenceRequest: requestView(request), syntheticDataDisclaimer: true };
   }
   const curated = buildChatResponse({ decision: result.decision, businessName: caseRecord?.businessName ?? '', representativeName: caseRecord?.representativeName ?? '', provisional: result.provisional, toolsCalled: result.trace.map((step) => step.tool) });
   await deps.repository.saveSession(session(sessionId, result.decision.caseRunId, 'DONE'));
-  return { sessionId, step: 'DONE', messages: [...prefix, curated.output], caseRunId: result.decision.caseRunId, outcome, actions: { resubmit: canResubmit }, syntheticDataDisclaimer: true };
+  return { sessionId, step: 'DONE', messages: [...prefix, curated.output], caseRunId: result.decision.caseRunId, outcome, syntheticDataDisclaimer: true };
 }
 
 async function afterResolution(deps: ChatDependencies, sessionId: string, request: EvidenceRequest, continuation: EvidenceContinuation): Promise<ChatReply> {
   if (continuation.route === 'RESUMED' && continuation.resumedAssessment) {
-    return presentAssessment(deps, sessionId, continuation.resumedAssessment, ['Thank you. The additional evidence has resolved the identified gap.\n\nI will now continue from the next incomplete validation check.']);
+    return presentAssessment(deps, sessionId, continuation.resumedAssessment, ['Thank you — I have the documents I need. Running the checks now.']);
   }
   const latest = (await deps.repository.getEvidenceRequest(request.evidenceRequestId)) ?? request;
   if (continuation.route === 'RETRY') {
-    const gaps = continuation.remainingGaps.length > 0 ? continuation.remainingGaps.map((item) => `• ${item}`).join('\n') : '• Additional supporting evidence is required.';
-    const explain = `The evidence does not yet resolve the identified gap.\n\nRemaining requirements:\n${gaps}\n\nPlease provide a revised clarification or document.`;
+    const gaps = continuation.remainingGaps.map((item) => `• ${item}`).join('\n');
     await deps.repository.saveSession(session(sessionId, latest.caseRunId, 'AWAITING_EVIDENCE', latest.evidenceRequestId));
-    const canResubmit = await resubmitAvailable(deps.repository, latest.caseRunId, 'NEED_MORE_INFORMATION');
-    return { sessionId, step: 'AWAITING_EVIDENCE', messages: [explain, evidenceHint], caseRunId: latest.caseRunId, evidenceRequest: requestView(latest), actions: { resubmit: canResubmit }, syntheticDataDisclaimer: true };
+    return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`I still need:\n${gaps}`, attachHint], caseRunId: latest.caseRunId, evidenceRequest: requestView(latest), syntheticDataDisclaimer: true };
   }
   await deps.repository.saveSession(session(sessionId, latest.caseRunId, 'DONE', latest.evidenceRequestId));
-  const message = continuation.route === 'ESCALATED_CONTRADICTORY'
-    ? 'The new evidence conflicts with previously validated case information.\n\nThe case has been routed to a human evidence reviewer. No automated reconciliation or final adverse decision has been made.'
-    : 'The available evidence remains insufficient after the allowed number of attempts.\n\nThe case has been routed to a human evidence reviewer. No final adverse decision has been made.';
-  return { sessionId, step: 'DONE', messages: [message], caseRunId: latest.caseRunId, evidenceRequest: requestView(latest), syntheticDataDisclaimer: true };
+  return { sessionId, step: 'DONE', messages: ['The documents received still do not cover what is needed after the allowed number of attempts.\n\nThe case has been passed to a human reviewer on the review dashboard. No final adverse decision has been made.'], caseRunId: latest.caseRunId, evidenceRequest: requestView(latest), syntheticDataDisclaimer: true };
 }
 
 async function requirePending(repository: Repository, sessionId: string): Promise<{ current: ChatSessionState; request: EvidenceRequest }> {
@@ -98,41 +86,37 @@ async function requirePending(repository: Repository, sessionId: string): Promis
   return { current, request };
 }
 
-/** The customer attached one or more documents (and optionally typed a note). Files are stored and text-extracted by the API layer. */
-export async function handleChatEvidenceUpload(deps: ChatDependencies, input: { sessionId: string; files: AttachedEvidence[]; note?: string }): Promise<ChatReply> {
+/** The customer attached one or more documents. Files are stored and text-extracted by the API layer; every file is checked BEFORE anything is recorded. */
+export async function handleChatEvidenceUpload(deps: ChatDependencies, input: { sessionId: string; files: AttachedEvidence[] }): Promise<ChatReply> {
   const { request } = await requirePending(deps.repository, input.sessionId);
-  if (input.files.length === 0 && !(input.note ?? '').trim()) throw new Error('EVIDENCE_FILE_REQUIRED');
-  for (const file of input.files) await submitUploadedEvidence(deps.repository, request.evidenceRequestId, { caseRunId: request.caseRunId, fileName: file.fileName, mimeType: file.mimeType, storageUrl: file.storageUrl, extractedText: file.extractedText, notes: (input.note ?? '').trim(), allowReceived: true });
-  if ((input.note ?? '').trim()) await submitTextEvidence(deps.repository, request.evidenceRequestId, { caseRunId: request.caseRunId, text: input.note ?? '', allowReceived: true });
+  if (input.files.length === 0) throw new Error('EVIDENCE_FILE_REQUIRED');
+  for (const file of input.files) readEvidenceDocument(file.extractedText);
+  for (const file of input.files) await submitDocumentEvidence(deps.repository, request.evidenceRequestId, { caseRunId: request.caseRunId, fileName: file.fileName, mimeType: file.mimeType, storageUrl: file.storageUrl, extractedText: file.extractedText, allowReceived: true });
   return afterResolution(deps, input.sessionId, request, await resolveEvidenceAndContinue(deps.repository, deps.agentRuntime, request.evidenceRequestId, request.caseRunId, request.submissionVersion, input.sessionId));
 }
 
-async function handleResubmission(deps: ChatDependencies, sessionId: string, caseRunId: string, comments: string): Promise<ChatReply> {
-  const { repository, agentRuntime } = deps;
-  const original = await repository.getCase(caseRunId);
-  const revised = original ? await ensureRevisedCase(repository, original) : undefined;
-  if (!original || !revised) {
-    return { sessionId, step: 'DONE', messages: ['A corrected version is not available for this case in the synthetic data. Please provide the requested evidence instead.'], caseRunId, syntheticDataDisclaimer: true };
-  }
-  // The customer is moving to the corrected version: close any evidence request still open on the original.
-  for (const request of await repository.getEvidenceRequests(original.caseRunId)) if (['OPEN', 'RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICIENT'].includes(request.status)) await cancelEvidenceRequest(repository, request.evidenceRequestId, original.caseRunId);
-  const result = await createResubmission(repository, { originalCaseRunId: original.caseRunId, revisedCaseRunId: revised.caseRunId, resubmissionComments: comments.slice(0, 1000) }, agentRuntime);
-  return presentAssessment(deps, sessionId, result, [`I've submitted the corrected version as case ${revised.caseRunId}; the original submission is now marked as superseded.`]);
+/** What the conversation is waiting for right now (used when the page is opened or reloaded, e.g. after a reviewer reopened the case). */
+export async function describeChatState(repository: Repository, sessionId: string): Promise<ChatReply | undefined> {
+  const current = await repository.getSession(sessionId);
+  if (current?.step !== 'AWAITING_EVIDENCE') return undefined;
+  const request = await repository.getEvidenceRequest(current.evidenceRequestId);
+  if (!request) return undefined;
+  return { sessionId, step: 'AWAITING_EVIDENCE', messages: [evidencePrompt(request)], caseRunId: request.caseRunId, evidenceRequest: requestView(request), syntheticDataDisclaimer: true };
 }
 
-export async function handleChatMessage(deps: ChatDependencies, input: { sessionId: string; message: string; caseRunIdHint?: string }): Promise<ChatReply> {
-  const { repository, agentRuntime } = deps;
+/** A bare reply that reads like a company name (legal-form word), used when nothing has been said about either name or company yet. */
+const looksLikeCompany = (text: string): boolean => /\b(?:llc|l\.l\.c|ltd|limited|fz-?llc|fzco|pty|inc|co|company|group|trading|holdings|services|solutions|enterprises|contracting|logistics|consulting)\b/i.test(text);
+const requestView2 = (entry: RequestType): NonNullable<ChatReply['requestType']> => ({ id: entry.id, label: entry.label, stage: entry.stage, stageName: stageById(entry.stage)?.name ?? '', automated: entry.automated });
+const notAutomated = (entry: RequestType): string => `This request type is not automated in this prototype yet: I'll capture it and route it to the **${stageById(entry.stage)?.name ?? ''}** team, and no checks will run.`;
+
+export async function handleChatMessage(deps: ChatDependencies, input: { sessionId: string; message: string; intent?: string }): Promise<ChatReply> {
+  const { repository } = deps;
   const sessionId = input.sessionId;
   const message = String(input.message ?? '').trim();
   const upper = message.toUpperCase();
   const current = await repository.getSession(sessionId);
 
-  // Customer asks to submit a corrected version (button or words) — for the case they are working on.
-  if (current?.caseRunId && (current.step === 'AWAITING_EVIDENCE' || current.step === 'DONE') && resubmitPattern.test(message) && !/AUTH-\d{3}/i.test(message)) {
-    return handleResubmission(deps, sessionId, current.caseRunId, message);
-  }
-
-  // Evidence answer: everything typed while a request is open IS the evidence (or a cancel).
+  // A document request is open: only documents count. Typed text is not evidence; "cancel" ends the request.
   if (current?.step === 'AWAITING_EVIDENCE') {
     const { request } = await requirePending(repository, sessionId);
     if (cancelWords.includes(upper)) {
@@ -140,55 +124,55 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
       await repository.saveSession(session(sessionId, request.caseRunId, 'DONE', request.evidenceRequestId));
       return { sessionId, step: 'DONE', messages: [cancelledMessage], caseRunId: request.caseRunId, syntheticDataDisclaimer: true };
     }
-    if (!message) return { sessionId, step: 'AWAITING_EVIDENCE', messages: ['I did not receive anything.\n\nPlease type your answer or attach a document, or choose "Cancel request".'], caseRunId: request.caseRunId, evidenceRequest: requestView(request), syntheticDataDisclaimer: true };
-    await submitTextEvidence(repository, request.evidenceRequestId, { caseRunId: request.caseRunId, text: message, allowReceived: true });
-    return afterResolution(deps, sessionId, request, await resolveEvidenceAndContinue(repository, agentRuntime, request.evidenceRequestId, request.caseRunId, request.submissionVersion, sessionId));
+    return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Typed text can't be used as evidence — I need the document itself.\n\n${evidencePrompt(request)}`], caseRunId: request.caseRunId, evidenceRequest: requestView(request), syntheticDataDisclaimer: true };
   }
 
-  // A named synthetic case ("Evaluate AUTH-001") still works as a shortcut for demos and tests.
-  if (/AUTH-\d{3}/i.test(message)) {
-    const resolved = resolveCaseRequest(message, sessionId);
-    if (!(await repository.getCase(resolved.caseRunId))) return { sessionId, step: 'IDLE', messages: [caseNotFoundMessage(resolved.caseRunId)], caseRunId: resolved.caseRunId, syntheticDataDisclaimer: true };
-    return evaluateAndPresent(deps, sessionId, resolved.caseRunId, resolved.chatInput);
+  // What is the customer asking for? A catalog choice wins, then one carried in the conversation, then a keyword match on a message with no introduction in it.
+  const previous = current?.step === 'INTAKE' ? current.intake : emptyIntake;
+  const asked = matchRequestType(message);
+  // A ready-made question ("I want to port our mobile numbers to you from another operator.") is a request, never an introduction.
+  const parsed = requestTypes.some((entry) => entry.query === message.trim()) ? {} : extractIntake(message);
+  const introduced = Boolean(parsed.representativeName || parsed.businessName);
+  const chosen: RequestType | undefined = (input.intent ? requestTypeById(input.intent) : undefined) ?? (current?.step === 'INTAKE' ? requestTypeById(current.requestTypeId) : undefined) ?? asked;
+  const requestTypeId = chosen?.id ?? '';
+  const requestReply = chosen ? { requestType: requestView2(chosen) } : {};
+
+  // A request was named but nobody has introduced themselves yet: acknowledge it and ask who is asking.
+  if (chosen && !introduced && (input.intent || current?.step !== 'INTAKE')) {
+    await repository.saveSession(session(sessionId, '', 'INTAKE', '', emptyIntake, requestTypeId));
+    return { sessionId, step: 'INTAKE', messages: [`Happy to help with **${chosen.label}**.${chosen.automated ? '' : `\n\n${notAutomated(chosen)}`}\n\nFirst, please tell me **your name** and **the company you represent**.`], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
   }
-  if (input.caseRunIdHint) return evaluateAndPresent(deps, sessionId, input.caseRunIdHint, `${message} ${input.caseRunIdHint}`.trim());
 
   // Customer-first intake.
-  const previous = current?.step === 'INTAKE' ? current.intake : emptyIntake;
-  const parsed = extractIntake(message);
   const details: IntakeDetails = {
-    representativeName: parsed.representativeName || previous.representativeName || (previous.businessName && !parsed.businessName ? looksLikeBareName(message) : ''),
-    businessName: parsed.businessName || previous.businessName || (previous.representativeName && !parsed.representativeName ? looksLikeBareCompany(message) : ''),
-    businessIdentifier: parsed.businessIdentifier || previous.businessIdentifier,
+    representativeName: parsed.representativeName || previous.representativeName || (previous.businessName && !parsed.businessName ? looksLikeBareName(message) : !previous.representativeName && current?.step === 'INTAKE' && !parsed.businessName && !looksLikeCompany(message) ? looksLikeBareName(message) : ''),
+    businessName: parsed.businessName || previous.businessName || (previous.representativeName && !parsed.representativeName ? looksLikeBareCompany(message) : !previous.businessName && current?.step === 'INTAKE' && !parsed.representativeName && looksLikeCompany(message) ? looksLikeBareCompany(message) : ''),
+    businessIdentifier: '',
   };
-  if (current?.step !== 'INTAKE' && !parsed.representativeName && !parsed.businessName) {
+  if (current?.step !== 'INTAKE' && !introduced) {
     await repository.saveSession(session(sessionId, current?.caseRunId ?? '', 'IDLE'));
     return { sessionId, step: 'IDLE', messages: [introMessage], caseRunId: current?.caseRunId ?? '', syntheticDataDisclaimer: true };
   }
   if (!details.representativeName || !details.businessName) {
-    await repository.saveSession(session(sessionId, '', 'INTAKE', '', details));
+    await repository.saveSession(session(sessionId, '', 'INTAKE', '', details, requestTypeId));
     const ask = !details.representativeName
       ? `${details.businessName ? `Thanks — I'll note that you represent ${details.businessName}. ` : ''}What is your full name?`
       : `Thanks ${details.representativeName}. Which company are you representing?`;
-    return { sessionId, step: 'INTAKE', messages: [ask], caseRunId: '', syntheticDataDisclaimer: true };
+    return { sessionId, step: 'INTAKE', messages: [ask], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
   }
-  const opened = await openIntakeCase(repository, details);
+  const opened = await openIntakeCase(repository, details, requestTypeId);
   const { caseRecord } = opened;
   if (opened.kind === 'NEW_LEAD') {
     await repository.saveSession(session(sessionId, caseRecord.caseRunId, 'DONE'));
-    return { sessionId, step: 'DONE', messages: [`Thanks ${caseRecord.representativeName}. I couldn't find **${caseRecord.businessName}** in our records, so I've created **new lead case ${caseRecord.caseRunId}** for it.\n\nNo checks have been run and nothing has been approved: your details are unverified. A specialist will follow up to onboard the business before any representative can be assessed.\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*`], caseRunId: caseRecord.caseRunId, syntheticDataDisclaimer: true };
+    return { sessionId, step: 'DONE', messages: [`Thanks ${caseRecord.representativeName}. I couldn't find **${caseRecord.businessName}** in our records, so I've created **new lead case ${caseRecord.caseRunId}** for it.\n\nNo checks have been run and nothing has been approved: your details are unverified. A specialist will follow up to onboard the business before any request can be handled.\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*`], caseRunId: caseRecord.caseRunId, ...requestReply, syntheticDataDisclaimer: true };
   }
-  const scenarioNote = opened.kind === 'KNOWN_CUSTOMER'
-    ? `\n\n*Synthetic prototype: your details were matched to synthetic scenario ${opened.scenario?.caseRunId}.*`
-    : `\n\n*${caseRecord.businessName} is on record, but ${caseRecord.representativeName} is not one of its recorded representatives, so your authority has to be evidenced (synthetic prototype).*`;
-  const result = await evaluateCase(repository, agentRuntime, caseRecord.caseRunId, sessionId, `Evaluate ${caseRecord.caseRunId}`);
-  return presentAssessment(deps, sessionId, result, [`Thanks ${caseRecord.representativeName}. I've opened case **${caseRecord.caseRunId}** for ${caseRecord.businessName} and I'm running the checks now.${scenarioNote}`]);}
-
-async function evaluateAndPresent(deps: ChatDependencies, sessionId: string, caseRunId: string, chatInput: string): Promise<ChatReply> {
-  try {
-    return await presentAssessment(deps, sessionId, await evaluateCase(deps.repository, deps.agentRuntime, caseRunId, sessionId, chatInput));
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith('CASE_LOCKED')) return { sessionId, step: 'IDLE', messages: [`Case ${caseRunId} has already been reviewed or resubmitted, so it cannot be re-evaluated from the chat. An operator must reset the runtime state to run it again.`], caseRunId, syntheticDataDisclaimer: true };
-    throw error;
+  // A request type that is not automated yet: capture it and route it to the stage that owns it.
+  if (chosen && !chosen.automated) {
+    const routed = await captureRequest(repository, caseRecord, chosen, sessionId);
+    await repository.saveSession(session(sessionId, caseRecord.caseRunId, 'DONE'));
+    return { sessionId, step: 'DONE', messages: [`Thanks ${caseRecord.representativeName}. I've captured **${chosen.label}** as case **${caseRecord.caseRunId}** for ${caseRecord.businessName} and routed it to the **${routed.stageName}** team.\n\nThis request type is not automated in this prototype yet, so **no checks have been run and nothing has been approved or changed**. A specialist will pick it up.\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*`], caseRunId: caseRecord.caseRunId, requestType: requestView2(chosen), syntheticDataDisclaimer: true };
   }
+  const request = await openEvidenceRequest(repository, { caseRunId: caseRecord.caseRunId, submissionVersion: caseRecord.submissionVersion, sessionId, originatingCheckType: 'DOCUMENT_INTAKE', reasonCode: 'DOCUMENTS_REQUIRED', requestedItems: intakeDocumentTypes.map((type) => documentLabels[type]), previousState: 'CASE_OPENED', message: documentRequestMessage(caseRecord.representativeName, caseRecord.businessName) });
+  await repository.saveSession(session(sessionId, caseRecord.caseRunId, 'AWAITING_EVIDENCE', request.evidenceRequestId, emptyIntake, requestTypeId));
+  return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`I've opened case **${caseRecord.caseRunId}**.\n\n${evidencePrompt(request)}`], caseRunId: caseRecord.caseRunId, evidenceRequest: requestView(request), ...requestReply, syntheticDataDisclaimer: true };
 }

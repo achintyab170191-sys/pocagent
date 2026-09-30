@@ -1,5 +1,7 @@
 # Source gaps, conflicts and deviations
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 Every item below was found by reading the uploaded n8n JSON, the CSV exports and the historical runtime rows. Nothing here was silently reconciled: each entry states what the source does, what the target does, and why.
 Status values: **GAP** (cannot be proven from the upload → conservative safe result), **DEFECT** (the source behaviour is clearly unintended), **CONFLICT** (two artifacts disagree, or the migration brief disagrees with the source), **PLATFORM** (behaviour-preserving substitution forced by the target platform).
 

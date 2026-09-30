@@ -1,5 +1,7 @@
 # Post-parity enhancements (NOT implemented)
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 Nothing on this page changes behaviour today. Each item needs a traceability update and a regression test before it is built (rule in `CLAUDE.md`).
 
 ## 1. Exception-level review dispositions and automatic resumption (recommended first)

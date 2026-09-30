@@ -1,6 +1,5 @@
 /**
- * Case-status adapter. Workflow 93 (Case Status Portal) is ABSENT from the uploaded n8n exports, so this is a documented
- * platform adapter that reads only persisted runtime state — it is not node-for-node parity.
+ * Case-status view: reads only persisted runtime state (case, decision, evidence request, review, draft communication).
  */
 import { type Repository } from '@sbo/persistence';
 
@@ -26,9 +25,8 @@ export async function getCaseStatus(repository: Repository, caseRunId: string): 
   const warnings: string[] = ['All data shown is synthetic. No production system was read or updated.'];
   if (!runtimeCase) warnings.push('No runtime case record exists yet; the case has not been assessed.');
   if (runtimeCase && !decision) warnings.push('A runtime case exists without a governed decision record.');
-  if (decision && runtimeCase && runtimeCase.finalOutcome && runtimeCase.finalOutcome !== decision.outcome && runtimeCase.status !== 'SUPERSEDED_BY_RESUBMISSION') warnings.push('The runtime case outcome and the latest decision outcome differ.');
+  if (decision && runtimeCase && runtimeCase.finalOutcome && runtimeCase.finalOutcome !== decision.outcome && runtimeCase.status !== 'REOPENED_AS_NEW_VERSION') warnings.push('The runtime case outcome and the latest decision outcome differ.');
   if (requests.filter((request) => ['OPEN', 'RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICIENT'].includes(request.status)).length > 1) warnings.push('More than one evidence request is active for this case; the latest is shown.');
-  warnings.push('Workflow 93 was absent from the supplied n8n exports; this status view is a platform adapter, not a ported workflow.');
   return {
     caseIdentifiers: { caseRunId: caseRecord.caseRunId, caseId: caseRecord.caseId, submissionVersion: caseRecord.submissionVersion },
     currentStatus: runtimeCase?.status ?? 'INITIAL', currentStage: runtimeCase?.currentStage ?? 'INITIAL', outcome: decision?.outcome ?? '', primaryReason: decision?.primaryReasonCode ?? '',

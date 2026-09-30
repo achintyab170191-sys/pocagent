@@ -1,0 +1,699 @@
+{
+  "generatedAt": "2026-09-30T08:50:19.663Z",
+  "node": "v24.21.0",
+  "totals": {
+    "steps": 43,
+    "verified": 40,
+    "unverified": 0,
+    "outOfScope": 3,
+    "conformancePercentageOfInScopeSteps": 100
+  },
+  "suites": [
+    {
+      "name": "unit",
+      "ran": true,
+      "passed": 294,
+      "failed": 0,
+      "skipped": 0,
+      "command": "npx vitest run",
+      "failedTitles": []
+    },
+    {
+      "name": "integration",
+      "ran": true,
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0,
+      "command": "npx vitest run --config vitest.integration.config.ts",
+      "failedTitles": []
+    },
+    {
+      "name": "e2e",
+      "ran": true,
+      "passed": 33,
+      "failed": 0,
+      "skipped": 0,
+      "command": "npx playwright test",
+      "failedTitles": []
+    }
+  ],
+  "personas": [
+    {
+      "slug": "fatima-al-noor",
+      "customer": "Fatima Al Mansoori / Al Noor Trading LLC",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "noura-marina-bay",
+      "customer": "Noura Al Falasi / Marina Bay Catering LLC",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "mariam-dune-ridge",
+      "customer": "Mariam Saeed / Dune Ridge Engineering LLC",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "omar-gulf-horizon",
+      "customer": "Omar Haddad / Gulf Horizon Contracting LLC",
+      "expected": "NEED_MORE_INFORMATION_THEN_APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "hessa-al-noor",
+      "customer": "Hessa Al Ameri / Al Noor Trading LLC",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "POA_MOA_NOT_CLEARED",
+      "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "sara-desert-bloom",
+      "customer": "Sara Khan / Desert Bloom Cafe LLC",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "TRADE_LICENSE_EXPIRED",
+      "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "rashid-falcon",
+      "customer": "Rashid Al Ketbi / Falcon Logistics LLC",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "IDENTITY_MISMATCH",
+      "tools": 2,
+      "matches": true
+    },
+    {
+      "slug": "layla-pearl-coast",
+      "customer": "Layla Nasser / Pearl Coast Real Estate LLC",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "BAD_DEBT_OBSERVED",
+      "tools": 4,
+      "matches": true
+    },
+    {
+      "slug": "tariq-sahara",
+      "customer": "Tariq Mahmood / Sahara Staffing Services LLC",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "BLUE_COLLAR_OBSERVED",
+      "tools": 4,
+      "matches": true
+    },
+    {
+      "slug": "yousef-oasis-tech",
+      "customer": "Yousef Ibrahim / Oasis Tech Solutions FZ-LLC",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "AVCV_ADVERSE",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "layth-al-noor",
+      "customer": "Layth Barakat / Al Noor Trading LLC",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "ahmed-gulf-horizon",
+      "customer": "Ahmed Yusuf / Gulf Horizon Contracting LLC",
+      "expected": "NEED_MORE_INFORMATION_THEN_APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "jamal-falcon",
+      "customer": "Jamal Farouk / Falcon Logistics LLC",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "AUTHORITY_LIMITED",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "ibrahim-cedar-point",
+      "customer": "Ibrahim Karam / Cedar Point Consulting LLC",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "AVCV_DISCREPANCY",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "reem-palm-grove",
+      "customer": "Reem Al Hosani / Palm Grove Hospitality LLC",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "AVCV_UNVERIFIED",
+      "tools": 5,
+      "matches": true
+    },
+    {
+      "slug": "adel-coral-reef",
+      "customer": "Adel Mansour / Coral Reef Diving LLC",
+      "expected": "NEED_MORE_INFORMATION_THEN_APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 1,
+      "matches": true
+    }
+  ],
+  "unverifiedSteps": [],
+  "steps": [
+    {
+      "id": "C1",
+      "lane": "B2B Customer",
+      "step": "Customer logs in and places a request with the conversational chatbot",
+      "status": "PLATFORM",
+      "verification": "VERIFIED",
+      "module": "apps/web/src/pages/ChatPage.tsx · apps/api/src/app.ts (POST /api/chat)",
+      "tests": [
+        "tests/e2e/portal.spec.ts › a new customer starts with a name and a company",
+        "tests/api.test.ts › a new customer introduces themselves, attaches the documents"
+      ]
+    },
+    {
+      "id": "C2",
+      "lane": "B2B Customer",
+      "step": "Chatbot analyses the customer intent and asks for the required valid information",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts#handleChatMessage · intake.ts#extractIntake",
+      "tests": [
+        "tests/loa-process.test.ts › greets a new customer and asks for a name and a company"
+      ]
+    },
+    {
+      "id": "C3",
+      "lane": "B2B Customer",
+      "step": "Customer needs further guidance? Customer provides the chatbot with the details",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts (INTAKE state)",
+      "tests": [
+        "tests/loa-process.test.ts › asks only for what is missing, over several turns"
+      ]
+    },
+    {
+      "id": "C4",
+      "lane": "B2B Customer",
+      "step": "Chatbot connects the customer with a human agent; the human agent creates the ticket",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts (NEW_LEAD) · intake.ts#openIntakeCase",
+      "tests": [
+        "tests/loa-process.test.ts › a company that is NOT on record becomes a new lead",
+        "tests/e2e/portal.spec.ts › a company that is not on record becomes a new lead"
+      ]
+    },
+    {
+      "id": "O1",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Converts the request into a ticket and creates it in BCRM",
+      "status": "PLATFORM",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/intake.ts#openIntakeCase · persistence createIntakeCase",
+      "tests": [
+        "tests/loa-process.test.ts › a company on record: opens a case and asks for the Emirates ID",
+        "tests/sql.integration.test.ts › intake cases: sequential ids"
+      ]
+    },
+    {
+      "id": "O2",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Validates the request and asks for / collects the documents (Emirates ID, Trade License, Establishment Card)",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts · evidence.ts#submitDocumentEvidence / resolveEvidence",
+      "tests": [
+        "tests/loa-process.test.ts › missing documents are named and the same request stays open",
+        "tests/loa-process.test.ts › after three attempts that still miss documents",
+        "tests/chat-attachments.test.ts › documents in different formats (a Word file and two PDFs)"
+      ]
+    },
+    {
+      "id": "O3",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Triggers SBO.02 for New LOA Processing",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/evidence.ts#resolveEvidenceAndContinue → super-agent.ts#resumeAssessment",
+      "tests": [
+        "tests/loa-process.test.ts › Fatima (licence owner, valid documents): all five checks pass in order"
+      ]
+    },
+    {
+      "id": "O4",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Documents not uploaded / discrepancies: SBO.11 drafts an email for the pending information",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/super-agent.ts#classifyContinuation · governance COMM-NEED-INFO",
+      "tests": [
+        "tests/loa-process.test.ts › Omar (not the licence owner): a POA is requested",
+        "tests/governance.test.ts › derives missing information, conflicts and a customer-safe summary"
+      ]
+    },
+    {
+      "id": "O5",
+      "lane": "SBO.01 Orchestrator",
+      "step": "Could not classify: route the request to the exception queue for manual review",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/super-agent.ts#createReviewForDecision · human-review.ts#listReviewDashboard",
+      "tests": [
+        "tests/loa-process.test.ts › a known company but a person that is not in the identity register",
+        "tests/loa-process.test.ts › lists every review with its case"
+      ]
+    },
+    {
+      "id": "S1",
+      "lane": "SBO.02 Super Agent",
+      "step": "Triggers SBO.06 (Trade License Check agent) to perform the TL and EC checks",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#tradeLicenseCheck · workflows/src/utilities.ts",
+      "tests": [
+        "tests/persistence.test.ts › exposes exactly the five specialist tools",
+        "tests/agent-runtime.test.ts › exposes exactly the five specialist tools"
+      ]
+    },
+    {
+      "id": "S2",
+      "lane": "SBO.06 Trade License agent",
+      "step": "Extracts the EC and TL fields; matches the Establishment Card and Trade License name",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#classifyDocument / extractFields",
+      "tests": [
+        "tests/chat-attachments.test.ts › is read and recognised",
+        "tests/loa-process.test.ts › reads fields even when a PDF or OCR puts the whole document on one line"
+      ]
+    },
+    {
+      "id": "S3",
+      "lane": "SBO.06 Trade License agent",
+      "step": "Trade License not readable: perform the QR check",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#resolveLicense",
+      "tests": [
+        "tests/loa-process.test.ts › Mariam: the licence number is unreadable, so the QR code is used",
+        "tests/loa-process.test.ts › a licence with neither a readable number nor a QR code asks the customer"
+      ]
+    },
+    {
+      "id": "S4",
+      "lane": "SBO.06 Trade License agent",
+      "step": "Uses the DUL API to verify the TL details and structures the output",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (tradeLicenseRegister, dulApiAvailable)",
+      "tests": [
+        "tests/loa-process.test.ts › Fatima (licence owner, valid documents): all five checks pass in order"
+      ]
+    },
+    {
+      "id": "S5",
+      "lane": "SBO.06 Trade License agent",
+      "step": "DUL API failure: log in to the government portal with UAE Pass and validate the TL",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#tradeLicenseCheck (GOVERNMENT_PORTAL_UAE_PASS)",
+      "tests": [
+        "tests/loa-process.test.ts › Noura: the DUL API is down",
+        "tests/e2e/portal.spec.ts › Noura: the DUL API is down"
+      ]
+    },
+    {
+      "id": "S6",
+      "lane": "SBO.02 Super Agent",
+      "step": "Collects the output and decides the next step (stops at a terminal result)",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/super-agent.ts#createToolbox · governance determineDecision",
+      "tests": [
+        "tests/persistence.test.ts › stops after a terminal result: later tools are refused",
+        "tests/governance.test.ts › an explicit terminal business rule takes precedence",
+        "tests/agent-runtime.test.ts › an LLM that forces APPROVE on an expired licence is overridden"
+      ]
+    },
+    {
+      "id": "S7",
+      "lane": "SBO.02 Super Agent",
+      "step": "TL expired: reject the request, SBO.11 emails the customer, SBO.20 RCA agent analyses the reason",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (TL-002) · super-agent.ts#requestRootCauseAnalysis",
+      "tests": [
+        "tests/loa-process.test.ts › %s → REJECT %s: stops at the failing check",
+        "tests/e2e/portal.spec.ts › a rejection is recommended"
+      ]
+    },
+    {
+      "id": "S8",
+      "lane": "SBO.02 Super Agent",
+      "step": "Name does not match: reject the request (SBO.11 + SBO.20)",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (TL-004, ID-001)",
+      "tests": [
+        "tests/loa-process.test.ts › the Emirates ID name must match the name in the request",
+        "tests/loa-process.test.ts › %s → REJECT %s: stops at the failing check"
+      ]
+    },
+    {
+      "id": "S9",
+      "lane": "SBO.02 Super Agent",
+      "step": "Triggers SBO.07 for identity validation",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#identityValidation",
+      "tests": [
+        "tests/loa-process.test.ts › an expired Emirates ID is a fixable gap"
+      ]
+    },
+    {
+      "id": "S10",
+      "lane": "SBO.07 Identity agent",
+      "step": "Cross-checks the EID and EC with the TL name and returns a structured output",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#identityValidation (recordedPerson)",
+      "tests": [
+        "tests/loa-process.test.ts › Fatima (licence owner, valid documents): all five checks pass in order",
+        "tests/loa-process.test.ts › a known company but a person that is not in the identity register"
+      ]
+    },
+    {
+      "id": "S11",
+      "lane": "SBO.02 Super Agent",
+      "step": "EID, EC and TL name mismatch observed: reject",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (ID-001)",
+      "tests": [
+        "tests/loa-process.test.ts › %s → REJECT %s: stops at the failing check"
+      ]
+    },
+    {
+      "id": "S12",
+      "lane": "SBO.02 Super Agent",
+      "step": "Triggers the POA/MOA workflow: document available? checks cleared / not cleared",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#poaMoaCheck",
+      "tests": [
+        "tests/loa-process.test.ts › Omar (not the licence owner): a POA is requested",
+        "tests/loa-process.test.ts › Hessa: acts under an expired POA"
+      ]
+    },
+    {
+      "id": "S12a",
+      "lane": "SBO.02 Super Agent",
+      "step": "Who is authorised without a POA/MOA (product owner rule): ID verified; recorded as owner, manager with representative authority or authorised signatory in the approved source; capacity covers the requested action; licence current and consistent; no conflicting evidence or limitation",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#poaMoaCheck (RecordedPerson, POA-004)",
+      "tests": [
+        "tests/loa-process.test.ts › a manager recorded with full representative authority needs no POA",
+        "tests/loa-process.test.ts › a manager whose recorded capacity does not cover every requested action still needs a POA",
+        "tests/loa-process.test.ts › a person on the establishment card without a recorded authority",
+        "tests/loa-process.test.ts › a recorded limitation or conflicting evidence on the person"
+      ]
+    },
+    {
+      "id": "S13",
+      "lane": "SBO.02 / SBO.09 / SBO.08",
+      "step": "Triggers SBO.09 for the bad-debt and blue-collar checks; SBO.08 cross-checks duplicate PDs in BCRM",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#badDebtCheck",
+      "tests": [
+        "tests/loa-process.test.ts › Layla: the bad-debt check sees the duplicate party IDs"
+      ]
+    },
+    {
+      "id": "S14",
+      "lane": "SBO.02 / SBO.10",
+      "step": "No bad debt or blue-collar behaviour: SBO.02 triggers SBO.10 to run the AVCV (Address Verification and Credit Verification) workflow",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#avcvVerification (address + credit outcomes)",
+      "tests": [
+        "tests/loa-process.test.ts › Fatima (licence owner, valid documents): all five checks pass in order"
+      ]
+    },
+    {
+      "id": "S14a",
+      "lane": "SBO.10 AVCV",
+      "step": "AVCV outcomes: only an adverse result is a rejection; a discrepancy, unable-to-verify or refer goes to a specialist; insufficient information asks for proof of address",
+      "status": "SIMULATED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (AV-001..004)",
+      "tests": [
+        "tests/loa-process.test.ts › %s → MANUAL_REVIEW %s (%s)",
+        "tests/loa-process.test.ts › insufficient information for the address verification asks for proof of address",
+        "tests/loa-process.test.ts › a proof of address held by someone else does not satisfy the verification"
+      ]
+    },
+    {
+      "id": "S15",
+      "lane": "SBO.02 Super Agent",
+      "step": "AVCV successful: approve the request and SBO.11 shares the communication with the stakeholders",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/governance/src/index.ts (FINAL-001, COMM-APPROVE)",
+      "tests": [
+        "tests/governance.test.ts › approves only when every mandatory check passes (FINAL-001)",
+        "tests/sql.integration.test.ts › Fatima approves: five unique rows"
+      ]
+    },
+    {
+      "id": "S16",
+      "lane": "SBO.02 Super Agent",
+      "step": "AVCV adverse: reject the request (SBO.11 + SBO.20)",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (AV-001)",
+      "tests": [
+        "tests/loa-process.test.ts › %s → REJECT %s: stops at the failing check"
+      ]
+    },
+    {
+      "id": "S17",
+      "lane": "SBO.02 Super Agent",
+      "step": "A lookup that is unavailable or unmatched is never treated as proof of invalidity: a specialist decides",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts (TL-005, ID-003, POA-003, AV-002)",
+      "tests": [
+        "tests/loa-process.test.ts › a known company but a person that is not in the identity register"
+      ]
+    },
+    {
+      "id": "G1",
+      "lane": "Governance",
+      "step": "The deterministic finalizer, not the model, issues every final outcome; the model only recommends",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/governance/src/index.ts (no model dependency)",
+      "tests": [
+        "tests/governance.test.ts › is deterministic and contains no model dependency",
+        "tests/agent-runtime.test.ts › an LLM that stops early and recommends APPROVE cannot override deterministic governance"
+      ]
+    },
+    {
+      "id": "G2",
+      "lane": "Governance",
+      "step": "Runtime results are unique per case_run_id + submission_version + check_type",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/persistence (runtime_utility_results)",
+      "tests": [
+        "tests/loa-process.test.ts › the persisted result key is the three-part case_run_id + submission_version + check_type",
+        "tests/persistence.test.ts › rerunning the same utility is idempotent"
+      ]
+    },
+    {
+      "id": "G3",
+      "lane": "Governance",
+      "step": "Customer documents are data, never instructions",
+      "status": "IMPLEMENTED",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/loa.ts#classifyDocument (regex reader, no model)",
+      "tests": [
+        "tests/security.test.ts › instructions written inside a document change nothing",
+        "tests/loa-process.test.ts › a file that is none of the four supported document types"
+      ]
+    },
+    {
+      "id": "T1",
+      "lane": "Product owner request",
+      "step": "Evidence is documents only: typed text is never accepted as evidence",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat.ts · evidence.ts · apps/api (no text route)",
+      "tests": [
+        "tests/loa-process.test.ts › typed text is not evidence",
+        "tests/security.test.ts › typed text can never become evidence, by any route",
+        "tests/e2e/portal.spec.ts › documents only: while a document request is open there is no text box"
+      ]
+    },
+    {
+      "id": "T2",
+      "lane": "Product owner request",
+      "step": "Documents are attached in the same chat window (PDF, Word, images); a missing or replaced document is requested again in the same window",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "apps/web/src/pages/ChatPage.tsx · POST /api/chat/evidence",
+      "tests": [
+        "tests/e2e/portal.spec.ts › Omar is not the licence owner",
+        "tests/chat-attachments.test.ts › re-upload is always possible",
+        "tests/api.test.ts › a POA is requested in the same conversation"
+      ]
+    },
+    {
+      "id": "T3",
+      "lane": "Product owner request",
+      "step": "Review dashboard: every review with its Review ID, status, checks, documents and root-cause analysis",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "apps/web/src/pages/ReviewPage.tsx · GET /api/reviews[/:id]",
+      "tests": [
+        "tests/api.test.ts › lists every review on the dashboard",
+        "tests/e2e/portal.spec.ts › the dashboard lists the review with its Review ID"
+      ]
+    },
+    {
+      "id": "T4",
+      "lane": "Product owner request",
+      "step": "Reopen a rejected or incomplete request from the review dashboard; the customer answers in the chat (replaces the resubmission page)",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/reopen.ts · POST /api/cases/:id/reopen",
+      "tests": [
+        "tests/loa-process.test.ts › a reviewer reopens a rejected case",
+        "tests/api.test.ts › reopening a rejected case creates a new version",
+        "tests/sql.integration.test.ts › reopen works on real SQL",
+        "tests/e2e/portal.spec.ts › reopen: the reviewer reopens a rejected case"
+      ]
+    },
+    {
+      "id": "T5",
+      "lane": "Product owner request",
+      "step": "A company that is not on record is only a new lead: never approved",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/intake.ts#openIntakeCase",
+      "tests": [
+        "tests/loa-process.test.ts › a company that is NOT on record becomes a new lead",
+        "tests/api.test.ts › a company that is not on record becomes a new lead over HTTP"
+      ]
+    },
+    {
+      "id": "T6",
+      "lane": "Product owner request",
+      "step": "The agent may recommend a rejection, but a rejection is never final or communicated externally without human confirmation",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/chat-response.ts · apps/api/src/app.ts#publicReply",
+      "tests": [
+        "tests/api.test.ts › a recommended rejection is never shown to the customer",
+        "tests/loa-process.test.ts › drafts the email (SBO.11), requests root-cause analysis (SBO.20) and waits for a human",
+        "tests/e2e/portal.spec.ts › a rejection is recommended"
+      ]
+    },
+    {
+      "id": "T7",
+      "lane": "Product owner request",
+      "step": "Customer-facing request catalog: eight intent categories and every request type of the operating model (profiling, verifier task, processing), with a stage owner for each",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/catalog.ts · GET /api/catalog",
+      "tests": [
+        "tests/catalog.test.ts › offers the eight customer-facing categories",
+        "tests/catalog.test.ts › assigns request types to the stage that owns them",
+        "tests/e2e/portal.spec.ts › the assistant offers eight topics"
+      ]
+    },
+    {
+      "id": "T8",
+      "lane": "Product owner request",
+      "step": "Pre-populated standard queries and free-text intent recognition start a request in one step",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/domain/src/catalog.ts#matchRequestType · workflows/src/chat.ts",
+      "tests": [
+        "tests/catalog.test.ts › recognises \"%s\" as %s",
+        "tests/e2e/portal.spec.ts › pre-populated standard queries start a request in one click",
+        "tests/e2e/portal.spec.ts › typing a request in your own words is recognised"
+      ]
+    },
+    {
+      "id": "T9",
+      "lane": "Product owner request",
+      "step": "Requests that are not automated are captured and routed to the stage that owns them (profiling, verifier task, processing) — never checked, approved or changed",
+      "status": "TARGET_ADDITION",
+      "verification": "VERIFIED",
+      "module": "packages/workflows/src/capture.ts · operations.ts · GET /api/operations",
+      "tests": [
+        "tests/catalog.test.ts › a chosen request that is not automated is captured and routed",
+        "tests/catalog.test.ts › the operations overview counts captured requests per stage",
+        "tests/e2e/portal.spec.ts › the Operations page shows the six stages"
+      ]
+    },
+    {
+      "id": "X1",
+      "lane": "Not built",
+      "step": "Other To-Be processes: Mobile Re-Registration, Document Update, Combo (Document Update + LOA / LOA + Re-Registration), Regularization, PMP, TASK/TKT, Data Quality Assurance",
+      "status": "OUT_OF_SCOPE",
+      "verification": "OUT_OF_SCOPE",
+      "module": "-",
+      "tests": []
+    },
+    {
+      "id": "X3",
+      "lane": "Not built",
+      "step": "Automation of the verifier task (MNP, activations, transfer of ownership, SIM replacement, AVCV field work, legal letters, biometric verification), processing (order creation, quality checks, contract validation, delivery, lifecycle tracking), the control tower, governance and reporting",
+      "status": "OUT_OF_SCOPE",
+      "verification": "OUT_OF_SCOPE",
+      "module": "-",
+      "tests": []
+    },
+    {
+      "id": "X2",
+      "lane": "Not built",
+      "step": "Ticket-triggered and channel-partner-triggered variants of New LOA; SBO.05 document extraction agent; SBO.13 order execution; SBO.14 case lifecycle tracking",
+      "status": "OUT_OF_SCOPE",
+      "verification": "OUT_OF_SCOPE",
+      "module": "-",
+      "tests": []
+    }
+  ]
+}

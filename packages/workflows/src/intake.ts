@@ -1,18 +1,19 @@
 /**
- * Intake adapter (TARGET-SIDE, not in the n8n export — docs/07 G-32).
- *
- * The n8n chat starts from a known Case Run ID ("Evaluate AUTH-001"). Here a new customer can simply say who they are and which company they
- * represent; a case is opened and assessed. No business rule is invented: the case is assessed against the pre-computed utility results of
- * the SYNTHETIC SCENARIO whose business + representative it matches (the same fixtures the source uses). When nothing matches, every utility
- * reports UNRESOLVED_SOURCE_GAP and the governed result is MANUAL_REVIEW — never an invented pass or fail.
+ * Customer-first intake (SBO.01 orchestrator, docs/09): the customer says who they are and which company they represent; the orchestrator
+ * opens a case and asks for the documents. A company that is NOT in the trade-licence register is only a NEW LEAD (a case is recorded but
+ * nothing is verified or approved); a company on record proceeds to document collection and the five checks.
  */
-import { type CaseRecord, type IntakeDetails } from '@sbo/domain';
+import { type CaseRecord, type IntakeDetails, documentLabels, findKnownBusiness, intakeDocumentTypes, personas } from '@sbo/domain';
 import { type Repository, now } from '@sbo/persistence';
 
 export const intakeChannel = 'CHAT_INTAKE';
 export const standardAuthority = 'Manage account; order services; approve plan changes; sign/approve telecom commitments';
 
-export const introMessage = 'Hello! I can help you become an authorised representative for a business.\n\nTo get started, please tell me **your name** and **the company you represent** — for example: "My name is Hana Rangi and I represent Kauri Harbour Demo Digital Limited."';
+export const introMessage = 'Hello! I can help you become an authorised representative for a business.\n\nTo get started, please tell me **your name** and **the company you represent** — for example: "My name is Fatima Al Mansoori and I represent Al Noor Trading LLC."';
+
+export function documentRequestMessage(representativeName: string, businessName: string): string {
+  return `Thanks ${representativeName}. I found ${businessName} in our records. To check your request I need these documents — please attach them here (PDF, Word or image files, up to 3 at a time):\n${intakeDocumentTypes.map((type) => `- ${documentLabels[type]}`).join('\n')}`;
+}
 
 // ------------------------------------------------------------------------------------------------------------------
 // Free-text extraction (deterministic, no model: customer text is untrusted and only ever read for a name and a company)
@@ -89,107 +90,31 @@ export function looksLikeBareCompany(text: string): string {
   return stripped.length >= 2 && stripped.split(' ').length <= 12 && /\p{L}/u.test(stripped) && !fillerCompanies.has(stripped.toLowerCase()) ? stripped : '';
 }
 
+
 // ------------------------------------------------------------------------------------------------------------------
-// Scenario matching
+// Opening the case
 // ------------------------------------------------------------------------------------------------------------------
 
-const businessStopWords = new Set(['pty', 'ltd', 'limited', 'the', 'company', 'co', 'inc', 'llc', 'corp', 'corporation', 'and', 'of']);
-const tokens = (value: string, stop: Set<string>): string[] => value.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter((token) => token && !stop.has(token));
-
-export function businessMatches(candidate: string, requested: string): boolean {
-  const left = tokens(candidate, businessStopWords);
-  const right = tokens(requested, businessStopWords);
-  if (!left.length || !right.length) return false;
-  if (left.join(' ') === right.join(' ')) return true;
-  const [shorter, longer] = left.length <= right.length ? [left, right] : [right, left];
-  return shorter.length >= 2 && shorter.every((token) => longer.includes(token));
+export interface ScenarioSummary { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: Array<{ type: string; fileName: string; path: string }>; }
+/** Demo aid: the synthetic personas a tester can introduce themselves as, with links to their sample documents. */
+export function listScenarios(): ScenarioSummary[] {
+  return personas.map((persona) => ({ slug: persona.slug, representativeName: persona.representativeName, businessName: persona.businessName, story: persona.story, expectedOutcome: persona.expectedOutcome, documents: persona.documents.map((document) => ({ type: document.type, fileName: document.fileName, path: `/samples/${persona.slug}/${document.fileName}` })) }));
 }
 
-export function nameMatches(candidate: string, requested: string): boolean {
-  const left = tokens(candidate, new Set());
-  const right = tokens(requested, new Set());
-  if (!left.length || !right.length) return false;
-  if (left.join(' ') === right.join(' ')) return true;
-  return left.length >= 2 && right.length >= 2 && left[0] === right[0] && left.at(-1) === right.at(-1);
-}
+export type IntakeKind = 'KNOWN_BUSINESS' | 'NEW_LEAD';
+export interface OpenedCase { caseRecord: CaseRecord; kind: IntakeKind; }
 
-const isScenario = (record: CaseRecord): boolean => record.channel !== intakeChannel;
-
-/** The scenario (fixture case) whose business AND representative match; the lowest submission version of a logical case is used. */
-export async function findScenario(repository: Repository, details: IntakeDetails): Promise<CaseRecord | undefined> {
-  const scenarios = (await repository.listCases()).filter(isScenario);
-  const matching = scenarios.filter((entry) => {
-    const businessOk = businessMatches(entry.businessName, details.businessName) || (details.businessIdentifier !== '' && entry.businessIdentifier.toUpperCase() === details.businessIdentifier.toUpperCase());
-    return businessOk && nameMatches(entry.representativeName, details.representativeName);
-  });
-  return matching.sort((left, right) => left.submissionVersion - right.submissionVersion)[0];
-}
-
-export interface ScenarioSummary { caseRunId: string; representativeName: string; businessName: string; businessIdentifier: string; }
-/** Demo aid: the synthetic identities that will match a scenario (first version of each logical case). */
-export async function listScenarios(repository: Repository): Promise<ScenarioSummary[]> {
-  const scenarios = (await repository.listCases()).filter(isScenario);
-  const firstVersions = scenarios.filter((entry) => !scenarios.some((other) => other.caseId === entry.caseId && other.submissionVersion < entry.submissionVersion));
-  return firstVersions.map((entry) => ({ caseRunId: entry.caseRunId, representativeName: entry.representativeName, businessName: entry.businessName, businessIdentifier: entry.businessIdentifier }));
-}
-
-/**
- * The canned pipeline used when the company is on record but the person is not one of its recorded representatives:
- * AUTH-003's "authority must be evidenced" path (checks run, then the customer supplies authority evidence, then the assessment resumes).
- */
-export const unrecognisedRepresentativeTemplate = 'AUTH-003';
-
-export type IntakeKind = 'KNOWN_CUSTOMER' | 'UNRECOGNISED_REPRESENTATIVE' | 'NEW_LEAD';
-export interface OpenedCase { caseRecord: CaseRecord; scenario?: CaseRecord; kind: IntakeKind; }
-
-/** A company already on record = any scenario whose business name (or identifier) matches, whoever the representative is. */
-export async function findKnownBusiness(repository: Repository, details: IntakeDetails): Promise<CaseRecord | undefined> {
-  return (await repository.listCases()).filter(isScenario).sort((left, right) => left.submissionVersion - right.submissionVersion)
-    .find((entry) => businessMatches(entry.businessName, details.businessName) || (details.businessIdentifier !== '' && entry.businessIdentifier.toUpperCase() === details.businessIdentifier.toUpperCase()));
-}
-
-/**
- * Opens the customer's case (docs/07 G-33, G-35):
- *  - company AND representative on record        → case backed by that scenario, full assessment;
- *  - company on record, representative not       → case for the recorded company, assessed via the authority-evidence path;
- *  - company not on record                       → a NEW_LEAD case only: nothing is verified, no checks or decision are run.
- */
-export async function openIntakeCase(repository: Repository, details: IntakeDetails): Promise<OpenedCase> {
-  const matched = await findScenario(repository, details);
-  const knownBusiness = matched ?? await findKnownBusiness(repository, details);
-  const template = matched ?? (knownBusiness ? await repository.getCase(unrecognisedRepresentativeTemplate) : undefined);
+export async function openIntakeCase(repository: Repository, details: IntakeDetails, requestTypeId = ''): Promise<OpenedCase> {
+  const known = findKnownBusiness(details.businessName);
   const representativeName = cleanText(details.representativeName, 120);
-  const businessName = knownBusiness ? knownBusiness.businessName : cleanText(details.businessName, 160);
+  const businessName = known ? known.businessName : cleanText(details.businessName, 160);
   const caseRecord = await repository.createIntakeCase({
-    templateCaseRunId: template?.caseRunId ?? '',
     record: {
-      submissionVersion: 1, country: knownBusiness?.country ?? '', requestType: 'NEW_AUTHORISED_REPRESENTATIVE', channel: intakeChannel,
-      businessName, businessIdentifier: details.businessIdentifier || knownBusiness?.businessIdentifier || '', customerId: knownBusiness?.customerId ?? '',
-      representativeName, representativeRole: matched?.representativeRole ?? '', requestedAuthority: matched?.requestedAuthority ?? standardAuthority,
+      submissionVersion: 1, country: known ? 'AE' : '', requestType: known ? (requestTypeId && requestTypeId !== 'NEW_LOA' ? requestTypeId : 'NEW_LOA_PROCESSING') : 'NEW_LEAD', channel: intakeChannel,
+      businessName, businessIdentifier: '', customerId: '', representativeName, representativeRole: '', requestedAuthority: standardAuthority,
       requestNarrative: `Please add ${representativeName} as an authorised representative for ${businessName} with the requested account, ordering, plan-change, and approval permissions.`,
-      documentsSubmitted: template?.documentsSubmitted ?? '', submittedAt: now(), processingPriority: 'STANDARD', syntheticOnly: true,
+      documentsSubmitted: '', submittedAt: now(), processingPriority: 'STANDARD', syntheticOnly: true,
     },
   });
-  return { caseRecord, scenario: matched, kind: matched ? 'KNOWN_CUSTOMER' : knownBusiness ? 'UNRECOGNISED_REPRESENTATIVE' : 'NEW_LEAD' };
-}
-// ------------------------------------------------------------------------------------------------------------------
-// Versioned resubmission target
-// ------------------------------------------------------------------------------------------------------------------
-
-/** The next version of the same logical case in the synthetic scenarios, if the source data defines one (e.g. AUTH-008-V1 → AUTH-008-V2). */
-export async function nextVersionScenario(repository: Repository, caseRunId: string): Promise<CaseRecord | undefined> {
-  const current = await repository.getCase(caseRunId);
-  if (!current) return undefined;
-  const scenario = await repository.getCase(await repository.getScenarioFor(caseRunId));
-  if (!scenario) return undefined;
-  return (await repository.listCases()).filter(isScenario).filter((entry) => entry.caseId === scenario.caseId && entry.submissionVersion > scenario.submissionVersion).sort((left, right) => left.submissionVersion - right.submissionVersion)[0];
-}
-
-/** Returns the case run to resubmit to: the fixture itself for fixture cases, or a new later-version intake case backed by the next scenario. */
-export async function ensureRevisedCase(repository: Repository, original: CaseRecord): Promise<CaseRecord | undefined> {
-  const next = await nextVersionScenario(repository, original.caseRunId);
-  if (!next) return undefined;
-  if (isScenario(original)) return next;
-  const revisedRunId = `${original.caseId}-V${next.submissionVersion}`;
-  return (await repository.getCase(revisedRunId)) ?? repository.createIntakeCase({ templateCaseRunId: next.caseRunId, record: { ...original, caseRunId: revisedRunId, caseId: original.caseId, submissionVersion: next.submissionVersion, documentsSubmitted: next.documentsSubmitted, submittedAt: now() } });
+  return { caseRecord, kind: known ? 'KNOWN_BUSINESS' : 'NEW_LEAD' };
 }

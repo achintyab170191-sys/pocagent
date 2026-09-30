@@ -21,11 +21,12 @@
     "db:seed": "tsx scripts/seed.ts",
     "import:sources": "tsx scripts/import-sources.ts",
     "reset:runtime": "tsx scripts/reset-runtime.ts",
-    "report:parity": "tsx scripts/parity-report.ts",
-    "docs:traceability": "tsx scripts/build-traceability.ts",
+    "report:conformance": "tsx scripts/conformance-report.ts",
+    "docs:conformance": "tsx scripts/build-conformance.ts",
     "analyse:sources": "node scripts/analyse-source.mjs",
     "extract:prompts": "node scripts/extract-prompts.mjs",
-    "verify:sources": "tsx scripts/verify-sources.ts"
+    "verify:sources": "tsx scripts/verify-sources.ts",
+    "samples": "tsx scripts/generate-samples.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.31",

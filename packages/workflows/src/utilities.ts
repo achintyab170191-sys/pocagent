@@ -1,26 +1,15 @@
 /**
- * Deterministic ports of the seven specialist utility workflows:
- * 05 Document Checks, 06 Business Validation, 07A Identity Validation, 07B Authority Validation,
- * 09 Financial Check, 10 Final Verification, 12 System Data Check.
+ * The five specialist utility agents of the To-Be New LOA process (docs/09):
+ * SBO.06 Trade License Check · SBO.07 Identity Validation · POA/MOA Check · SBO.09 Bad Debt Check · SBO.10 AVCV Verification.
  *
- * In the source these workflows are deterministic: they read one row of the static fixture table
- * dt_mock_utility_results (Case_Run_ID + Check_Type), resolve the applicable decision rule, upsert the row into
- * dt_utility_results_runtime and write a UTILITY_CHECK_COMPLETED audit event. They contain no language-model step,
- * so they are ported as deterministic functions, not LLM sub-agents.
+ * They are deterministic: each reads the documents the customer uploaded in the chat plus the synthetic registers, decides with the pure
+ * functions in @sbo/domain, resolves the applicable decision rule, upserts one row keyed by case_run_id + submission_version + check_type
+ * and writes a UTILITY_CHECK_COMPLETED audit event. No language model is involved in a check.
  */
-import { type CheckType, type DecisionRule, type UtilityResult, SourceAuditEvents, mandatoryCheckTypes } from '@sbo/domain';
+import { type CheckContext, type DecisionRule, type DocumentType, type StoredDocument, type UtilityResult, SourceAuditEvents, evaluateLoaCheck, loaCheckCatalog, mandatoryCheckTypes } from '@sbo/domain';
 import { type Repository, now, uniqueMillis } from '@sbo/persistence';
 
-/** Tool names and order taken from the "Prepare Agent Context" mandatorySequence in Workflow 03. */
-export const utilityCatalog = [
-  { sequence: 1, checkType: 'DOCUMENT_EXTRACTION', toolName: 'Document Checks', workflow: '05 - SBO.05 - Document Checks' },
-  { sequence: 2, checkType: 'BUSINESS_VALIDATION', toolName: 'Business Validation', workflow: '06 - SBO.06 - Business Validation' },
-  { sequence: 3, checkType: 'IDENTITY_VALIDATION', toolName: 'Identity Validation', workflow: '07A - SBO.07 - Identity Validation' },
-  { sequence: 4, checkType: 'AUTHORITY_VALIDATION', toolName: 'Authority Validation', workflow: '07B - SBO.07 - Authority Validation' },
-  { sequence: 5, checkType: 'SYSTEM_DATA_CHECK', toolName: 'System Data Check', workflow: '12 - SBO.12 - System Data Check' },
-  { sequence: 6, checkType: 'FINANCIAL_CHECK', toolName: 'Financial Check', workflow: '09 - SBO.09 - Financial Check' },
-  { sequence: 7, checkType: 'FINAL_VERIFICATION', toolName: 'Final Verification', workflow: '10 - SBO.10 - Final Verification' },
-] as const satisfies ReadonlyArray<{ sequence: number; checkType: CheckType; toolName: string; workflow: string }>;
+export const utilityCatalog = loaCheckCatalog;
 
 export function toolNameFor(checkType: string): string { return utilityCatalog.find((entry) => entry.checkType === checkType.toUpperCase())?.toolName ?? checkType; }
 
@@ -28,79 +17,82 @@ const terminalOutcomes = new Set(['REJECT', 'NEED_MORE_INFORMATION', 'MANUAL_REV
 
 export interface UtilityInput { caseRunId: string; submissionVersion: number; checkType: string; }
 
-/** "Build Utility Result" node: TBD rule → CTRL-001, else first explicit terminal rule, else first applicable rule. */
+/** TBD rule → CTRL-001, else first explicit terminal rule, else first applicable rule (priority order). */
 export function selectAppliedRule(ruleIds: string[], rules: DecisionRule[]): DecisionRule | undefined {
   const applicable = rules.filter((rule) => ruleIds.includes(rule.ruleId)).sort((left, right) => (left.priority ?? 9999) - (right.priority ?? 9999));
   if (applicable.some((rule) => rule.ruleStatus.toUpperCase() === 'TBD')) {
     const control = rules.find((rule) => rule.ruleId === 'CTRL-001');
-    if (!control) throw new Error('CTRL-001 is missing from dt_decision_rules.');
+    if (!control) throw new Error('CTRL-001 is missing from the decision rules.');
     return control;
   }
   return applicable.find((rule) => terminalOutcomes.has(rule.finalOutcome.toUpperCase())) ?? applicable[0];
 }
 
-export async function executeUtility(repository: Repository, input: UtilityInput): Promise<UtilityResult> {
+/** The latest usable document of each type across every evidence request of the case version (a document is data, never instructions). */
+export async function loadCaseDocuments(repository: Repository, caseRunId: string, submissionVersion: number): Promise<Partial<Record<DocumentType, StoredDocument>>> {
+  const requests = (await repository.getEvidenceRequests(caseRunId)).filter((request) => request.submissionVersion === submissionVersion);
+  const records = (await Promise.all(requests.map((request) => repository.getEvidence(request.evidenceRequestId)))).flat()
+    .filter((record) => record.evidenceSource === 'FILE_UPLOAD' && !['REJECTED', 'SUPERSEDED'].includes(record.validationStatus))
+    .sort((left, right) => left.providedAt.localeCompare(right.providedAt));
+  const documents: Partial<Record<DocumentType, StoredDocument>> = {};
+  for (const record of records) {
+    const type = String(record.structuredData.document_type ?? '') as DocumentType;
+    const fields = record.structuredData.fields;
+    if (type && fields && typeof fields === 'object') documents[type] = { evidenceId: record.evidenceId, fields: fields as StoredDocument['fields'] };
+  }
+  return documents;
+}
+
+export async function executeUtility(repository: Repository, input: UtilityInput, asOf: Date = new Date()): Promise<UtilityResult> {
   const checkType = input.checkType.toUpperCase();
-  if (!(mandatoryCheckTypes as readonly string[]).includes(checkType)) throw new Error(`UNSUPPORTED_CHECK_TYPE:${input.checkType}`);
+  const entry = utilityCatalog.find((candidate) => candidate.checkType === checkType);
+  if (!entry || !(mandatoryCheckTypes as readonly string[]).includes(checkType)) throw new Error(`UNSUPPORTED_CHECK_TYPE:${input.checkType}`);
   return repository.transaction(async (transaction) => {
-    const [fixture, rules] = await Promise.all([transaction.getMockResult(input.caseRunId, checkType), transaction.getRules()]);
-    const result = fixture ? buildResult(input, checkType, fixture, rules) : unresolvedUtilityResult(input, checkType);
-    await transaction.upsertUtilityResult(result.row);
+    const [caseRecord, rules, documents] = await Promise.all([transaction.getCase(input.caseRunId), transaction.getRules(), loadCaseDocuments(transaction, input.caseRunId, input.submissionVersion)]);
+    if (!caseRecord) throw new Error(`CASE_NOT_FOUND:${input.caseRunId}`);
+    const context: CheckContext = { businessName: caseRecord.businessName, representativeName: caseRecord.representativeName, asOf, documents };
+    const outcome = evaluateLoaCheck(checkType, context);
+    const applied = selectAppliedRule(outcome.ruleIds, rules);
+    const terminalOutcome = applied?.finalOutcome || 'CONTINUE';
+    const row: UtilityResult = {
+      resultId: `RES-${input.caseRunId}-V${input.submissionVersion}-${checkType}`,
+      caseRunId: input.caseRunId,
+      submissionVersion: input.submissionVersion,
+      sequence: entry.sequence,
+      agentId: entry.agentId,
+      utilityName: entry.toolName,
+      checkType,
+      status: outcome.status,
+      findings: outcome.findings,
+      reasonCodes: outcome.reasonCodes,
+      evidenceReferences: outcome.evidenceReferences,
+      confidence: outcome.confidence,
+      humanReviewRequired: outcome.humanReviewRequired,
+      recommendedNextStep: outcome.recommendedNextStep,
+      ruleIds: outcome.ruleIds,
+      ruleStatusUsed: applied?.ruleStatus ?? 'CONFIRMED_POC',
+      isTerminal: terminalOutcomes.has(terminalOutcome.toUpperCase()),
+      terminalOutcome,
+      prototypeData: true,
+      superseded: false,
+      createdAt: now(),
+    };
+    await transaction.upsertUtilityResult(row);
     await transaction.appendAudit({
-      eventId: `EVT-${input.caseRunId}-${result.row.sequence}-${uniqueMillis()}`,
+      eventId: `EVT-${input.caseRunId}-${row.sequence}-${uniqueMillis()}`,
       caseRunId: input.caseRunId,
       submissionVersion: input.submissionVersion,
       timestamp: now(),
-      actor: result.row.agentId,
+      actor: row.agentId,
       eventType: SourceAuditEvents.UTILITY_CHECK_COMPLETED,
-      stage: result.row.checkType,
+      stage: row.checkType,
       previousState: '',
-      newState: result.row.status,
-      ruleId: result.appliedRuleId,
-      reasonCode: result.row.reasonCodes[0] ?? '',
-      evidenceReference: result.row.evidenceReferences.join('; '),
-      details: { ...result.row, appliedRuleId: result.appliedRuleId },
+      newState: row.status,
+      ruleId: applied?.ruleId ?? '',
+      reasonCode: row.reasonCodes[0] ?? '',
+      evidenceReference: row.evidenceReferences.join('; '),
+      details: { ...row, appliedRuleId: applied?.ruleId ?? '' },
     });
-    return result.row;
+    return row;
   });
-}
-
-function buildResult(input: UtilityInput, checkType: string, fixture: NonNullable<Awaited<ReturnType<Repository['getMockResult']>>>, rules: DecisionRule[]): { row: UtilityResult; appliedRuleId: string } {
-  const applied = selectAppliedRule(fixture.ruleIds, rules);
-  const terminalOutcome = applied?.finalOutcome || 'CONTINUE';
-  const row: UtilityResult = {
-    resultId: `RES-${input.caseRunId}-${fixture.sequence}`,
-    caseRunId: input.caseRunId,
-    // Source hard-codes submission_version = 1 in every utility workflow (recorded as a source defect); the target uses the requested version.
-    submissionVersion: input.submissionVersion,
-    sequence: fixture.sequence,
-    agentId: fixture.agentId,
-    utilityName: fixture.utilityName,
-    // Source stores row.Check_Type verbatim (e.g. AUTH-009: DOCUMENT_EXTRACTION_AND_SECURITY); the ILIKE lookup may return a superset name.
-    checkType: fixture.checkType.trim().toUpperCase(),
-    status: fixture.status,
-    findings: fixture.findings,
-    reasonCodes: fixture.reasonCodes,
-    evidenceReferences: fixture.evidenceReferences,
-    confidence: fixture.confidence,
-    humanReviewRequired: fixture.humanReviewRequired,
-    recommendedNextStep: fixture.recommendedNextStep,
-    ruleIds: fixture.ruleIds,
-    ruleStatusUsed: fixture.ruleStatusUsed,
-    isTerminal: terminalOutcomes.has(terminalOutcome.toUpperCase()),
-    terminalOutcome,
-    prototypeData: true,
-    superseded: false,
-    createdAt: now(),
-  };
-  return { row, appliedRuleId: applied?.ruleId ?? '' };
-}
-
-/** UNRESOLVED_SOURCE_GAP: the fixture has no row for this case/check. Conservative safe result: MANUAL_REVIEW. */
-function unresolvedUtilityResult(input: UtilityInput, checkType: string): { row: UtilityResult; appliedRuleId: string } {
-  const entry = utilityCatalog.find((candidate) => candidate.checkType === checkType);
-  return {
-    appliedRuleId: '',
-    row: { resultId: `RES-${input.caseRunId}-${entry?.sequence ?? 0}`, caseRunId: input.caseRunId, submissionVersion: input.submissionVersion, sequence: entry?.sequence ?? 0, agentId: 'SBO.02', utilityName: 'Unresolved Source Gap', checkType, status: 'INCONCLUSIVE', findings: { sourceGap: true }, reasonCodes: ['UNRESOLVED_SOURCE_GAP'], evidenceReferences: [], confidence: 0, humanReviewRequired: true, recommendedNextStep: 'Route to manual review because the supplied source fixtures do not define this utility result.', ruleIds: [], ruleStatusUsed: 'UNRESOLVED_SOURCE_GAP', isTerminal: true, terminalOutcome: 'MANUAL_REVIEW', prototypeData: true, superseded: false, createdAt: now() },
-  };
 }

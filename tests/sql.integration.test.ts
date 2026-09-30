@@ -8,9 +8,9 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostgresRepository, historicalRuntimeTables, importHistoricalRuntime, loadSourceData, loadSourceDataFromDb, migrate, parseCsvMatrix, seedStaticFixtures, staticFixtureTables } from '@sbo/persistence';
-import { openIntakeCase, completeHumanReview, createResubmission, evaluateCase, resolveEvidence, resolveEvidenceAndContinue, submitTextEvidence } from '@sbo/workflows';
+import { completeHumanReview, evaluateCase, handleChatEvidenceUpload, handleChatMessage, listReviewDashboard, openIntakeCase, reopenCase, resolveEvidence, submitDocumentEvidence } from '@sbo/workflows';
 import { finalizeDecision } from '@sbo/governance';
-import { resolved, ScriptedRuntime } from '@sbo/testkit';
+import { caseWithDocuments, persona, personaAttachments, ScriptedRuntime } from '@sbo/testkit';
 
 let db: PGlite; let server: PGLiteSocketServer; let sql: Sql; let repository: PostgresRepository;
 const port = 54000 + Math.floor(Math.random() * 900);
@@ -100,119 +100,132 @@ describe('database constraints on runtime results', () => {
   it('cleanup', async () => { await sql`DELETE FROM runtime_utility_results`; expect(await count('runtime_utility_results')).toBe(0); });
 });
 
-describe('PostgresRepository — full workflows on real SQL', () => {
-  it('AUTH-001 approves: seven unique rows, decision, DRAFT communication, runtime case and audit persisted', async () => {
-    const result = await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-001', 's');
-    expect(result.decision).toMatchObject({ outcome: 'APPROVE', primaryReasonCode: 'ALL_CHECKS_PASSED' });
-    const rows = await sql<{ check_type: string }[]>`SELECT check_type FROM runtime_utility_results WHERE case_run_id = 'AUTH-001' ORDER BY sequence`;
-    expect(rows.map((row) => row.check_type)).toEqual(['DOCUMENT_EXTRACTION', 'BUSINESS_VALIDATION', 'IDENTITY_VALIDATION', 'AUTHORITY_VALIDATION', 'SYSTEM_DATA_CHECK', 'FINANCIAL_CHECK', 'FINAL_VERIFICATION']);
-    expect(await repository.getDecision('AUTH-001')).toMatchObject({ decisionId: 'DEC-AUTH-001-1', outcome: 'APPROVE' });
-    expect((await repository.getCommunications('AUTH-001'))[0]).toMatchObject({ communicationId: 'COMM-AUTH-001-V1-INITIAL', status: 'DRAFT', sent: false });
-    expect((await repository.getRuntimeCase('AUTH-001'))?.status).toBe('READY_TO_PROCEED');
-    expect((await repository.getAudit('AUTH-001')).filter((event) => event.eventType === 'UTILITY_CHECK_COMPLETED')).toHaveLength(7);
+describe('PostgresRepository — the To-Be process on real SQL', () => {
+  const deps = () => ({ repository, agentRuntime: new ScriptedRuntime(), appBaseUrl: 'x' });
+  const intro = (slug: string, sessionId = 's') => handleChatMessage(deps(), { sessionId, message: `My name is ${persona(slug).representativeName} and I represent ${persona(slug).businessName}` });
+  const attach = (slug: string, types?: string[], sessionId = 's') => handleChatEvidenceUpload(deps(), { sessionId, files: personaAttachments(slug, types) });
+
+  it('Fatima approves: five unique rows, decision, DRAFT communication, runtime case and audit persisted', async () => {
+    const opened = await intro('fatima-al-noor');
+    const result = await attach('fatima-al-noor');
+    expect(result.outcome).toMatchObject({ governedOutcome: 'APPROVE', primaryReasonCode: 'ALL_CHECKS_PASSED' });
+    const rows = await sql<{ check_type: string }[]>`SELECT check_type FROM runtime_utility_results WHERE case_run_id = ${opened.caseRunId} ORDER BY sequence`;
+    expect(rows.map((row) => row.check_type)).toEqual(['TRADE_LICENSE_CHECK', 'IDENTITY_VALIDATION', 'POA_MOA_CHECK', 'BAD_DEBT_CHECK', 'AVCV_VERIFICATION']);
+    expect(await repository.getDecision(opened.caseRunId)).toMatchObject({ decisionId: `DEC-${opened.caseRunId}-1`, outcome: 'APPROVE' });
+    expect((await repository.getCommunications(opened.caseRunId))[0]).toMatchObject({ communicationId: `COMM-${opened.caseRunId}-V1-INITIAL`, templateId: 'COMM-APPROVE', status: 'DRAFT', sent: false });
+    expect((await repository.getRuntimeCase(opened.caseRunId))?.status).toBe('READY_TO_PROCEED');
+    expect((await repository.getAudit(opened.caseRunId)).filter((event) => event.eventType === 'UTILITY_CHECK_COMPLETED')).toHaveLength(5);
+    expect((await repository.getEvidence(opened.evidenceRequest!.evidenceRequestId)).map((row) => row.validationStatus)).toEqual(['ACCEPTED', 'ACCEPTED', 'ACCEPTED']);
   });
 
-  it('re-evaluating resets and rewrites without duplicating rows or communications', async () => {
-    await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-001', 's');
-    expect(await count(`runtime_utility_results WHERE case_run_id = 'AUTH-001'`)).toBe(7);
-    expect(await count(`communications WHERE case_run_id = 'AUTH-001'`)).toBe(1);
-    expect(await count(`decisions WHERE case_run_id = 'AUTH-001'`)).toBe(1);
+  it('re-evaluating resets and rewrites without duplicating rows, decisions or communications', async () => {
+    const caseRunId = (await repository.listCases())[0]!.caseRunId;
+    await evaluateCase(repository, new ScriptedRuntime(), caseRunId, 's');
+    expect(await count(`runtime_utility_results WHERE case_run_id = '${caseRunId}'`)).toBe(5);
+    expect(await count(`communications WHERE case_run_id = '${caseRunId}'`)).toBe(1);
+    expect(await count(`decisions WHERE case_run_id = '${caseRunId}'`)).toBe(1);
   });
 
-  it('AUTH-003 evidence loop persists request, evidence and the replaced originating check', async () => {
-    const runtime = new ScriptedRuntime([resolved]);
-    const initial = await evaluateCase(repository, runtime, 'AUTH-003', 's');
-    const id = initial.evidenceRequest!.evidenceRequestId;
-    await submitTextEvidence(repository, id, { text: 'The signed authority letter grants account management, service ordering and approvals.' });
-    const outcome = await resolveEvidenceAndContinue(repository, runtime, id, 'AUTH-003', 1, 's');
-    expect(outcome.route).toBe('RESUMED');
-    expect(await repository.getEvidenceRequest(id)).toMatchObject({ status: 'ACCEPTED', attemptCount: 1 });
-    const authority = await sql<{ payload: { status: string; ruleIds: string[] } }[]>`SELECT payload FROM runtime_utility_results WHERE case_run_id = 'AUTH-003' AND check_type = 'AUTHORITY_VALIDATION'`;
-    expect(authority).toHaveLength(1);
-    expect(authority[0]!.payload).toMatchObject({ status: 'PASS', ruleIds: ['EVID-001'] });
-    expect((await repository.getEvidence(id))[0]?.validationStatus).toBe('ACCEPTED');
-  });
-
-  it('a human review completes exactly once (row lock + status guard)', async () => {
-    const review = (await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-005', 's')).review!;
-    const input = { reviewerName: 'Riley', reviewerDecision: 'NEED_MORE_INFORMATION' as const, reviewerComments: 'Please reconcile the CRM names.' };
-    const results = await Promise.allSettled([completeHumanReview(repository, review.reviewId, input), completeHumanReview(repository, review.reviewId, { ...input, reviewerName: 'Second' })]);
-    expect(results.filter((entry) => entry.status === 'fulfilled')).toHaveLength(1);
-    expect(await count(`audit_events WHERE case_run_id = 'AUTH-005' AND payload->>'eventType' = 'HUMAN_REVIEW_COMPLETED'`)).toBe(1);
-    expect((await repository.getReview(review.reviewId))?.reviewStatus).toBe('COMPLETED');
-  });
-
-  it('parallel evidence resolutions on one request are serialised under a row lock: one model call, one attempt', async () => {
+  it('Omar: the POA request persists, the accepted document replaces only the originating check, and the case is approved', async () => {
     await repository.resetRuntime();
-    const runtime = new ScriptedRuntime([{ ...resolved, resolutionStatus: 'INSUFFICIENT', supportedFacts: [], remainingGaps: ['gap'], confidence: 0.3 }, { ...resolved, resolutionStatus: 'INSUFFICIENT', supportedFacts: [], remainingGaps: ['gap'], confidence: 0.3 }]);
-    const initial = await evaluateCase(repository, runtime, 'AUTH-003', 's');
-    const id = initial.evidenceRequest!.evidenceRequestId;
-    await submitTextEvidence(repository, id, { text: 'A partial clarification of the authority.' });
-    const results = await Promise.allSettled([resolveEvidence(repository, runtime, id, 'AUTH-003', 1), resolveEvidence(repository, runtime, id, 'AUTH-003', 1)]);
+    const opened = await intro('omar-gulf-horizon');
+    const asked = await attach('omar-gulf-horizon', ['EMIRATES_ID', 'TRADE_LICENSE', 'ESTABLISHMENT_CARD']);
+    expect(asked.outcome).toMatchObject({ governedOutcome: 'NEED_MORE_INFORMATION', primaryReasonCode: 'POA_MOA_MISSING' });
+    const poaRequest = asked.evidenceRequest!.evidenceRequestId;
+    expect(await repository.getEvidenceRequest(poaRequest)).toMatchObject({ originatingCheckType: 'POA_MOA_CHECK', status: 'OPEN' });
+    const resumed = await attach('omar-gulf-horizon', ['POA_MOA']);
+    expect(resumed.outcome).toMatchObject({ governedOutcome: 'APPROVE', toolsCalled: ['POA/MOA Check', 'Bad Debt Check', 'AVCV Verification'] });
+    expect(await repository.getEvidenceRequest(poaRequest)).toMatchObject({ status: 'ACCEPTED', attemptCount: 1 });
+    expect(await count(`runtime_utility_results WHERE case_run_id = '${opened.caseRunId}'`)).toBe(5);
+    const poa = await sql<{ payload: { status: string } }[]>`SELECT payload FROM runtime_utility_results WHERE case_run_id = ${opened.caseRunId} AND check_type = 'POA_MOA_CHECK'`;
+    expect(poa).toHaveLength(1);
+    expect(poa[0]!.payload.status).toBe('PASS');
+  });
+
+  it('a rejected case waits on the dashboard; the human review completes exactly once (row lock + status guard)', async () => {
+    await repository.resetRuntime();
+    const opened = await intro('sara-desert-bloom');
+    await attach('sara-desert-bloom');
+    const [row] = await listReviewDashboard(repository);
+    expect(row).toMatchObject({ caseRunId: opened.caseRunId, reviewStatus: 'PENDING_REJECTION_CONFIRMATION', primaryReasonCode: 'TRADE_LICENSE_EXPIRED' });
+    const input = { reviewerName: 'Riley', reviewerDecision: 'REJECT' as const, reviewerComments: 'Confirmed.' };
+    const results = await Promise.allSettled([completeHumanReview(repository, row!.reviewId, input), completeHumanReview(repository, row!.reviewId, { ...input, reviewerName: 'Second' })]);
     expect(results.filter((entry) => entry.status === 'fulfilled')).toHaveLength(1);
-    expect(runtime.resolutionRequests).toHaveLength(1);
+    expect(await count(`audit_events WHERE case_run_id = '${opened.caseRunId}' AND payload->>'eventType' = 'HUMAN_REVIEW_COMPLETED'`)).toBe(1);
+    expect(await count(`audit_events WHERE case_run_id = '${opened.caseRunId}' AND payload->>'eventType' = 'RCA_REQUESTED'`)).toBe(1);
+    expect((await repository.getReview(row!.reviewId))?.reviewStatus).toBe('COMPLETED');
+    await expect(evaluateCase(repository, new ScriptedRuntime(), opened.caseRunId, 's')).rejects.toThrow('CASE_LOCKED');
+  });
+
+  it('parallel evidence resolutions on one request are serialised under a row lock: one attempt is spent', async () => {
+    await repository.resetRuntime();
+    const opened = await intro('fatima-al-noor');
+    const id = opened.evidenceRequest!.evidenceRequestId;
+    await submitDocumentEvidence(repository, id, { fileName: 'a.pdf', mimeType: 'application/pdf', storageUrl: 'x', extractedText: personaAttachments('fatima-al-noor', ['EMIRATES_ID'])[0]!.extractedText });
+    const results = await Promise.allSettled([resolveEvidence(repository, id, opened.caseRunId, 1), resolveEvidence(repository, id, opened.caseRunId, 1)]);
+    expect(results.filter((entry) => entry.status === 'fulfilled')).toHaveLength(1);
     expect(await repository.getEvidenceRequest(id)).toMatchObject({ status: 'INSUFFICIENT', attemptCount: 1 });
   });
 
-  it('versioned resubmission works on real SQL: V1 needs information, V2 is approved, V1 is superseded', async () => {
+  it('reopen works on real SQL: a new version, the old one closed, its review closed, and the customer\'s chat session repointed', async () => {
     await repository.resetRuntime();
-    const runtime = new ScriptedRuntime();
-    expect((await evaluateCase(repository, runtime, 'AUTH-008-V1', 's')).decision.outcome).toBe('NEED_MORE_INFORMATION');
-    const revised = await createResubmission(repository, { originalCaseRunId: 'AUTH-008-V1', revisedCaseRunId: 'AUTH-008-V2', resubmissionComments: 'Updated authority letter.' }, runtime);
-    expect(revised.decision).toMatchObject({ outcome: 'APPROVE', caseRunId: 'AUTH-008-V2', submissionVersion: 2 });
-    expect(await repository.getRuntimeCase('AUTH-008-V1')).toMatchObject({ status: 'SUPERSEDED_BY_RESUBMISSION' });
-    expect((await repository.getAudit('AUTH-008-V1')).map((event) => event.eventType)).toContain('CASE_RESUBMITTED');
-    await repository.resetRuntime();
-  });
-
-  it('a reviewed case cannot be re-evaluated against real SQL either (CASE_LOCKED)', async () => {
-    await repository.resetRuntime();
-    const review = (await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-004', 's')).review!;
-    await completeHumanReview(repository, review.reviewId, { reviewerName: 'Riley', reviewerDecision: 'APPROVE', reviewerComments: 'ok', overrideReason: 'stale register' });
-    await expect(evaluateCase(repository, new ScriptedRuntime(), 'AUTH-004', 's')).rejects.toThrow('CASE_LOCKED');
-    expect((await repository.getDecision('AUTH-004'))?.outcome).toBe('APPROVE');
-    await repository.resetRuntime();
+    const opened = await intro('sara-desert-bloom', 'sess-sql');
+    await attach('sara-desert-bloom', undefined, 'sess-sql');
+    const reopened = await reopenCase(repository, { caseRunId: opened.caseRunId, reviewerName: 'Riley', comments: 'Send the renewed licence.' });
+    expect(reopened.reopened).toMatchObject({ caseRunId: `${opened.caseRunId}-V2`, submissionVersion: 2 });
+    expect(await repository.getRuntimeCase(opened.caseRunId)).toMatchObject({ status: 'REOPENED_AS_NEW_VERSION' });
+    expect((await repository.getReviews(opened.caseRunId))[0]).toMatchObject({ reviewStatus: 'CLOSED_REOPENED', reviewerDecision: 'REOPEN' });
+    expect(await repository.getSession('sess-sql')).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: `${opened.caseRunId}-V2`, evidenceRequestId: reopened.request.evidenceRequestId });
+    const again = await attach('sara-desert-bloom', undefined, 'sess-sql');
+    expect(again.caseRunId).toBe(`${opened.caseRunId}-V2`);
+    expect(await repository.getRuntimeResults(`${opened.caseRunId}-V2`, 2)).toHaveLength(1);
+    expect(await repository.getRuntimeResults(opened.caseRunId, 1)).toHaveLength(1);
+    await expect(reopenCase(repository, { caseRunId: opened.caseRunId, reviewerName: 'R', comments: 'again' })).rejects.toThrow('REOPEN_NOT_ALLOWED');
   });
 
   it('decision, communication, runtime case and audit are atomic: a failure rolls all of them back', async () => {
     await repository.resetRuntime();
+    const { caseRunId } = await caseWithDocuments('fatima-al-noor', undefined, repository);
+    await evaluateCase(repository, new ScriptedRuntime(), caseRunId, 's');
+    await sql`DELETE FROM decisions`; await sql`DELETE FROM communications`; await sql`DELETE FROM audit_events WHERE payload->>'eventType' IN ('DECISION_GENERATED', 'COMMUNICATION_DRAFTED', 'CASE_STATE_CHANGED')`;
     // Spy on the prototype so the transaction-scoped repository instances created inside finalizeDecision also fail.
     const spy = vi.spyOn(PostgresRepository.prototype, 'appendAudit').mockRejectedValue(new Error('audit unavailable'));
     try {
-      await expect(finalizeDecision(repository, 'AUTH-001', 1, 'MOCK')).rejects.toThrow('audit unavailable');
+      await expect(finalizeDecision(repository, caseRunId, 1, 'RUNTIME')).rejects.toThrow('audit unavailable');
     } finally { spy.mockRestore(); }
-    for (const table of ['decisions', 'communications', 'runtime_cases', 'audit_events']) expect(await count(table), table).toBe(0);
+    for (const table of ['decisions', 'communications']) expect(await count(table), table).toBe(0);
   });
 
   it('nested transactions join the outer one: an inner failure undoes the outer writes', async () => {
     await expect(repository.transaction(async (outer) => {
-      await outer.persistEvidenceRequest({ evidenceRequestId: 'EVID-X', caseRunId: 'AUTH-001', submissionVersion: 1, sessionId: '', processCode: 'P-1.1', originatingCheckType: 'AUTHORITY_VALIDATION', originatingReasonCode: 'X', evidenceChannel: 'CHAT_TEXT', requestedItems: [], customerMessage: '', status: 'OPEN', attemptCount: 0, maxAttempts: 3, createdAt: new Date().toISOString(), dueAt: new Date().toISOString() });
+      await outer.persistEvidenceRequest({ evidenceRequestId: 'EVID-X', caseRunId: 'AUTH-101', submissionVersion: 1, sessionId: '', processCode: 'P-1.1', originatingCheckType: 'DOCUMENT_INTAKE', originatingReasonCode: 'X', evidenceChannel: 'FILE_UPLOAD', requestedItems: [], customerMessage: '', status: 'OPEN', attemptCount: 0, maxAttempts: 3, createdAt: new Date().toISOString(), dueAt: new Date().toISOString() });
       await outer.transaction(async () => { throw new Error('inner failure'); });
     })).rejects.toThrow('inner failure');
     expect(await repository.getEvidenceRequest('EVID-X')).toBeUndefined();
   });
 
-  it('intake cases: sequential ids, scenario-backed evaluation on SQL, and reset restarts the sequence', async () => {
-    const opened = await openIntakeCase(repository, { representativeName: 'Liam Chen', businessName: 'Bluegum Vector Demo Pty Ltd', businessIdentifier: '' });
-    expect(opened.caseRecord.caseRunId).toMatch(/^AUTH-1\d\d$/);
-    expect(opened.scenario?.caseRunId).toBe('AUTH-003');
-    const again = await openIntakeCase(repository, { representativeName: 'Zed Nobody', businessName: 'Acme Imaginary Holdings Ltd', businessIdentifier: '' });
-    expect(Number(again.caseRecord.caseRunId.slice(5))).toBe(Number(opened.caseRecord.caseRunId.slice(5)) + 1);
-    expect(again.kind).toBe('NEW_LEAD');
-    expect(await repository.getDecision(again.caseRecord.caseRunId)).toBeUndefined();
+  it('intake cases: sequential ids, a company that is not on record is only a new lead, and reset restarts the sequence', async () => {
     await repository.resetRuntime();
-    expect((await openIntakeCase(repository, { representativeName: 'Liam Chen', businessName: 'Bluegum Vector Demo Pty Ltd', businessIdentifier: '' })).caseRecord.caseRunId).toBe('AUTH-101');
+    const known = await openIntakeCase(repository, { representativeName: 'Fatima Al Mansoori', businessName: 'Al Noor Trading LLC', businessIdentifier: '' });
+    expect(known).toMatchObject({ kind: 'KNOWN_BUSINESS', caseRecord: { caseRunId: 'AUTH-101', businessName: 'Al Noor Trading LLC' } });
+    const lead = await openIntakeCase(repository, { representativeName: 'Zed Nobody', businessName: 'Acme Imaginary Holdings Ltd', businessIdentifier: '' });
+    expect(lead).toMatchObject({ kind: 'NEW_LEAD', caseRecord: { caseRunId: 'AUTH-102', requestType: 'NEW_LEAD' } });
+    expect(await repository.getDecision(lead.caseRecord.caseRunId)).toBeUndefined();
+    expect(await repository.getRuntimeResults(lead.caseRecord.caseRunId, 1)).toEqual([]);
+    await repository.resetRuntime();
+    expect((await openIntakeCase(repository, { representativeName: 'Fatima Al Mansoori', businessName: 'Al Noor Trading LLC', businessIdentifier: '' })).caseRecord.caseRunId).toBe('AUTH-101');
     await repository.resetRuntime();
   });
-  it('resetRuntime clears runtime state and leaves source fixtures, rules and migrations intact', async () => {
-    await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-001', 's');
+
+  it('resetRuntime clears runtime state and leaves the archived n8n fixtures and migrations intact', async () => {
+    await intro('fatima-al-noor');
+    await attach('fatima-al-noor');
     expect(await count('runtime_utility_results')).toBeGreaterThan(0);
     await repository.resetRuntime();
     for (const table of runtimeTables) expect(await count(table), table).toBe(0);
+    expect(await count('intake_cases')).toBe(0);
     expect(await count('source.dt_decision_rules')).toBe(csvRows('dt_decision_rules'));
-    expect(await count('source.dt_mock_utility_results')).toBe(csvRows('dt_mock_utility_results'));
     expect(await count('schema_migrations')).toBe(4);
-    // and the same case can be evaluated again from the clean baseline
-    expect((await evaluateCase(repository, new ScriptedRuntime(), 'AUTH-001', 's')).decision.outcome).toBe('APPROVE');
+    await repository.resetRuntime();
   });
 });

@@ -1,211 +1,320 @@
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import JSZip from 'jszip';
 import { makePdf } from '@sbo/testkit';
 
-const authorityText = 'The signed authority letter grants account management, service ordering, plan changes and contract approval.';
+const samples = (slug: string, ...files: string[]): string[] => files.map((file) => join(process.cwd(), 'apps', 'web', 'public', 'samples', slug, file));
+const intakeFiles = ['emirates-id.pdf', 'trade-license.pdf', 'establishment-card.pdf'];
 
-async function send(page: Page, message: string) {
+async function say(page: Page, message: string) {
   await page.getByLabel('Message').fill(message);
-  await page.getByRole('button', { name: 'Send' }).click();
-}
-async function evaluate(page: Page, caseRunId: string) {
-  await page.goto('/');
-  await page.getByText('Demo: synthetic identities you can use').click();
-  await page.getByRole('button', { name: caseRunId, exact: true }).click();
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
 }
 async function introduce(page: Page, name: string, company: string) {
   await page.goto('/');
-  await send(page, `My name is ${name} and I represent ${company}.`);
+  await say(page, `My name is ${name} and I represent ${company}.`);
+  await expect(page.getByTestId('chat-log')).toContainText(/opened case\s+AUTH-1\d\d|new lead case/);
 }
-const lastAgentTurn = (page: Page) => page.locator('.turn-agent').last();
-const wordFile = async (text: string) => {
-  const zip = new JSZip();
-  zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
-  zip.file('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
-  zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`);
-  return zip.generateAsync({ type: 'nodebuffer' });
-};
+async function sendDocuments(page: Page, paths: string[]) {
+  await page.getByTestId('file-input').setInputFiles(paths);
+  await page.getByRole('button', { name: 'Send documents' }).click();
+}
+const lastMeta = (page: Page) => page.getByTestId('outcome-meta').last();
 
-test.describe('chat', () => {
-  test('a new customer introduces themselves; a case is opened and assessed', async ({ page }) => {
+test.describe('customer chat (To-Be New LOA process)', () => {
+  test('a new customer starts with a name and a company — no case id, nothing to type but the introduction', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('chat-log')).toContainText('tell me your name and the company you represent');
-    await send(page, 'hello');
+    await say(page, 'hello');
     await expect(page.getByTestId('chat-log')).toContainText('the company you represent');
-    await send(page, 'Hi, my name is Liam Chen');
+    await say(page, 'Hi, my name is Fatima Al Mansoori');
     await expect(page.getByTestId('chat-log')).toContainText('Which company are you representing?');
-    await send(page, 'Bluegum Vector Demo Pty Ltd');
+    await say(page, 'Al Noor Trading LLC');
     await expect(page.getByTestId('chat-log')).toContainText(/opened case\s+AUTH-1\d\d/);
-    await expect(page.getByTestId('evidence-card')).toContainText('Exact authority clause or revised authority document');
-    await expect(page.getByTestId('chat-log')).not.toContainText(/reply UPLOADED|Reply TEXT/i);
+    await expect(page.getByTestId('evidence-card')).toContainText('Emirates ID of the representative');
+    await expect(page.getByTestId('evidence-card')).toContainText('Trade License of the business');
+    await expect(page.getByTestId('evidence-card')).toContainText('Establishment Card of the business');
+    await expect(page.getByTestId('chat-log')).not.toContainText(/reply UPLOADED|Reply TEXT|type UPLOAD/i);
   });
 
-  test('AUTH-001 returns a curated approval with a visible tool trace and synthetic banners', async ({ page }) => {
-    await evaluate(page, 'AUTH-001');
-    const reply = lastAgentTurn(page);
-    await expect(reply.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
-    await expect(reply.getByText('All mandatory checks completed successfully.')).toBeVisible();
-    await expect(page.getByTestId('outcome-meta')).toContainText('APPROVE');
-    await expect(page.getByTestId('outcome-meta')).toContainText('Document Checks → Business Validation → Identity Validation → Authority Validation → System Data Check → Financial Check → Final Verification');
-    await expect(page.getByRole('note')).toContainText('Synthetic data');
+  test('documents only: while a document request is open there is no text box, only attach', async ({ page }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
+    await expect(page.getByLabel('Message')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Attach documents' })).toBeVisible();
+    await expect(page.getByText('typed text is not accepted as evidence')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send documents' })).toBeDisabled();
+  });
+
+  test('Fatima attaches her three documents in the same window: five checks pass in order and she is approved', async ({ page }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
+    await page.getByTestId('file-input').setInputFiles(samples('fatima-al-noor', ...intakeFiles));
+    await expect(page.getByLabel('Attached files')).toContainText('emirates-id.pdf');
+    await expect(page.getByLabel('Attached files')).toContainText('establishment-card.pdf');
+    await page.getByRole('button', { name: 'Send documents' }).click();
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
+    await expect(lastMeta(page)).toContainText('APPROVE');
+    await expect(lastMeta(page)).toContainText('Trade License Check → Identity Validation → POA/MOA Check → Bad Debt Check → AVCV Verification');
+    await expect(page.getByTestId('chat-log')).toContainText('Trade License and Establishment Card — Passed');
     const text = await page.getByTestId('chat-log').innerText();
-    expect(text).not.toMatch(/CTRL-|FINAL-001|findings|rule_ids|systemMessage|prompt/i);
-    await expect(page.getByTestId('session-id')).not.toHaveText('…');
+    expect(text).not.toMatch(/TL-DEMO|784-1985|PD-DEMO|CTRL-|FINAL-001|rule_ids|systemMessage|prompt/i);
+    await expect(page.getByRole('note')).toContainText('Synthetic data');
   });
 
-  test('AUTH-005 is explained as a specialist review with its operational route', async ({ page }) => {
-    await evaluate(page, 'AUTH-005');
-    const reply = lastAgentTurn(page);
-    await expect(reply.getByRole('heading', { name: /Specialist review required/ })).toBeVisible();
-    await expect(reply).toContainText('Conflicting customer or party records require reconciliation.');
-    await expect(reply).toContainText('Customer Data Reconciliation');
-    await expect(page.getByTestId('outcome-meta')).toContainText('DUPLICATE_RECORD_CONFLICT');
-  });
-
-  test('AUTH-010 (TBD policy) is routed to policy review and never approved', async ({ page }) => {
-    await evaluate(page, 'AUTH-010');
-    await expect(lastAgentTurn(page)).toContainText('The case requires review by the relevant policy owner.');
-    await expect(page.getByTestId('outcome-meta')).toContainText('TBD_POLICY');
-    await expect(page.getByTestId('outcome-meta')).not.toContainText('APPROVE');
-  });
-
-  test('an unknown case id gets a safe message', async ({ page }) => {
+  test('a company that is not on record becomes a new lead: nothing is checked and nothing is approved', async ({ page }) => {
     await page.goto('/');
-    await send(page, 'Evaluate AUTH-999');
-    await expect(page.getByTestId('chat-log')).toContainText('was not found. No assessment was performed.');
-  });
-
-  test('a company that is not on record becomes a new lead: no checks, no approval', async ({ page }) => {
-    await introduce(page, 'Zed Nobody', 'Acme Imaginary Holdings Ltd');
+    await say(page, 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd.');
     await expect(page.getByTestId('chat-log')).toContainText('new lead case');
     await expect(page.getByTestId('chat-log')).toContainText('nothing has been approved');
     await expect(page.getByTestId('outcome-meta')).toHaveCount(0);
+    await expect(page.getByTestId('evidence-card')).toHaveCount(0);
   });
 
-  test('a known company with a representative who is not on record is assessed and must evidence authority', async ({ page }) => {
-    await introduce(page, 'Zed Nobody', 'Bluegum Vector Demo Pty Ltd');
-    await expect(page.getByTestId('chat-log')).toContainText('is not one of its recorded representatives');
-    await expect(page.getByTestId('evidence-card')).toBeVisible();
-    await expect(page.getByTestId('outcome-meta')).not.toContainText('APPROVE');
-  });
-  test('evidence loop: the customer just types the answer (no TEXT/UPLOAD/UPLOADED words) and the assessment resumes', async ({ page }) => {
-    await evaluate(page, 'AUTH-003');
-    await expect(page.getByTestId('evidence-card')).toContainText('Exact authority clause or revised authority document');
-    await expect(page.getByTestId('chat-log')).toContainText('attach documents (PDF, Word or image files)');
-    await send(page, authorityText);
-    await expect(page.getByTestId('chat-log')).toContainText('Thank you. The additional evidence has resolved the identified gap.');
-    await expect(page.getByTestId('outcome-meta').last()).toContainText('Tools called: System Data Check');
-    await expect(page.getByTestId('chat-log')).toContainText('Authority validation — Passed');
+  test('Omar is not the licence owner: the chat asks for a POA in the same window, then resumes and approves', async ({ page }) => {
+    await introduce(page, 'Omar Haddad', 'Gulf Horizon Contracting LLC');
+    await sendDocuments(page, samples('omar-gulf-horizon', ...intakeFiles));
+    await expect(page.getByTestId('chat-log')).toContainText('not the licence owner');
+    await expect(lastMeta(page)).toContainText('POA_MOA_MISSING');
+    await expect(page.getByTestId('evidence-card')).toContainText('Power of Attorney (POA) or Memorandum of Association (MOA)');
+    await expect(page.getByLabel('Message')).toHaveCount(0);
+    await sendDocuments(page, samples('omar-gulf-horizon', 'power-of-attorney.pdf'));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
+    await expect(lastMeta(page)).toContainText('Tools called: POA/MOA Check → Bad Debt Check → AVCV Verification');
   });
 
-  test('evidence loop: contradictory evidence is escalated to a human evidence reviewer', async ({ page }) => {
-    await evaluate(page, 'AUTH-003');
-    await send(page, 'The representative left the company and this CONTRADICTS the earlier letter.');
-    await expect(page.getByTestId('chat-log')).toContainText('The new evidence conflicts with previously validated case information.');
-    await expect(page.getByTestId('chat-log')).toContainText('No automated reconciliation or final adverse decision has been made.');
+  test('missing documents are named and the same prompt stays open for a re-upload', async ({ page }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
+    await sendDocuments(page, samples('fatima-al-noor', 'emirates-id.pdf', 'trade-license.pdf'));
+    await expect(page.getByTestId('chat-log')).toContainText('Establishment Card of the business is still needed');
+    await expect(page.getByTestId('evidence-card')).toContainText('attempt 1 of 3');
+    await sendDocuments(page, samples('fatima-al-noor', 'establishment-card.pdf'));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
   });
 
-  test('evidence loop: Cancel request stops the request', async ({ page }) => {
-    await evaluate(page, 'AUTH-003');
-    await page.getByRole('button', { name: 'Cancel request' }).click();
-    await expect(page.getByTestId('chat-log')).toContainText('The additional-evidence request has been cancelled.');
+  for (const [slug, name, company, reason] of [
+    ['sara-desert-bloom', 'Sara Khan', 'Desert Bloom Cafe LLC', 'TRADE_LICENSE_EXPIRED'],
+    ['rashid-falcon', 'Rashid Al Ketbi', 'Falcon Logistics LLC', 'IDENTITY_MISMATCH'],
+    ['layla-pearl-coast', 'Layla Nasser', 'Pearl Coast Real Estate LLC', 'BAD_DEBT_OBSERVED'],
+    ['yousef-oasis-tech', 'Yousef Ibrahim', 'Oasis Tech Solutions FZ-LLC', 'AVCV_ADVERSE'],
+  ] as const) {
+    test(`${name}: a rejection is recommended (${reason}) but the customer only sees that a specialist will confirm`, async ({ page }) => {
+      await introduce(page, name, company);
+      await sendDocuments(page, samples(slug, ...intakeFiles));
+      await expect(page.getByRole('heading', { name: /Awaiting specialist confirmation/ })).toBeVisible();
+      await expect(lastMeta(page)).toContainText('PENDING CONFIRMATION');
+      await expect(lastMeta(page)).not.toContainText(/APPROVE|REJECT/);
+      await expect(page.getByTestId('chat-log')).not.toContainText(/PD-DEMO|reject|expired|mismatch|adverse/i);
+      const caseRunId = (await lastMeta(page).locator('code').last().innerText()).trim();
+      await page.getByRole('link', { name: 'Review dashboard' }).click();
+      await expect(page.getByTestId('review-table').getByRole('row', { name: new RegExp(caseRunId) })).toContainText(reason);
+    });
+  }
+
+  test('Layth is recorded as a manager with full authority: no POA is asked for and he is approved', async ({ page }) => {
+    await introduce(page, 'Layth Barakat', 'Al Noor Trading LLC');
+    await sendDocuments(page, samples('layth-al-noor', ...intakeFiles));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
+    await expect(page.getByTestId('chat-log')).not.toContainText('not the licence owner');
   });
 
-  test('documents are attached in the same chat window: several formats at once, listed before sending', async ({ page }) => {
-    await introduce(page, 'Hana Rangi', 'Kauri Harbour Demo Digital Limited');
-    await expect(page.getByTestId('evidence-card')).toBeVisible();
-    expect(page.url()).toMatch(/\/$/);
-    await page.getByTestId('file-input').setInputFiles([
-      { name: 'authority letter.pdf', mimeType: 'application/pdf', buffer: makePdf(authorityText) },
-      { name: 'authority letter.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: await wordFile(authorityText) },
-    ]);
-    await expect(page.getByLabel('Attached files')).toContainText('authority letter.pdf');
-    await expect(page.getByLabel('Attached files')).toContainText('authority letter.docx');
-    await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByTestId('chat-log')).toContainText('authority letter.pdf');
-    await expect(page.getByTestId('chat-log')).toContainText('Thank you. The additional evidence has resolved the identified gap.');
+  test('Adel: AVCV lacks information, so the chat asks for proof of address in the same window, then approves', async ({ page }) => {
+    await introduce(page, 'Adel Mansour', 'Coral Reef Diving LLC');
+    await sendDocuments(page, samples('adel-coral-reef', ...intakeFiles));
+    await expect(page.getByTestId('chat-log')).toContainText('More information is needed to verify the address');
+    await expect(page.getByTestId('evidence-card')).toContainText('Proof of address');
+    await sendDocuments(page, samples('adel-coral-reef', 'proof-of-address.pdf'));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
   });
 
-  test('an unsupported or unreadable file is refused with a clear message and the customer can try again in the same window', async ({ page }) => {
-    await introduce(page, 'Hana Rangi', 'Kauri Harbour Demo Digital Limited');
+  test('Jamal has a recorded limitation on his authority and Reem could not be verified: both go to a specialist, neither is rejected', async ({ page }) => {
+    await introduce(page, 'Jamal Farouk', 'Falcon Logistics LLC');
+    await sendDocuments(page, samples('jamal-falcon', ...intakeFiles));
+    await expect(page.getByRole('heading', { name: /Specialist review required/ })).toBeVisible();
+    await expect(page.getByTestId('chat-log')).toContainText('A limitation is recorded on your authority');
+    await introduce(page, 'Reem Al Hosani', 'Palm Grove Hospitality LLC');
+    await sendDocuments(page, samples('reem-palm-grove', ...intakeFiles));
+    await expect(page.getByTestId('chat-log')).toContainText('This is not a failure');
+  });
+
+  test('Noura: the DUL API is down, so the licence is verified via the government portal and she still passes', async ({ page }) => {
+    await introduce(page, 'Noura Al Falasi', 'Marina Bay Catering LLC');
+    await sendDocuments(page, samples('noura-marina-bay', ...intakeFiles));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
+    await expect(page.getByTestId('chat-log')).toContainText('Passed with a flag');
+  });
+
+  test('unsupported and unrecognised files get a clear message and the customer can try again in the same window', async ({ page }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
     await page.getByTestId('file-input').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('plain text') });
     await expect(page.getByRole('alert')).toContainText('not a supported file');
-    await page.getByTestId('file-input').setInputFiles({ name: 'blank.pdf', mimeType: 'application/pdf', buffer: makePdf('x') });
-    await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByRole('alert')).toContainText("couldn't read enough text");
+    await page.getByTestId('file-input').setInputFiles({ name: 'menu.pdf', mimeType: 'application/pdf', buffer: makePdf('Restaurant menu: starters, mains and desserts for the whole family to enjoy.') });
+    await page.getByRole('button', { name: 'Send documents' }).click();
+    await expect(page.getByRole('alert')).toContainText("couldn't recognise");
     await expect(page.getByRole('alert')).toContainText('Your request remains open.');
-    // still attached, still able to fix it: replace with a good document and send again
-    await page.getByRole('button', { name: /Remove blank.pdf/ }).click();
-    await page.getByTestId('file-input').setInputFiles({ name: 'letter.pdf', mimeType: 'application/pdf', buffer: makePdf(authorityText) });
-    await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByTestId('chat-log')).toContainText('Thank you. The additional evidence has resolved the identified gap.');
+    await page.getByRole('button', { name: /Remove menu.pdf/ }).click();
+    await sendDocuments(page, samples('fatima-al-noor', ...intakeFiles));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
   });
 
-  test('there is no separate upload page or navigation entry', async ({ page }) => {
+  test('Cancel request stops the document request', async ({ page }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
+    await page.getByRole('button', { name: 'Cancel request' }).click();
+    await expect(page.getByTestId('chat-log')).toContainText('The document request has been cancelled.');
+  });
+
+  test('the assistant offers eight topics; picking a request that is not automated is captured and routed, and shows up on the Operations page', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /upload/i })).toHaveCount(0);
+    const picker = page.getByTestId('intent-picker');
+    await expect(picker.getByRole('button')).toHaveCount(8);
+    await expect(picker).toContainText('Move, transfer or port a service');
+    await picker.getByRole('button', { name: /Move, transfer or port a service/ }).click();
+    await page.getByRole('group', { name: 'Requests in this topic' }).getByRole('button', { name: 'Mobile number portability (porting)' }).click();
+    await expect(page.getByTestId('chat-log')).toContainText('not automated in this prototype yet');
+    await expect(page.getByTestId('chat-log')).toContainText('Verifier task');
+    await say(page, 'Fatima Al Mansoori');
+    await say(page, 'Al Noor Trading LLC');
+    await expect(page.getByTestId('chat-log')).toContainText('no checks have been run and nothing has been approved or changed');
+    await expect(page.getByTestId('outcome-meta')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Operations' }).click();
+    const row = page.getByTestId('captured-table').getByRole('row', { name: /Mobile number portability/ });
+    await expect(row).toContainText('VERIFIER_OPERATIONS');
+    await expect(row).toContainText('Al Noor Trading LLC');
+    await expect(page.getByTestId('stage-VERIFIER')).toContainText('requests routed here');
+  });
+
+  test('pre-populated standard queries start a request in one click', async ({ page }) => {
+    await page.goto('/');
+    const quick = page.getByTestId('quick-queries');
+    await expect(quick.getByRole('button')).toHaveCount(8);
+    await quick.getByRole('button', { name: 'I want to add an authorised representative for my company.' }).click();
+    await expect(page.getByTestId('chat-log')).toContainText('Happy to help with New authorised representative (LOA)');
+    await expect(page.getByTestId('chat-log')).not.toContainText('not automated');
+    await say(page, 'My name is Fatima Al Mansoori and I represent Al Noor Trading LLC');
+    await expect(page.getByTestId('evidence-card')).toContainText('Emirates ID of the representative');
+  });
+
+  test('typing a request in your own words is recognised', async ({ page }) => {
+    await page.goto('/');
+    await say(page, 'We lost a SIM card and need it replaced');
+    await expect(page.getByTestId('chat-log')).toContainText('Happy to help with SIM replacement');
+    await expect(page.getByTestId('chat-log')).toContainText('Verifier task');
+  });
+
+  test('the Operations page shows the six stages of the operating model with only profiling live', async ({ page }) => {
+    await page.goto('/operations');
+    const pipeline = page.getByTestId('pipeline');
+    for (const name of ['Profiling', 'Verifier task', 'Processing', 'Control tower', 'Governance', 'Reporting']) await expect(pipeline).toContainText(name);
+    await expect(page.getByTestId('stage-PROFILING')).toContainText('LIVE');
+    await expect(page.getByTestId('stage-PROFILING')).toContainText('Automated: New authorised representative (LOA)');
+    await expect(page.getByTestId('stage-CONTROL_TOWER')).toContainText('NOT BUILT');
+  });
+
+  test('the demo panel lists every synthetic customer with downloadable sample documents; there is no upload page or resubmission page', async ({ page }) => {
+    await page.goto('/');
+    await page.getByText('Demo: synthetic customers and sample documents').click();
+    await expect(page.locator('[data-testid^="persona-"]')).toHaveCount(16);
+    await expect(page.getByTestId('persona-omar-gulf-horizon')).toContainText('Power of Attorney');
+    await expect(page.getByTestId('persona-omar-gulf-horizon').getByRole('link', { name: 'POA / MOA' })).toHaveAttribute('href', '/samples/omar-gulf-horizon/power-of-attorney.pdf');
+    const nav = page.getByRole('navigation', { name: 'Primary' });
+    await expect(nav.getByRole('link', { name: /upload|resubmi/i })).toHaveCount(0);
+    await expect(nav.getByRole('link')).toHaveText(['Assessment chat', 'Operations', 'Review dashboard', 'Case status']);
   });
 });
-test.describe('human review portal', () => {
-  test('completes a review once and blocks the duplicate submission', async ({ page }) => {
-    await evaluate(page, 'AUTH-005');
-    await page.goto('/review?review_id=REV-AUTH-005-1');
-    await page.getByRole('button', { name: 'Open review' }).click();
+
+test.describe('review dashboard and the reopen workflow', () => {
+  async function rejected(page: Page, slug = 'sara-desert-bloom', name = 'Sara Khan', company = 'Desert Bloom Cafe LLC') {
+    await introduce(page, name, company);
+    await sendDocuments(page, samples(slug, ...intakeFiles));
+    await expect(page.getByRole('heading', { name: /Awaiting specialist confirmation/ })).toBeVisible();
+    return (await lastMeta(page).locator('code').last().innerText()).trim();
+  }
+
+  test('an empty dashboard says so', async ({ page }) => {
+    await page.goto('/review');
+    await expect(page.getByRole('heading', { name: 'Review dashboard' })).toBeVisible();
+    await expect(page.getByTestId('review-table')).toContainText(/No open reviews|Loading|REV-/);
+  });
+
+  test('the dashboard lists the review with its Review ID; opening it shows checks, documents and the root-cause analysis; a rejection is confirmed once', async ({ page }) => {
+    const caseRunId = await rejected(page);
+    await page.getByRole('link', { name: 'Review dashboard' }).click();
+    const row = page.getByTestId('review-table').getByRole('row', { name: new RegExp(caseRunId) });
+    await expect(row).toContainText(`REV-${caseRunId}-1`);
+    await expect(row).toContainText('Desert Bloom Cafe LLC');
+    await expect(row).toContainText('TRADE_LICENSE_EXPIRED');
+    await expect(row).toContainText('PENDING REJECTION CONFIRMATION');
+    await row.getByRole('button', { name: /Open review/ }).click();
+    const detail = page.getByTestId('review-detail');
+    await expect(detail).toContainText('Trade License Check');
+    await expect(detail).toContainText('TRADE LICENSE — trade-license.pdf');
+    await expect(detail).toContainText('Root-cause analysis (SBO.20)');
+    await expect(detail).toContainText('The trade licence had expired');
+    await detail.getByLabel('Reviewer name').fill('Riley Reviewer');
     const form = page.getByTestId('review-form');
-    await expect(form).toContainText('Review case AUTH-005');
-    await expect(form).toContainText('DUPLICATE_RECORD_CONFLICT');
-    await expect(form).toContainText('Conflicting legal names exist across CRM records.');
-    await form.getByLabel('Reviewer name').fill('Riley Reviewer');
-    await form.getByLabel('Reviewer decision').selectOption('NEED_MORE_INFORMATION');
-    await form.getByLabel('Reviewer comments').fill('Please supply the reconciled CRM account name.');
+    await form.getByLabel('Reviewer decision').selectOption('REJECT');
+    await form.getByLabel('Reviewer comments').fill('Confirmed: the licence has expired.');
     await form.getByRole('button', { name: 'Complete review' }).click();
     await expect(page.getByRole('heading', { name: 'Human review completed' })).toBeVisible();
     await expect(page.getByText('The communication remains a draft and has not been sent.')).toBeVisible();
-    await expect(page.getByText('Please supply the reconciled CRM account name.').first()).toBeVisible();
-    // opening it again is refused
-    await page.getByLabel('Review ID').fill('REV-AUTH-005-1');
-    await page.getByRole('button', { name: 'Open review' }).click();
-    await expect(page.getByRole('alert')).toContainText('already been completed');
-    await expect(page.getByTestId('review-form')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Closed' }).click();
+    await expect(page.getByTestId('review-table').getByRole('row', { name: new RegExp(caseRunId) })).toContainText('COMPLETED');
   });
 
-  test('requires an override reason when changing a REJECT recommendation and reports unknown reviews', async ({ page }) => {
-    await evaluate(page, 'AUTH-004');
-    await page.goto('/review?review_id=REV-AUTH-004-1');
-    await page.getByRole('button', { name: 'Open review' }).click();
+  test('overturning a rejection requires an override reason', async ({ page }) => {
+    await rejected(page, 'tariq-sahara', 'Tariq Mahmood', 'Sahara Staffing Services LLC');
+    await page.goto('/review');
+    await page.getByRole('button', { name: /Open review/ }).first().click();
+    const detail = page.getByTestId('review-detail');
+    await detail.getByLabel('Reviewer name').fill('Riley Reviewer');
     const form = page.getByTestId('review-form');
-    await form.getByLabel('Reviewer name').fill('Riley Reviewer');
     await form.getByLabel('Reviewer decision').selectOption('APPROVE');
     await expect(form.getByLabel('Override reason (required)')).toBeVisible();
-    await form.getByLabel('Reviewer comments').fill('Register looked stale.');
-    await form.getByRole('button', { name: 'Complete review' }).click();
-    // the native required attribute blocks the submit until the override reason is provided
-    await expect(form).toBeVisible();
-    await form.getByLabel('Override reason (required)').fill('Verified active by manual register check.');
-    await form.getByRole('button', { name: 'Complete review' }).click();
-    await expect(page.getByRole('heading', { name: 'Human review completed' })).toBeVisible();
-    await page.getByLabel('Review ID').fill('REV-NOPE');
-    await page.getByRole('button', { name: 'Open review' }).click();
-    await expect(page.getByRole('alert')).toContainText('could not be located');
+  });
+
+  test("reopen: the reviewer reopens a rejected case with a note; the customer's chat asks for documents again — no separate form — and answers there", async ({ page }) => {
+    const caseRunId = await rejected(page);
+    await page.goto('/review');
+    await page.getByRole('button', { name: `Open review REV-${caseRunId}-1` }).click();
+    const reopenForm = page.getByTestId('reopen-form');
+    await expect(reopenForm).toContainText(`${caseRunId}-V2`);
+    await page.getByTestId('review-detail').getByLabel('Reviewer name').fill('Riley Reviewer');
+    await reopenForm.getByLabel('Note to the customer').fill('Please send the renewed Trade License.');
+    await reopenForm.getByRole('button', { name: 'Reopen case' }).click();
+    await expect(page.getByRole('heading', { name: 'Case reopened' })).toBeVisible();
+    // back in the chat (same browser session): the page picks up the new document request
+    await page.getByRole('link', { name: 'Assessment chat' }).click();
+    await expect(page.getByTestId('chat-log')).toContainText('A reviewer reopened your request');
+    await expect(page.getByTestId('chat-log')).toContainText('Please send the renewed Trade License.');
+    await expect(page.getByTestId('evidence-card')).toContainText('Trade License of the business');
+    await sendDocuments(page, samples('sara-desert-bloom', ...intakeFiles));
+    await expect(lastMeta(page)).toContainText(`${caseRunId}-V2`);
+    await page.goto(`/status?case_run_id=${caseRunId}`);
+    await expect(page.getByTestId('status-view')).toContainText('REOPENED AS NEW VERSION');
+  });
+
+  test('the old resubmission page is gone', async ({ page }) => {
+    await page.goto('/resubmit');
+    await expect(page.getByRole('heading', { name: 'Customer assessment' })).toBeVisible(); // unknown routes fall back to the chat
   });
 });
 
 test.describe('case status page', () => {
-  test('shows an unassessed case, then the full persisted state after assessment', async ({ page }) => {
-    await page.goto('/status?case_run_id=AUTH-007');
+  test('shows a case waiting for documents, then the persisted decision, the drafted communication and its evidence', async ({ page }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
+    const caseRunId = (await page.getByTestId('chat-log').innerText()).match(/AUTH-1\d\d/)![0];
+    await page.goto(`/status?case_run_id=${caseRunId}`);
     const before = page.getByTestId('status-view');
-    await expect(before).toContainText('INITIAL');
-    await expect(before).toContainText('has not been assessed');
+    await expect(before).toContainText('WAITING FOR EVIDENCE');
+    await expect(before).toContainText('Emirates ID of the representative');
     await expect(before).toContainText('All data shown is synthetic.');
-    await evaluate(page, 'AUTH-007');
-    await page.goto('/status?case_run_id=AUTH-007');
+    await page.goto('/');
+    await expect(page.getByTestId('evidence-card')).toBeVisible(); // the open request is picked up again after a reload
+    await sendDocuments(page, samples('fatima-al-noor', ...intakeFiles));
+    await expect(page.getByRole('heading', { name: /Eligible to proceed/ })).toBeVisible();
+    await page.goto(`/status?case_run_id=${caseRunId}`);
     const after = page.getByTestId('status-view');
-    await expect(after).toContainText('REVIEW PENDING');
-    await expect(after).toContainText('REGISTRY_UNAVAILABLE');
-    await expect(after).toContainText('REGISTRY_VERIFICATION');
-    await expect(after).toContainText('REV-AUTH-007-1');
+    await expect(after).toContainText('READY TO PROCEED');
+    await expect(after).toContainText('ALL_CHECKS_PASSED');
+    await expect(after).toContainText('COMM-APPROVE');
     await expect(after).toContainText('Drafts are never sent.');
-    await expect(after).toContainText('Workflow 93 was absent');
   });
 
   test('reports unknown cases without an error page', async ({ page }) => {
@@ -216,27 +325,8 @@ test.describe('case status page', () => {
   });
 });
 
-test.describe('resubmission', () => {
-  test('AUTH-008-V1 → AUTH-008-V2: revised case is approved and the original is superseded', async ({ page }) => {
-    await evaluate(page, 'AUTH-008-V1');
-    await expect(lastAgentTurn(page)).toBeVisible();
-    await page.goto('/resubmit');
-    await page.getByLabel('Resubmission comments').fill('Updated authority letter attached.');
-    await page.getByRole('button', { name: 'Submit resubmission' }).click();
-    await expect(page.getByRole('heading', { name: 'Revised assessment completed' })).toBeVisible();
-    await expect(page.getByText('APPROVE', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('The original submission has been marked as superseded.')).toBeVisible();
-    await page.goto('/status?case_run_id=AUTH-008-V1');
-    await expect(page.getByTestId('status-view')).toContainText('SUPERSEDED BY RESUBMISSION');
-    await page.goto('/resubmit');
-    await page.getByLabel('Resubmission comments').fill('again');
-    await page.getByRole('button', { name: 'Submit resubmission' }).click();
-    await expect(page.getByRole('alert')).toContainText('already been resubmitted');
-  });
-});
-
 test.describe('layout and accessibility', () => {
-  for (const path of ['/', '/review', '/status', '/resubmit']) {
+  for (const path of ['/', '/operations', '/review', '/status']) {
     test(`${path} has landmarks, a synthetic banner and no horizontal scroll on a phone`, async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(path);

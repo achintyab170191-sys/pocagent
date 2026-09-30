@@ -1,69 +1,76 @@
-# State machine specification
+# State machine specification (To-Be New LOA process)
 
-Derived from the `status`, `current_stage` and `target_queue` values written by the n8n workflows (`dt_cases_runtime`), the evidence-request lifecycle (`dt_evidence_requests.status`), the human-review lifecycle (`dt_human_reviews.review_status`) and the historical runtime export. Values are the source's own strings; nothing was renamed.
+Rewritten for the To-Be process (docs/09). The earlier state machine derived from the n8n export is in the git history. Values are persisted strings; the review dashboard and case-status page show them.
 
-Two states requested by the brief are **adapter states** that the source never persists: `INITIAL` (no `dt_cases_runtime` row yet — the status view reports it) and `ASSESSMENT_IN_PROGRESS` (only visible as an `ASSESSMENT_STARTED` audit event). Every other state below is a persisted source value.
-
-## 1. Case (`dt_cases_runtime.status` / `current_stage` / `target_queue`)
-
-| # | From | Trigger (workflow node) | Guard | To: status / current_stage / queue | Written by |
-| --- | --- | --- | --- | --- | --- |
-| C1 | *(none)* → `INITIAL` | – | case exists in `dt_synthetic_cases` | – (no runtime row; adapter state) | – |
-| C2 | `INITIAL` / any | Chat `Evaluate <case>` (03 › Reset Runtime Utility Results) | valid `AUTH-\d{3}(-V\d+)?`, case exists | `ASSESSMENT_IN_PROGRESS` (audit only) | 03 |
-| C3 | assessment | Finalizer selects `FINAL-001` | 7 mandatory checks PASS / PASS_WITH_FLAG | `READY_TO_PROCEED` / `DECISION_COMPLETE` / `ORDER_READINESS` | 90 › Upsert Runtime Case |
-| C4 | assessment | Finalizer selects a `NEED_MORE_INFORMATION` rule | – | `WAITING_FOR_INFORMATION` / `CUSTOMER_ACTION` / rule queue | 90 |
-| C5 | assessment | Finalizer selects a `MANUAL_REVIEW` rule or control CTRL-001/002/003 | – | `REVIEW_PENDING` / `HUMAN_REVIEW` / rule queue | 90 |
-| C6 | assessment | Finalizer selects a `REJECT` rule | – | `REJECTION_CONFIRMATION_PENDING` / `HUMAN_CONFIRMATION` / rule queue | 90 |
-| C7 | C4 or C5 (customer-remediable reason) | Classify Continuation → Create Evidence Request | reason ∈ remediable table | `WAITING_FOR_EVIDENCE` / `CUSTOMER_EVIDENCE` / `CUSTOMER_FOLLOW_UP` | 03 › Update Case to Waiting for Evidence |
-| C8 | `WAITING_FOR_EVIDENCE` | Customer text/upload received | request OPEN / PARTIALLY_RECEIVED / INSUFFICIENT, exact request + case match | (case row unchanged; request → `RECEIVED`) | 03 / 96 |
-| C9 | `WAITING_FOR_EVIDENCE` | Resolution EVID-001 (`ACCEPTED`) | valid structured resolution | `ASSESSMENT_RESUMED` / `AGENTIC_REASSESSMENT` / `SBO.02`, then C3–C6 from the next incomplete check | 03 › Update row(s) |
-| C10 | `WAITING_FOR_EVIDENCE` | Resolution EVID-002, attempts left | `attempt_count + 1 < max_attempts` | unchanged (`WAITING_FOR_EVIDENCE`); request `INSUFFICIENT`; customer asked again | 95 |
-| C11 | `WAITING_FOR_EVIDENCE` | EVID-002 with attempts exhausted | `attempt_count + 1 ≥ max_attempts` | `REVIEW_PENDING` / `HUMAN_REVIEW` / `EVIDENCE_REVIEW`, `human_review_required = true` | 03 › Update Case After Evidence Escalation |
-| C12 | `WAITING_FOR_EVIDENCE` | Resolution EVID-003 (contradictory) | – (source switch is unreachable: G-04) | `REVIEW_PENDING` / `HUMAN_REVIEW` / `EVIDENCE_REVIEW` | 03 › Update Contradictory Evidence Case |
-| C13 | `WAITING_FOR_EVIDENCE` | Customer types CANCEL/STOP/END/CANCEL REQUEST | request still active | `EVIDENCE_REQUEST_CANCELLED` / `CUSTOMER_EVIDENCE` / `CUSTOMER_FOLLOW_UP` | 03 › Update Cancelled Case |
-| C14 | `REVIEW_PENDING` / `REJECTION_CONFIRMATION_PENDING` | Reviewer completes an **open** review | review `PENDING` or `PENDING_REJECTION_CONFIRMATION`, valid form, override reason when changing a REJECT recommendation | `READY_TO_PROCEED` (APPROVE), `WAITING_FOR_INFORMATION` (NEED_MORE_INFORMATION) or `REJECTED_CONFIRMED` (REJECT) / `HUMAN_REVIEW_COMPLETE` | 91 (persisted by the target; G-07) |
-| C15 | `WAITING_FOR_INFORMATION` (decision NEED_MORE_INFORMATION) | Formal resubmission | original decision = NEED_MORE_INFORMATION; same `Case_ID`; higher `Submission_Version`; different `Case_Run_ID` | original: `SUPERSEDED_BY_RESUBMISSION` / `RESUBMITTED` / *revised case run id*; revised run enters C2 | 92 |
-
-Terminal case states: `READY_TO_PROCEED`, `REJECTED_CONFIRMED`, `EVIDENCE_REQUEST_CANCELLED`, `SUPERSEDED_BY_RESUBMISSION`. `WAITING_FOR_INFORMATION` after a review NEED_MORE_INFORMATION is open-ended (no source transition out other than a resubmission).
-
-Invalid transitions are refused, not ignored: completing a completed review (`REVIEW_ALREADY_COMPLETED`), submitting evidence to a non-open request (`EVIDENCE_REQUEST_NOT_OPEN`), resolving without new evidence (`NO_NEW_EVIDENCE_RECEIVED`), resubmitting a non-NMI or already-superseded case (`RESUBMISSION_NOT_ALLOWED` / `RESUBMISSION_ALREADY_CREATED`).
-
-## 2. Evidence request (`dt_evidence_requests.status`)
+## 1. Conversation (`chat_sessions.step`, one per browser session)
 
 ```
-              customer text / attachment                 EVID-001
-   OPEN ─────────────────────────────▶ RECEIVED ─────────────▶ ACCEPTED
-     │                                    │  ▲                    (resolved_at set)
-     │                                    │  │ new text / PDF
-     │                       EVID-002     │  │
-     │                    attempts left   ▼  │
-     │                              INSUFFICIENT
-     │                                    │
-     │             EVID-003 / attempts exhausted
-     │                                    ▼
-     │                               ESCALATED  (resolved_at set; evidence review created)
-     └── CANCEL ───▶ CANCELLED (resolved_at set)   (also from RECEIVED / INSUFFICIENT)
+IDLE ──"name + company"──▶ (company on record?)
+  ▲                            ├─ no  ─▶ DONE   (new-lead case; nothing verified or approved)
+  │                            └─ yes ─▶ AWAITING_EVIDENCE (document request open)
+INTAKE ◀── asks only for what is missing (name, company)
+AWAITING_EVIDENCE ──documents──▶ (complete?)  yes ─▶ checks run ─▶ DONE  |  NEED_MORE_INFORMATION (e.g. POA) ─▶ AWAITING_EVIDENCE
+                              └─ no  ─▶ AWAITING_EVIDENCE (the missing documents are named; attempt n of 3)
+AWAITING_EVIDENCE ──typed text──▶ AWAITING_EVIDENCE (refused: text is not evidence; no attempt spent)
+AWAITING_EVIDENCE ──cancel──▶ DONE
+DONE ──a reviewer reopens the case──▶ AWAITING_EVIDENCE (for the new version)
 ```
 
-`PARTIALLY_RECEIVED` is accepted as an input status (the source allows it) but nothing produces it (G-14). `FIXED` is never used. `max_attempts = 3`, `due_at = created_at + 48 h`. `attempt_count` increments only when a well-formed resolution is recorded; a malformed model output changes nothing.
+## 2. Case (`runtime_cases.status` / `current_stage` / `target_queue`)
 
-## 3. Evidence record (`dt_case_evidence.validation_status`)
+| # | From | Trigger | Guard | To: status / stage / queue |
+| --- | --- | --- | --- | --- |
+| C1 | *(none)* | Customer names a company on record | – | case row only; `WAITING_FOR_EVIDENCE` / `CUSTOMER_EVIDENCE` / `CUSTOMER_FOLLOW_UP` once the document request opens |
+| C1b | *(none)* | Customer names a company **not** on record | – | case row of type `NEW_LEAD`; no runtime case, no checks, no decision |
+| C2 | `WAITING_FOR_EVIDENCE` | Documents complete (request `ACCEPTED`) | request open / received / insufficient | assessment starts; `ASSESSMENT_STARTED` audit |
+| C3 | assessment | Finalizer selects `FINAL-001` | 5 mandatory checks PASS / PASS_WITH_FLAG | `READY_TO_PROCEED` / `DECISION_COMPLETE` / `ORDER_READINESS` |
+| C4 | assessment | A check needs a document (`POA_MOA_MISSING`, `DOCUMENT_UNREADABLE`, `EID_EXPIRED`, `EID_UNREADABLE`) | – | `WAITING_FOR_EVIDENCE` / `CUSTOMER_EVIDENCE` / `CUSTOMER_FOLLOW_UP` (a new document request for that check) |
+| C5 | `WAITING_FOR_EVIDENCE` | Documents for that check complete | – | that check's result is dropped and re-run; `ASSESSMENT_RESUMED`; then C3, C4, C6 or C7 from that check on |
+| C6 | assessment | A check returns a `MANUAL_REVIEW` rule or control CTRL-001/002/003 | – | `REVIEW_PENDING` / `HUMAN_REVIEW` / rule queue; review created |
+| C7 | assessment | A check returns a `REJECT` rule | – | `REJECTION_CONFIRMATION_PENDING` / `HUMAN_CONFIRMATION` / `REJECTION_REVIEW`; SBO.11 draft email; SBO.20 RCA on the audit trail; review created |
+| C8 | `WAITING_FOR_EVIDENCE` | Three attempts and documents still missing | – | `REVIEW_PENDING` / `HUMAN_REVIEW` / `EVIDENCE_REVIEW`; review created; **no decision exists** |
+| C9 | `WAITING_FOR_EVIDENCE` | Customer cancels | request active | `EVIDENCE_REQUEST_CANCELLED` |
+| C10 | `REVIEW_PENDING` / `REJECTION_CONFIRMATION_PENDING` | Reviewer completes an open review | a decision exists; override reason to overturn a REJECT | `READY_TO_PROCEED` (APPROVE), `WAITING_FOR_INFORMATION` (NEED_MORE_INFORMATION) or `REJECTED_CONFIRMED` (REJECT) / `HUMAN_REVIEW_COMPLETE` |
+| C11 | C4 / C6 / C7 / C8 or a completed NEED_MORE_INFORMATION review | Reviewer **reopens** the case | outcome ∈ {REJECT, NEED_MORE_INFORMATION, MANUAL_REVIEW}, or an open evidence review; not already reopened | original: `REOPENED_AS_NEW_VERSION` / `REOPENED` / *new case run id*; its open reviews become `CLOSED_REOPENED`; a **new case** `<id>-V<n+1>` starts at C1 with a new document request, and the customer's chat session is put back to `AWAITING_EVIDENCE` |
 
-`RECEIVED` → `ACCEPTED` | `INSUFFICIENT` | `CONTRADICTORY` (set by Workflow 95 for rows that were `RECEIVED`; earlier `INSUFFICIENT` rows remain in scope for cumulative evaluation). `REJECTED` / `SUPERSEDED` rows are excluded from resolution.
+Terminal states: `READY_TO_PROCEED`, `REJECTED_CONFIRMED`, `EVIDENCE_REQUEST_CANCELLED`, `REOPENED_AS_NEW_VERSION`. A reviewed or reopened case is locked against re-evaluation (`CASE_LOCKED`).
 
-## 4. Human review (`dt_human_reviews.review_status`)
+Refused, not ignored: completing a completed review (`REVIEW_ALREADY_COMPLETED`), completing a review that has no decision (`DECISION_NOT_FOUND` — only reopen is possible), submitting to a closed request (`EVIDENCE_REQUEST_NOT_OPEN`), resolving without a new document (`NO_NEW_EVIDENCE_RECEIVED`), reopening an approved or already-reopened case (`REOPEN_NOT_ALLOWED`).
 
-`PENDING` | `PENDING_REJECTION_CONFIRMATION` (open) → `COMPLETED` (one-way; guarded by a row lock in PostgreSQL and a serialising lock in the in-memory store).
+## 3. Evidence request (`evidence_requests.status`)
 
-## 5. Utility result (`dt_utility_results_runtime`)
+```
+              documents attached                complete
+   OPEN ─────────────────────────▶ RECEIVED ─────────────▶ ACCEPTED   (the originating check re-runs)
+     │                                 │  ▲
+     │                   incomplete    │  │ more documents
+     │                  attempts left  ▼  │
+     │                            INSUFFICIENT   (the missing documents are named)
+     │                                 │
+     │                  attempts exhausted (3)
+     │                                 ▼
+     │                            ESCALATED   (evidence review created)
+     └── cancel ──▶ CANCELLED
+```
 
-One **current** row per `case_run_id + submission_version + check_type` (unique index on active rows). A rerun replaces it; Workflow 95 replaces the originating check's row with an EVID-001/002/003 result; the chat-entry reset deletes exactly the case-run + version rows. Status vocabulary: `PASS`, `PASS_WITH_FLAG`, `FAIL`, `INCONCLUSIVE`, `NOT_RUN`.
+`max_attempts = 3`, `due_at = created_at + 48 h`. An attempt is spent only when at least one new, readable, recognised document was received and the completeness check ran. A file that is unreadable or not an Emirates ID / Trade License / Establishment Card / POA-MOA is refused before anything is stored and spends nothing. What each request needs: `DOCUMENT_INTAKE` → Emirates ID + Trade License + Establishment Card; `TRADE_LICENSE_CHECK` → Trade License; `IDENTITY_VALIDATION` → Emirates ID; `POA_MOA_CHECK` → POA/MOA.
 
-## 6. Governed outcome vs provisional recommendation
+## 4. Evidence record (`case_evidence.validation_status`)
 
-Provisional (agent, advisory): `APPROVE | REJECT | NEED_MORE_INFORMATION | MANUAL_REVIEW`.
-Governed (deterministic Finalizer, authoritative): the same four values. When they differ the runtime records `governance_override` and the message `The AI Agent recommended X, but deterministic policy recorded Y.` The governed outcome is never taken from the model.
+`RECEIVED` → `ACCEPTED` | `INSUFFICIENT`. Every record is a **document** (`FILE_UPLOAD`) with its classified type and the fields read from it (`structured_data.document_type`, `structured_data.fields`); the original file is stored outside any web root. There is no text evidence.
 
-## 7. Where the tests pin these transitions
+## 5. Human review (`human_reviews.review_status`)
 
-`tests/regression.auth.test.ts` (C2–C7, C15 inputs), `tests/evidence.test.ts` (C8–C13, evidence lifecycle), `tests/review-resubmission-status.test.ts` (C14, C15, review lifecycle), `tests/persistence.test.ts` and `tests/sql.integration.test.ts` (utility-result contract), `tests/chat-audit.test.ts` (conversation transitions).
+`PENDING` | `PENDING_REJECTION_CONFIRMATION` (open) → `COMPLETED` (one-way, row-locked) or `CLOSED_REOPENED` (the case was reopened as a new version). All reviews appear on the dashboard by Review ID.
+
+## 6. Utility result (`runtime_utility_results`)
+
+One current row per `case_run_id + submission_version + check_type` (unique index on active rows). Check types: `TRADE_LICENSE_CHECK`, `IDENTITY_VALIDATION`, `POA_MOA_CHECK`, `BAD_DEBT_CHECK`, `AVCV_VERIFICATION`. A re-run replaces the row; when accepted documents answer a failed check, exactly that row is dropped so the assessment re-runs it. Status vocabulary: `PASS`, `PASS_WITH_FLAG`, `FAIL`, `INCONCLUSIVE`.
+
+## 7. Governed outcome vs provisional recommendation
+
+Provisional (agent, advisory): `APPROVE | REJECT | NEED_MORE_INFORMATION | MANUAL_REVIEW`. Governed (deterministic finalizer, authoritative): the same four values. When they differ the runtime records `governance_override`. The governed outcome is never taken from the model.
+
+## 8. Where the tests pin these transitions
+
+`tests/loa-process.test.ts` (conversation, evidence loop, the five checks, dashboard, reopen), `tests/governance.test.ts` (finalizer), `tests/persistence.test.ts` and `tests/sql.integration.test.ts` (utility-result contract, whole process on SQL), `tests/api.test.ts` and `tests/security.test.ts` (HTTP, concurrency, hardening), `tests/e2e/portal.spec.ts` (browser).
