@@ -42,16 +42,19 @@ export function ChatPage() {
   const picker = useRef<HTMLInputElement>(null);
   const textbox = useRef<HTMLTextAreaElement>(null);
   const awaitingRef = useRef(false);
+  const initialSync = useRef(false); // React StrictMode runs effects twice in development: restore the waiting state once
 
   const awaitingEvidence = step === 'AWAITING_EVIDENCE';
   awaitingRef.current = awaitingEvidence;
   const fresh = turns.length <= 1;
 
   /** The conversation may be waiting on the server side too (e.g. a reviewer reopened the case): pick that up on load and every few seconds. */
-  async function syncFromServer() {
+  async function syncFromServer(initial = false) {
     try {
       const { state } = await api<{ state: ChatReply | null }>('/api/chat/state');
       if (!state || awaitingRef.current) return;
+      // Only a document request can newly appear while the page is open (a reviewer reopened the case). Any other waiting state is already on screen: replaying it every few seconds repeated the same question.
+      if (!initial && state.step !== 'AWAITING_EVIDENCE') return;
       setStep(state.step); setRequest(state.evidenceRequest);
       setTurns((current) => [...current, ...state.messages.map((text, index): Turn => ({ role: 'agent', text, meta: index === state.messages.length - 1 ? state : undefined }))]);
     } catch { /* offline or no session yet: nothing to sync */ }
@@ -60,7 +63,7 @@ export function ChatPage() {
     void ensureSession().then((value) => setSession(value.sessionId));
     void api<{ scenarios: Persona[] }>('/api/scenarios').then((body) => setPersonas(body.scenarios)).catch(() => undefined);
     void api<Catalog>('/api/catalog').then(setCatalog).catch(() => undefined);
-    void syncFromServer();
+    if (!initialSync.current) { initialSync.current = true; void syncFromServer(true); }
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void syncFromServer(); }, 5000);
     return () => window.clearInterval(timer);
   }, []);

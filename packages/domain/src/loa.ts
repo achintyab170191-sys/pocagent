@@ -141,6 +141,26 @@ export function businessNamesMatch(left: string | undefined, right: string | und
   return shorter.length >= 2 && shorter.every((token) => longer.includes(token));
 }
 
+/** True when two words differ by at most one inserted, deleted or substituted letter (a typo). */
+function withinOneEdit(left: string, right: string): boolean {
+  if (Math.abs(left.length - right.length) > 1) return false;
+  let i = 0; let j = 0; let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) { i += 1; j += 1; continue; }
+    edits += 1; if (edits > 1) return false;
+    if (left.length > right.length) i += 1; else if (left.length < right.length) j += 1; else { i += 1; j += 1; }
+  }
+  return edits + (left.length - i) + (right.length - j) <= 1;
+}
+
+/** Registered companies the customer may have meant when only part of a name (e.g. just the key word) or a near-miss was typed. Empty when the name already matches a company. */
+export function suggestKnownBusinesses(name: string, limit = 3): string[] {
+  const words = normalise(name).filter((token) => !companyStopWords.has(token));
+  if (!words.length || findKnownBusiness(name)) return [];
+  const close = (word: string, candidate: string): boolean => candidate === word || (word.length >= 3 && candidate.startsWith(word)) || (word.length >= 5 && candidate.length >= 5 && withinOneEdit(word, candidate));
+  return tradeLicenseRegister.filter((record) => { const tokens = normalise(record.businessName).filter((token) => !companyStopWords.has(token)); return words.every((word) => tokens.some((token) => close(word, token))); }).map((record) => record.businessName).slice(0, limit);
+}
+
 // ------------------------------------------------------------------------------------------------------------------
 // Synthetic registers (stand-ins for the DUL API / government portal, BCRM, Emirates ID lookup, AVCV service)
 // ------------------------------------------------------------------------------------------------------------------

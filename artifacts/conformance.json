@@ -1,11 +1,11 @@
 {
   "source": "E&SMB-BO To-Be Process, profiling, pages 12-13 (photographed), plus product-owner requests",
-  "totalSteps": 47,
+  "totalSteps": 48,
   "statusCounts": {
     "IMPLEMENTED": 22,
     "SIMULATED": 7,
     "PLATFORM": 2,
-    "TARGET_ADDITION": 13,
+    "TARGET_ADDITION": 14,
     "OUT_OF_SCOPE": 3
   },
   "steps": [
@@ -777,6 +777,27 @@
         [
           "tests/e2e/portal.spec.ts",
           "the Operations page shows the six stages of the operating model with only profiling live"
+        ]
+      ],
+      "status": "TARGET_ADDITION"
+    },
+    {
+      "id": "T14",
+      "lane": "Product owner request",
+      "step": "When only the key word (or a near miss) of a registered company name is typed, the chatbot asks \"Did you mean …?\" before creating anything",
+      "module": "packages/domain/src/loa.ts#suggestKnownBusinesses · chat.ts#proceed",
+      "tests": [
+        [
+          "tests/loa-process.test.ts",
+          "only the key word (or a near miss) of a registered company asks \"Did you mean …?\" before anything is created"
+        ],
+        [
+          "tests/loa-process.test.ts",
+          "several close matches are listed and nothing is picked for the customer"
+        ],
+        [
+          "tests/e2e/portal.spec.ts",
+          "only the key word of a company asks \"Did you mean …?\" once (the page polling never repeats it), and yes continues with that company"
         ]
       ],
       "status": "TARGET_ADDITION"

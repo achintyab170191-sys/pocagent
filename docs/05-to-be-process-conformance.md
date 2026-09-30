@@ -18,9 +18,9 @@ The generator fails if a referenced test file or title does not exist, so no ste
 | IMPLEMENTED | 22 |
 | SIMULATED | 7 |
 | PLATFORM | 2 |
-| TARGET_ADDITION | 13 |
+| TARGET_ADDITION | 14 |
 | OUT_OF_SCOPE | 3 |
-| **Total** | **47** |
+| **Total** | **48** |
 
 ## Steps
 
@@ -70,6 +70,7 @@ The generator fails if a referenced test file or title does not exist, so no ste
 | T11 | Product owner request | A company that is not on record is confirmed with the customer before the lead is created; a confirmed lead is recorded with onboarding status PENDING and the customer is told a representative will get back | packages/workflows/src/chat.ts#proceed · capture.ts#captureNewLead | tests/loa-process.test.ts › a company that is not on record is confirmed with the customer first; a correction continues the normal flow; tests/loa-process.test.ts › a confirmed lead is recorded with onboarding status PENDING, tells the customer a representative will get back, and never checks or approves; tests/e2e/portal.spec.ts › a company that is not on record is confirmed first and becomes a new lead with onboarding pending | TARGET_ADDITION |  |
 | T12 | Product owner request | A human can reopen a closed case; a closed, human-confirmed rejection is reopened by the customer only once they furnish documents | packages/workflows/src/reopen.ts · chat.ts#findClosedRejection | tests/loa-process.test.ts › a human can reopen a closed (completed) rejected review from the dashboard; tests/loa-process.test.ts › a closed, human-confirmed rejection is reopened by the customer only once they furnish documents; before confirmation nothing is offered | TARGET_ADDITION |  |
 | T13 | Product owner request | The Operations page shows the operating-model stages as a stepper with the New LOA pipeline, new leads, captured requests and recent activity | apps/web/src/pages/OperationsPage.tsx · packages/workflows/src/operations.ts | tests/e2e/portal.spec.ts › the Operations page shows the six stages of the operating model with only profiling live | TARGET_ADDITION |  |
+| T14 | Product owner request | When only the key word (or a near miss) of a registered company name is typed, the chatbot asks "Did you mean …?" before creating anything | packages/domain/src/loa.ts#suggestKnownBusinesses · chat.ts#proceed | tests/loa-process.test.ts › only the key word (or a near miss) of a registered company asks "Did you mean …?" before anything is created; tests/loa-process.test.ts › several close matches are listed and nothing is picked for the customer; tests/e2e/portal.spec.ts › only the key word of a company asks "Did you mean …?" once (the page polling never repeats it), and yes continues with that company | TARGET_ADDITION |  |
 | X1 | Not built | Other To-Be processes: Mobile Re-Registration, Document Update, Combo (Document Update + LOA / LOA + Re-Registration), Regularization, PMP, TASK/TKT, Data Quality Assurance | - | — | OUT_OF_SCOPE | Only the New LOA chatbot-triggered process was built. The other diagrams reuse SBO.05 (document extraction), SBO.12 (system data check / reconciliation) and other utility agents that are not implemented. |
 | X3 | Not built | Automation of the verifier task (MNP, activations, transfer of ownership, SIM replacement, AVCV field work, legal letters, biometric verification), processing (order creation, quality checks, contract validation, delivery, lifecycle tracking), the control tower, governance and reporting | - | — | OUT_OF_SCOPE | Requests for these are captured and routed (T9); nothing runs on them. |
 | X2 | Not built | Ticket-triggered and channel-partner-triggered variants of New LOA; SBO.05 document extraction agent; SBO.13 order execution; SBO.14 case lifecycle tracking | - | — | OUT_OF_SCOPE | The chat variant is the only entry point. The ticket variants share the same five checks and could be added on top. |
