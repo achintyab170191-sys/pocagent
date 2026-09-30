@@ -133,23 +133,27 @@ export async function listScenarios(repository: Repository): Promise<ScenarioSum
   return firstVersions.map((entry) => ({ caseRunId: entry.caseRunId, representativeName: entry.representativeName, businessName: entry.businessName, businessIdentifier: entry.businessIdentifier }));
 }
 
-export interface OpenedCase { caseRecord: CaseRecord; scenario?: CaseRecord; }
+/** Synthetic baseline profile a brand-new customer is assessed with when no named scenario matches (docs/07 G-35). */
+export const syntheticBaselineCaseRunId = 'AUTH-001';
+
+export interface OpenedCase { caseRecord: CaseRecord; scenario?: CaseRecord; synthesised: boolean; }
 
 export async function openIntakeCase(repository: Repository, details: IntakeDetails): Promise<OpenedCase> {
-  const scenario = await findScenario(repository, details);
+  const matched = await findScenario(repository, details);
+  const scenario = matched ?? await repository.getCase(syntheticBaselineCaseRunId);
   const representativeName = cleanText(details.representativeName, 120);
   const businessName = cleanText(details.businessName, 160);
   const caseRecord = await repository.createIntakeCase({
     templateCaseRunId: scenario?.caseRunId ?? '',
     record: {
       submissionVersion: 1, country: scenario?.country ?? '', requestType: 'NEW_AUTHORISED_REPRESENTATIVE', channel: intakeChannel,
-      businessName, businessIdentifier: details.businessIdentifier || scenario?.businessIdentifier || '', customerId: scenario?.customerId ?? '',
+      businessName, businessIdentifier: details.businessIdentifier || (matched ? matched.businessIdentifier : ''), customerId: matched ? matched.customerId : '',
       representativeName, representativeRole: scenario?.representativeRole ?? '', requestedAuthority: scenario?.requestedAuthority ?? standardAuthority,
       requestNarrative: `Please add ${representativeName} as an authorised representative for ${businessName} with the requested account, ordering, plan-change, and approval permissions.`,
       documentsSubmitted: scenario?.documentsSubmitted ?? '', submittedAt: now(), processingPriority: 'STANDARD', syntheticOnly: true,
     },
   });
-  return { caseRecord, scenario };
+  return { caseRecord, scenario: matched, synthesised: !matched };
 }
 
 // ------------------------------------------------------------------------------------------------------------------

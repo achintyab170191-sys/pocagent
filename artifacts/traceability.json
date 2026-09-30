@@ -39,7 +39,7 @@
         "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33); explicit AUTH-nnn input is still resolved by the source regex."
+      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33, G-35); explicit AUTH-nnn input is still resolved by the source regex."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -55,7 +55,7 @@
         "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33); explicit AUTH-nnn input is still resolved by the source regex."
+      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33, G-35); explicit AUTH-nnn input is still resolved by the source regex."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
@@ -116,7 +116,7 @@
         "tests/chat-audit.test.ts › unknown case ids are not assessed"
       ],
       "parityStatus": "PARITY_TESTED_DEVIATION",
-      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33); explicit AUTH-nnn input is still resolved by the source regex."
+      "notes": "A message with no case id no longer errors: it starts the customer-first intake (name + company) and the case id is generated (docs/07 G-33, G-35); explicit AUTH-nnn input is still resolved by the source regex."
     },
     {
       "workflowFile": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",

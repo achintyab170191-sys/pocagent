@@ -75,10 +75,10 @@ test.describe('chat', () => {
     await expect(page.getByTestId('chat-log')).toContainText('was not found. No assessment was performed.');
   });
 
-  test('an unrecognised customer is routed to a specialist instead of being approved', async ({ page }) => {
+  test('a brand-new customer gets a synthetic case and is assessed end to end', async ({ page }) => {
     await introduce(page, 'Zed Nobody', 'Acme Imaginary Holdings Ltd');
-    await expect(page.getByTestId('outcome-meta')).toContainText('MANUAL REVIEW');
-    await expect(page.getByTestId('outcome-meta')).not.toContainText('APPROVE');
+    await expect(page.getByTestId('outcome-meta')).toContainText('Document Checks → Business Validation → Identity Validation');
+    await expect(page.getByTestId('chat-log')).toContainText('you are a new customer');
   });
 
   test('evidence loop: the customer just types the answer (no TEXT/UPLOAD/UPLOADED words) and the assessment resumes', async ({ page }) => {

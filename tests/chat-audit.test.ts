@@ -190,12 +190,13 @@ describe('agentic chat', () => {
     expect(two.caseRunId).toMatch(/^AUTH-1\d\d$/);
   });
 
-  it('an unrecognised customer gets a case and is routed to a specialist — no rule is invented', async () => {
+  it('a brand-new customer gets a synthetic case of their own and the full assessment runs (no specialist shortcut)', async () => {
     const store = newStore();
     const reply = await chat(store, new ScriptedRuntime(), 'x', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
     expect(reply.step).toBe('DONE');
-    expect(reply.outcome).toMatchObject({ governedOutcome: 'MANUAL_REVIEW', humanReviewRequired: true });
-    expect(reply.messages.join('\n')).toContain('no synthetic scenario matched');
+    expect(reply.outcome?.toolsCalled).toHaveLength(7);
+    expect(reply.outcome).toMatchObject({ governedOutcome: 'APPROVE', humanReviewRequired: false });
+    expect(reply.messages.join('\n')).toContain('you are a new customer');
   });
 
   it('re-evaluating a case in chat resets its runtime results (source entry path) rather than resuming', async () => {

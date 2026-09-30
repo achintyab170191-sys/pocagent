@@ -198,7 +198,7 @@ describe('PostgresRepository — full workflows on real SQL', () => {
     expect(opened.scenario?.caseRunId).toBe('AUTH-003');
     const again = await openIntakeCase(repository, { representativeName: 'Zed Nobody', businessName: 'Acme Imaginary Holdings Ltd', businessIdentifier: '' });
     expect(Number(again.caseRecord.caseRunId.slice(5))).toBe(Number(opened.caseRecord.caseRunId.slice(5)) + 1);
-    expect((await evaluateCase(repository, new ScriptedRuntime(), again.caseRecord.caseRunId, 's')).decision.outcome).toBe('MANUAL_REVIEW');
+    expect((await evaluateCase(repository, new ScriptedRuntime(), again.caseRecord.caseRunId, 's')).decision.outcome).toBe('APPROVE');
     await repository.resetRuntime();
     expect((await openIntakeCase(repository, { representativeName: 'Liam Chen', businessName: 'Bluegum Vector Demo Pty Ltd', businessIdentifier: '' })).caseRecord.caseRunId).toBe('AUTH-101');
     await repository.resetRuntime();

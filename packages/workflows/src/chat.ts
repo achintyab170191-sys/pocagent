@@ -173,7 +173,7 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
     return { sessionId, step: 'INTAKE', messages: [ask], caseRunId: '', syntheticDataDisclaimer: true };
   }
   const opened = await openIntakeCase(repository, details);
-  const scenarioNote = opened.scenario ? `\n\n*Synthetic prototype: your details were matched to synthetic scenario ${opened.scenario.caseRunId}.*` : '\n\n*Synthetic prototype: no synthetic scenario matched these details.*';
+  const scenarioNote = opened.scenario ? `\n\n*Synthetic prototype: your details were matched to synthetic scenario ${opened.scenario.caseRunId}.*` : '\n\n*Synthetic prototype: you are a new customer, so I created a synthetic profile for this case and the checks below run against it.*';
   const result = await evaluateCase(repository, agentRuntime, opened.caseRecord.caseRunId, sessionId, `Evaluate ${opened.caseRecord.caseRunId}`);
   return presentAssessment(deps, sessionId, result, [`Thanks ${opened.caseRecord.representativeName}. I've opened case **${opened.caseRecord.caseRunId}** for ${opened.caseRecord.businessName} and I'm running the checks now.${scenarioNote}`]);
 }
