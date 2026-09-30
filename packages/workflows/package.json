@@ -1,0 +1,6 @@
+{
+  "name": "@sbo/workflows",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc --outDir dist --declaration" }
+}

@@ -1,0 +1,66 @@
+{
+  "type": "object",
+  "properties": {
+    "case_run_id": {
+      "type": "string",
+      "description": "The exact synthetic Case Run ID, for example AUTH-003."
+    },
+    "tools_called": {
+      "type": "array",
+      "description": "Utility tool names called by the Agent, in execution order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provisional_outcome": {
+      "type": "string",
+      "enum": [
+        "APPROVE",
+        "REJECT",
+        "NEED_MORE_INFORMATION",
+        "MANUAL_REVIEW"
+      ]
+    },
+    "evidence_summary": {
+      "type": "array",
+      "description": "Concise evidence statements from the tool results.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missing_information": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "human_review_required": {
+      "type": "boolean"
+    },
+    "next_action": {
+      "type": "string"
+    },
+    "decision_rationale": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": [
+    "case_run_id",
+    "tools_called",
+    "provisional_outcome",
+    "human_review_required",
+    "next_action",
+    "decision_rationale"
+  ]
+}

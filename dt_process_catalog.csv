@@ -1,0 +1,2 @@
+﻿process_code,domain,process_name,super_agent,customer_evidence_allowed,text_evidence_allowed,file_evidence_allowed,stakeholder_confirmation_allowed,field_verification_allowed,default_resume_check,notes
+P-1.1,PROFILING,NEW_LOA,SBO.02,true,true,true,true,true,DOCUMENT_EXTRACTION,"Supports missing documents, authority evidence and clarifications"

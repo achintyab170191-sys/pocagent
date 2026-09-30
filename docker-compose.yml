@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sbo
+      POSTGRES_USER: sbo
+      POSTGRES_PASSWORD: sbo
+    ports:
+      - "127.0.0.1:5432:5432"   # loopback only: the development credentials below must never be reachable from the network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbo -d sbo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - sbo-postgres:/var/lib/postgresql/data
+
+  # Optional full stack: `docker compose --profile app up --build`
+  # (Written for completeness; the Docker path was not executed on the authoring machine — Docker was unavailable there.)
+  api:
+    profiles: ["app"]
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgres://sbo:sbo@postgres:5432/sbo
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET (>= 32 chars) in your shell or .env}
+      UPLOAD_DIR: /data/uploads
+      AGENT_RUNTIME: ${AGENT_RUNTIME:-claude}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-}
+    ports:
+      - "3000:3000"
+    mem_limit: 1g        # hard ceiling for hostile-PDF decompression (the PDF worker is time/page/heap bounded, not byte bounded)
+    volumes:
+      - sbo-uploads:/data/uploads
+
+volumes:
+  sbo-postgres:
+  sbo-uploads:

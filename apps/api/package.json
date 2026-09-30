@@ -1,0 +1,6 @@
+{
+  "name": "@sbo/api",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsc --outDir dist" }
+}

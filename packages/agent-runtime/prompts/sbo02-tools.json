@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Document Checks",
+    "description": "Use this tool only when DOCUMENT_EXTRACTION does not already have\nPASS or PASS_WITH_FLAG in existing_runtime_results.\n\nFor a new assessment, this is the first mandatory tool.\n\nIt checks document presence, readability, completeness, contradictions,\nand document-security issues. Stop if it returns is_terminal=true.\n"
+  },
+  {
+    "name": "Business Validation",
+    "description": "Use this tool only when BUSINESS_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and DOCUMENT_EXTRACTION is already passed.\n\nIt validates the synthetic business identifier, legal name, registration\nstatus, and lookup availability.\n"
+  },
+  {
+    "name": "Identity Validation",
+    "description": "Use this tool only when IDENTITY_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and the document and business checks have passed.\n\nIt establishes who the representative is. It does not establish authority.\n"
+  },
+  {
+    "name": "Authority Validation",
+    "description": "Use this tool only when AUTHORITY_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and identity has passed.\n\nDo not call it again where an EVID-001 result already resolved\nAUTHORITY_VALIDATION.\n"
+  },
+  {
+    "name": "System Data Check",
+    "description": "Use this tool only when SYSTEM_DATA_CHECK is the first incomplete\nmandatory check and all earlier checks have passed.\n\nIt examines Party IDs, duplicate records, account-name conflicts,\nexisting authority records, and duplicate requests.\n"
+  },
+  {
+    "name": "Financial Check",
+    "description": "Use this tool only when FINANCIAL_CHECK is the first incomplete\nmandatory check and System Data Check has passed.\n\nDo not invent a policy when a financial rule is TBD.\n"
+  },
+  {
+    "name": "Final Verification",
+    "description": "Use this tool only when FINAL_VERIFICATION is the first incomplete\nmandatory check and every earlier mandatory check has passed.\n"
+  }
+]

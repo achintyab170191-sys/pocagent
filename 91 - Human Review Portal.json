@@ -1,0 +1,1622 @@
+{
+  "name": "91 - Human Review Portal",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "B2B Authorised Representative — Human Review",
+        "formDescription": "Enter the Review ID assigned to the case.\n\nSynthetic prototype only. No production-system action will be performed.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Open Review",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        80
+      ],
+      "id": "bee7b1d5-21a4-4ada-8d57-d5380c298847",
+      "name": "Open Review",
+      "webhookId": "81225cfc-f0cd-4ad7-891c-17634e6ebbf5"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "u7qM071q8oIXQ9Ha",
+          "mode": "list",
+          "cachedResultName": "dt_human_reviews",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/u7qM071q8oIXQ9Ha"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "review_id",
+              "keyValue": "={{ $json['Open Review'] }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        80
+      ],
+      "id": "31f501ab-180e-4011-9950-e9c9fb52d383",
+      "name": "Get Review Record",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = $json || {};\n\nconst reviewId = String(\n  review.review_id || ''\n).trim();\n\nconst reviewStatus = String(\n  review.review_status || ''\n).toUpperCase();\n\nconst reviewFound = reviewId.length > 0;\n\nconst openStatuses = [\n  'PENDING',\n  'PENDING_REJECTION_CONFIRMATION',\n];\n\nconst reviewOpen =\n  reviewFound &&\n  openStatuses.includes(reviewStatus);\n\nreturn [\n  {\n    json: {\n      ...review,\n      review_found: reviewFound,\n      review_open: reviewOpen,\n      normalized_review_status: reviewStatus,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        80
+      ],
+      "id": "36bb34a8-4881-41db-9291-bd446bec72d0",
+      "name": "Check Review Status"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a238915c-da7b-4b3b-90f9-d4e8d38d69d4",
+              "leftValue": "={{$json.review_found}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        80
+      ],
+      "id": "d683395c-1be9-47ec-9959-365a845a9215",
+      "name": "Review Found?"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "<h2>Review record not found</h2>\n\n<p>The supplied Review ID could not be located.</p>\n\n<p>Please check the Review ID and open the review form again.</p>\n\n<hr>\n\n<p><em>No case or decision record was changed.</em></p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        896,
+        176
+      ],
+      "id": "d21be6d3-0c55-448f-b188-f0d39538d1aa",
+      "name": "Review Not Found",
+      "webhookId": "fa425818-4568-4f28-be0b-21adc9f7c0d6"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d3a9de25-8619-4ddf-8b3a-7bc3824d4d35",
+              "leftValue": "={{$json.review_open}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        -16
+      ],
+      "id": "63e0dfe6-6650-4edc-a6a8-1305ae93b0a3",
+      "name": "Review Open?"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "=<h2>Review already completed</h2>\n\n<p><strong>Review ID:</strong> {{$json.review_id}}</p>\n\n<p><strong>Case:</strong> {{$json.case_run_id}}</p>\n\n<p><strong>Current status:</strong> {{$json.normalized_review_status}}</p>\n\n<p>This review cannot be submitted a second time.</p>\n\n<hr>\n\n<p><em>No case or decision record was changed.</em></p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        80
+      ],
+      "id": "b7d4b25b-4743-4e93-a309-8f5a4c45eb5f",
+      "name": "Show Review Already Completed",
+      "webhookId": "6d37a6e1-1555-4745-95fa-6740f6040682"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "LxAbTzo6q5Chsime",
+          "mode": "list",
+          "cachedResultName": "dt_decisions",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/LxAbTzo6q5Chsime"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_run_id",
+              "keyValue": "={{ $('Check Review Status').first().json.case_run_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        -112
+      ],
+      "id": "2f95851c-f699-44f1-ab36-f809b33b075f",
+      "name": "Get Decision Record"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "9HfhTVucqxkuuCm9",
+          "mode": "list",
+          "cachedResultName": "dt_synthetic_cases",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/9HfhTVucqxkuuCm9"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Case_Run_ID",
+              "keyValue": "={{ $('Check Review Status').first().json.case_run_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        -112
+      ],
+      "id": "989db4d1-c86b-4467-a359-49a9bed20cab",
+      "name": "Get Case Record"
+    },
+    {
+      "parameters": {
+        "jsCode": "const review =\n  $('Check Review Status').first().json;\n\nconst decision =\n  $('Get Decision Record').first().json;\n\nconst caseRow =\n  $('Get Case Record').first().json;\n\nreturn [\n  {\n    json: {\n      review_id:\n        review.review_id,\n\n      case_run_id:\n        review.case_run_id,\n\n      requested_at:\n        review.requested_at,\n\n      review_queue:\n        review.review_queue,\n\n      review_status:\n        review.review_status,\n\n      agent_recommendation:\n        review.agent_recommendation,\n\n      submission_version:\n        Number(\n          decision.submission_version || 1\n        ),\n\n      original_decision_id:\n        decision.decision_id,\n\n      original_outcome:\n        decision.outcome,\n\n      original_primary_reason_code:\n        decision.primary_reason_code,\n\n      original_secondary_reason_codes:\n        decision.secondary_reason_codes || '',\n\n      original_target_queue:\n        decision.target_queue,\n\n      original_next_action:\n        decision.next_action,\n\n      original_customer_safe_summary:\n        decision.customer_safe_summary,\n\n      original_missing_information:\n        decision.missing_information || '',\n\n      original_conflicts:\n        decision.conflicts || '',\n\n      original_internal_summary:\n        decision.internal_summary || '',\n\n      original_communication_template_id:\n        decision.communication_template_id || '',\n\n      original_decision_created_at:\n        decision.created_at,\n\n      business_name:\n        caseRow.Business_Name_Submitted,\n\n      business_identifier:\n        caseRow.Business_Identifier_Submitted,\n\n      customer_id:\n        caseRow.Customer_ID,\n\n      representative_name:\n        caseRow.Representative_Name,\n\n      representative_role:\n        caseRow.Representative_Role,\n\n      requested_authority:\n        caseRow.Requested_Authority,\n\n      request_narrative:\n        caseRow.Customer_Request_Narrative,\n\n      country:\n        caseRow.Country,\n\n      prototype_data:\n        true,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        -112
+      ],
+      "id": "b7900c12-8eab-4ad8-b91d-951436fbc036",
+      "name": "Prepare Review Package"
+    },
+    {
+      "parameters": {
+        "formFields": {
+          "values": [
+            {
+              "fieldType": "html",
+              "html": "<div style=\"padding:16px;border:1px solid #ddd;border-radius:8px;margin-bottom:16px;\">\n\n  <h3>Case summary</h3>\n\n  <p><strong>Review ID:</strong> {{$json.review_id}}</p>\n\n  <p><strong>Case:</strong> {{$json.case_run_id}}</p>\n\n  <p><strong>Country:</strong> {{$json.country}}</p>\n\n  <p><strong>Business:</strong> {{$json.business_name}}</p>\n\n  <p><strong>Business identifier:</strong> {{$json.business_identifier}}</p>\n\n  <p><strong>Representative:</strong> {{$json.representative_name}}</p>\n\n  <p><strong>Role:</strong> {{$json.representative_role}}</p>\n\n  <p><strong>Requested authority:</strong> {{$json.requested_authority}}</p>\n\n  <hr>\n\n  <p><strong>Agent recommendation:</strong> {{$json.agent_recommendation}}</p>\n\n  <p><strong>Primary reason:</strong> {{$json.original_primary_reason_code}}</p>\n\n  <p><strong>Review queue:</strong> {{$json.review_queue}}</p>\n\n  <p><strong>Current summary:</strong> {{$json.original_customer_safe_summary}}</p>\n\n  <p><strong>Conflicts:</strong>\n  {{$json.original_conflicts || 'None recorded'}}\n  </p>\n\n  <p><strong>Missing information:</strong>\n  {{$json.original_missing_information || 'None recorded'}}\n  </p>\n\n</div>"
+            },
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "review_id",
+              "fieldValue": "={{$json.review_id}}"
+            },
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "case_run_id",
+              "fieldValue": "={{$json.case_run_id}}"
+            },
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "submission_version",
+              "fieldValue": "={{$json.submission_version}}"
+            },
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "agent_recommendation",
+              "fieldValue": "={{$json.agent_recommendation}}"
+            },
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "original_primary_reason_code",
+              "fieldValue": "={{$json.original_primary_reason_code}}"
+            },
+            {
+              "fieldLabel": "reviewer_name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "reviewer_decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "APPROVE"
+                  },
+                  {
+                    "option": "NEED_MORE_INFORMATION"
+                  },
+                  {
+                    "option": "REJECT"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "reviewer_comments",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "override_reason",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {
+          "formTitle": "=Review Case {{$json.case_run_id}}",
+          "formDescription": "Review the case evidence and agent recommendation before selecting a final disposition."
+        }
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        1792,
+        -112
+      ],
+      "id": "bca74607-adc1-4583-a7d6-90472524e995",
+      "name": "Form",
+      "webhookId": "59d41779-6d44-4ae9-806d-6c8024e393d0"
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $json;\n\nconst reviewPackage =\n  $('Prepare Review Package').first().json;\n\nconst reviewerName = String(\n  form.reviewer_name || ''\n).trim();\n\nconst reviewerDecision = String(\n  form.reviewer_decision || ''\n).trim().toUpperCase();\n\nconst reviewerComments = String(\n  form.reviewer_comments || ''\n).trim();\n\nconst overrideReason = String(\n  form.override_reason || ''\n).trim();\n\nconst allowedDecisions = [\n  'APPROVE',\n  'NEED_MORE_INFORMATION',\n  'REJECT',\n];\n\nif (!reviewerName) {\n  throw new Error(\n    'Reviewer name is required.'\n  );\n}\n\nif (!allowedDecisions.includes(reviewerDecision)) {\n  throw new Error(\n    `Unsupported reviewer decision: ${reviewerDecision}`\n  );\n}\n\nif (!reviewerComments) {\n  throw new Error(\n    'Reviewer comments are required.'\n  );\n}\n\nconst agentRecommendation = String(\n  reviewPackage.agent_recommendation || ''\n).toUpperCase();\n\n// A rejection recommendation requires an override\n// reason when the reviewer chooses another outcome.\nif (\n  agentRecommendation === 'REJECT' &&\n  reviewerDecision !== 'REJECT' &&\n  !overrideReason\n) {\n  throw new Error(\n    'An override reason is required when changing a REJECT recommendation.'\n  );\n}\n\nconst outcomeConfiguration = {\n  APPROVE: {\n    target_queue:\n      'ORDER_READINESS',\n\n    next_action:\n      'Proceed to the next controlled operational step. No production write-back has been performed.',\n\n    communication_template_id:\n      'TPL-APPROVE',\n\n    customer_safe_summary:\n      'A human reviewer approved the request after reviewing the available evidence.',\n  },\n\n  NEED_MORE_INFORMATION: {\n    target_queue:\n      'CUSTOMER_FOLLOW_UP',\n\n    next_action:\n      'Request the additional information identified by the reviewer and keep the case open.',\n\n    communication_template_id:\n      'TPL-NMI',\n\n    customer_safe_summary:\n      'A human reviewer determined that additional information is required before the assessment can be completed.',\n  },\n\n  REJECT: {\n    target_queue:\n      'CASE_CLOSURE',\n\n    next_action:\n      'Prepare the rejection communication for approval and close the synthetic case after the communication is confirmed.',\n\n    communication_template_id:\n      'TPL-REJECT',\n\n    customer_safe_summary:\n      'A human reviewer confirmed that the request cannot proceed based on the current evidence and prototype rules.',\n  },\n};\n\nconst finalConfiguration =\n  outcomeConfiguration[reviewerDecision];\n\nconst completedAt =\n  new Date().toISOString();\n\nconst existingSecondaryReasons =\n  String(\n    reviewPackage.original_secondary_reason_codes || ''\n  )\n    .split(';')\n    .map(value => value.trim())\n    .filter(Boolean);\n\nconst finalSecondaryReasons = [\n  ...new Set([\n    ...existingSecondaryReasons,\n    'HUMAN_REVIEW_COMPLETED',\n  ]),\n];\n\nconst humanReview = {\n  review_id:\n    reviewPackage.review_id,\n\n  reviewer_name:\n    reviewerName,\n\n  reviewer_decision:\n    reviewerDecision,\n\n  reviewer_comments:\n    reviewerComments,\n\n  override_reason:\n    overrideReason,\n\n  completed_at:\n    completedAt,\n};\n\nconst finalDecisionJson = {\n  case_run_id:\n    reviewPackage.case_run_id,\n\n  submission_version:\n    reviewPackage.submission_version,\n\n  original_outcome:\n    reviewPackage.original_outcome,\n\n  final_outcome:\n    reviewerDecision,\n\n  primary_reason_code:\n    reviewPackage.original_primary_reason_code,\n\n  secondary_reason_codes:\n    finalSecondaryReasons,\n\n  human_review_required:\n    false,\n\n  target_queue:\n    finalConfiguration.target_queue,\n\n  next_action:\n    finalConfiguration.next_action,\n\n  customer_safe_summary:\n    finalConfiguration.customer_safe_summary,\n\n  communication_template_id:\n    finalConfiguration.communication_template_id,\n\n  human_review:\n    humanReview,\n\n  prototype_data:\n    true,\n\n  production_write_performed:\n    false,\n};\n\nreturn [\n  {\n    json: {\n      ...reviewPackage,\n\n      reviewer_name:\n        reviewerName,\n\n      reviewer_decision:\n        reviewerDecision,\n\n      reviewer_comments:\n        reviewerComments,\n\n      override_reason:\n        overrideReason,\n\n      final_outcome:\n        reviewerDecision,\n\n      final_target_queue:\n        finalConfiguration.target_queue,\n\n      final_next_action:\n        finalConfiguration.next_action,\n\n      final_customer_safe_summary:\n        finalConfiguration.customer_safe_summary,\n\n      final_communication_template_id:\n        finalConfiguration.communication_template_id,\n\n      final_secondary_reason_codes:\n        finalSecondaryReasons,\n\n      human_review_required:\n        false,\n\n      final_review_status:\n        'COMPLETED',\n\n      completed_at:\n        completedAt,\n\n      final_decision_json:\n        finalDecisionJson,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        -112
+      ],
+      "id": "1b3a1030-8f23-49c5-b8e2-31cf4c96b5eb",
+      "name": "Validate Reviewer Submission"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "u7qM071q8oIXQ9Ha",
+          "mode": "list",
+          "cachedResultName": "dt_human_reviews",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/u7qM071q8oIXQ9Ha"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "review_id",
+              "keyValue": "={{$json.review_id}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "review_id": "={{$json.review_id}}",
+            "case_run_id": "={{$json.case_run_id}}",
+            "review_queue": "={{$json.review_queue}}",
+            "agent_recommendation": "={{$json.agent_recommendation}}",
+            "reviewer_name": "={{$json.reviewer_name}}",
+            "reviewer_decision": "={{$json.reviewer_decision}}",
+            "reviewer_comments": "={{$json.reviewer_comments}}",
+            "override_reason": "={{$json.override_reason}}",
+            "review_status": "={{$json.final_review_status}}",
+            "requested_at": "={{$json.requested_at}}",
+            "completed_at": "={{$json.completed_at}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "review_id",
+              "displayName": "review_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "review_queue",
+              "displayName": "review_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "agent_recommendation",
+              "displayName": "agent_recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reviewer_name",
+              "displayName": "reviewer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reviewer_decision",
+              "displayName": "reviewer_decision",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reviewer_comments",
+              "displayName": "reviewer_comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "override_reason",
+              "displayName": "override_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "review_status",
+              "displayName": "review_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "requested_at",
+              "displayName": "requested_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        -112
+      ],
+      "id": "492fd776-ccf4-46a4-affc-75c71e263fdd",
+      "name": "Update Review Record"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "LxAbTzo6q5Chsime",
+          "mode": "list",
+          "cachedResultName": "dt_decisions",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/LxAbTzo6q5Chsime"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_run_id",
+              "keyValue": "={{ $('Validate Reviewer Submission').first().json.case_run_id }}"
+            },
+            {
+              "keyName": "submission_version",
+              "keyValue": "={{ $('Validate Reviewer Submission').first().json.submission_version }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "decision_id": "={{ $('Validate Reviewer Submission').first().json.original_decision_id }}",
+            "case_run_id": "={{ $('Validate Reviewer Submission').first().json.case_run_id }}",
+            "submission_version": "={{ $('Validate Reviewer Submission').first().json.submission_version }}",
+            "outcome": "={{ $('Validate Reviewer Submission').first().json.final_outcome }}",
+            "primary_reason_code": "={{ $('Validate Reviewer Submission').first().json.original_primary_reason_code }}",
+            "secondary_reason_codes": "={{ $('Validate Reviewer Submission').first().json.final_secondary_reason_codes.join('; ') }}",
+            "human_review_required": "false",
+            "target_queue": "={{ $('Validate Reviewer Submission').first().json.final_target_queue }}",
+            "missing_information": "={{ $('Validate Reviewer Submission').first().json.original_missing_information }}",
+            "conflicts": "={{ $('Validate Reviewer Submission').first().json.original_conflicts }}",
+            "next_action": "={{ $('Validate Reviewer Submission').first().json.final_next_action }}",
+            "customer_safe_summary": "={{ $('Validate Reviewer Submission').first().json.final_customer_safe_summary }}",
+            "internal_summary": "=Human review completed by {{ $('Validate Reviewer Submission').first().json.reviewer_name }}. Comments: {{ $('Validate Reviewer Submission').first().json.reviewer_comments }}",
+            "communication_template_id": "={{ $('Validate Reviewer Submission').first().json.final_communication_template_id }}",
+            "decision_json": "={{ JSON.stringify($('Validate Reviewer Submission').first().json.final_decision_json) }}",
+            "created_at": "={{ $('Validate Reviewer Submission').first().json.original_decision_created_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "decision_id",
+              "displayName": "decision_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "outcome",
+              "displayName": "outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "primary_reason_code",
+              "displayName": "primary_reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "secondary_reason_codes",
+              "displayName": "secondary_reason_codes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "target_queue",
+              "displayName": "target_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "missing_information",
+              "displayName": "missing_information",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "conflicts",
+              "displayName": "conflicts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "next_action",
+              "displayName": "next_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_safe_summary",
+              "displayName": "customer_safe_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "internal_summary",
+              "displayName": "internal_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "communication_template_id",
+              "displayName": "communication_template_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "decision_json",
+              "displayName": "decision_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "human_review_required",
+              "displayName": "human_review_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        -112
+      ],
+      "id": "92111d7d-4698-45aa-8d00-ad2f5772b267",
+      "name": "Update Final Decision"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "yxGkpl7zLS8je3TV",
+          "mode": "list",
+          "cachedResultName": "dt_audit_events",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/yxGkpl7zLS8je3TV"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_id": "=EVT-{{ $('Validate Reviewer Submission').first().json.case_run_id }}-HUMAN-{{$now.toMillis()}}",
+            "case_run_id": "={{ $('Validate Reviewer Submission').first().json.case_run_id }}",
+            "submission_version": "={{ $('Validate Reviewer Submission').first().json.submission_version }}",
+            "timestamp": "={{$now.toISO()}}",
+            "actor": "={{ $('Validate Reviewer Submission').first().json.reviewer_name }}",
+            "event_type": "HUMAN_REVIEW_COMPLETED",
+            "stage": "HUMAN_REVIEW",
+            "previous_state": "={{ $('Validate Reviewer Submission').first().json.agent_recommendation }}",
+            "new_state": "={{ $('Validate Reviewer Submission').first().json.final_outcome }}",
+            "reason_code": "={{ $('Validate Reviewer Submission').first().json.original_primary_reason_code }}",
+            "evidence_reference": "=Review ID: {{ $('Validate Reviewer Submission').first().json.review_id }}",
+            "details_json": "={{ JSON.stringify($('Validate Reviewer Submission').first().json.final_decision_json) }}",
+            "execution_id": "={{$execution.id}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_id",
+              "displayName": "event_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "previous_state",
+              "displayName": "previous_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "new_state",
+              "displayName": "new_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rule_id",
+              "displayName": "rule_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason_code",
+              "displayName": "reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_reference",
+              "displayName": "evidence_reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "details_json",
+              "displayName": "details_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3808,
+        -112
+      ],
+      "id": "1ed0661c-5d73-4b36-8399-75b45eaaaf48",
+      "name": "Create Review Audit Event"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json:\n      $('Build Human Review Communication').first().json\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4032,
+        -112
+      ],
+      "id": "bf749c60-8d32-454c-ab63-34c3c0dbf19f",
+      "name": "Restore Reviewed Package"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "=<h2>Human review completed</h2>\n\n<p><strong>Review ID:</strong> {{$json.review_id}}</p>\n\n<p><strong>Case:</strong> {{$json.case_run_id}}</p>\n\n<p><strong>Reviewer:</strong> {{$json.reviewer_name}}</p>\n\n<p><strong>Final outcome:</strong> {{$json.final_outcome}}</p>\n\n<p><strong>Original agent recommendation:</strong> {{$json.agent_recommendation}}</p>\n\n<p><strong>Primary reason:</strong> {{$json.original_primary_reason_code}}</p>\n\n<p><strong>Reviewer comments:</strong> {{$json.reviewer_comments}}</p>\n\n<p><strong>Next action:</strong> {{$json.final_next_action}}</p>\n\n<p><strong>Target queue:</strong> {{$json.final_target_queue}}</p>\n\n<hr>\n\n<p><em>The human-review and decision records have been updated. No production-system action or customer communication has been sent.</em></p>\n\n<hr>\n\n<h3>Updated communication draft</h3>\n\n<p><strong>Subject:</strong> {{$json.communication.subject}}</p>\n\n<p>{{$json.communication.body}}</p>\n\n<p><strong>Status:</strong> {{$json.communication.status}}</p>\n\n<p><em>The communication remains a draft and has not been sent.</em></p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        4256,
+        -112
+      ],
+      "id": "83817c5d-d03a-4a68-97e3-72fdd3fa6e51",
+      "name": "Show Review Completed",
+      "webhookId": "a5c04215-0db6-4e1c-8016-f9598bbdab11"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "gCtQkgp45DrDU8vL",
+          "mode": "list",
+          "cachedResultName": "dt_communication_templates",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/gCtQkgp45DrDU8vL"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Template_ID",
+              "keyValue": "={{ $('Validate Reviewer Submission').first().json.final_communication_template_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        -112
+      ],
+      "id": "64114d97-7f3a-4a50-b3af-2b075aa90053",
+      "name": "Get Human Review Communication Template"
+    },
+    {
+      "parameters": {
+        "jsCode": "const review =\n  $('Validate Reviewer Submission').first().json;\n\nconst template =\n  $('Get Human Review Communication Template').first().json;\n\nconst values = {\n  case_id:\n    review.case_run_id,\n\n  business_name:\n    review.business_name,\n\n  representative_name:\n    review.representative_name,\n\n  outcome:\n    review.final_outcome,\n\n  reason_code:\n    review.original_primary_reason_code,\n\n  queue:\n    review.final_target_queue,\n\n  next_action:\n    review.final_next_action,\n\n  missing_items:\n    review.final_outcome === 'NEED_MORE_INFORMATION'\n      ? review.reviewer_comments\n      : (\n          review.original_missing_information ||\n          'Please refer to the reviewer comments.'\n        ),\n};\n\nfunction fillTemplate(text = '') {\n  return String(text).replace(\n    /\\{(\\w+)\\}/g,\n    (match, key) =>\n      values[key] !== undefined\n        ? String(values[key])\n        : match\n  );\n}\n\nreturn [\n  {\n    json: {\n      ...review,\n\n      communication: {\n        communication_id:\n          `COMM-${review.case_run_id}-V${review.submission_version}-HUMAN`,\n\n        audience:\n          template.Audience,\n\n        template_id:\n          template.Template_ID,\n\n        subject:\n          fillTemplate(template.Subject_Template),\n\n        body:\n          fillTemplate(template.Body_Template),\n\n        status:\n          'DRAFT',\n\n        approval_required:\n          true,\n\n        sent:\n          false,\n\n        created_at:\n          new Date().toISOString(),\n      },\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        -112
+      ],
+      "id": "5b42ea33-110c-4b1a-a793-83c2bd77a650",
+      "name": "Build Human Review Communication"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "KvZNFPuTSDURsnl6",
+          "mode": "list",
+          "cachedResultName": "dt_communications",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/KvZNFPuTSDURsnl6"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "communication_id",
+              "keyValue": "={{ $('Build Human Review Communication').first().json.communication.communication_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "approval_required": true,
+            "communication_id": "={{ $('Build Human Review Communication').first().json.communication.communication_id }}",
+            "case_run_id": "={{ $('Build Human Review Communication').first().json.case_run_id }}",
+            "audience": "={{ $('Build Human Review Communication').first().json.communication.audience }}",
+            "template_id": "={{ $('Build Human Review Communication').first().json.communication.template_id }}",
+            "subject": "={{ $('Build Human Review Communication').first().json.communication.subject }}",
+            "body": "={{ $('Build Human Review Communication').first().json.communication.body }}",
+            "status": "DRAFT",
+            "created_at": "={{ $('Build Human Review Communication').first().json.communication.created_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "communication_id",
+              "displayName": "communication_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "audience",
+              "displayName": "audience",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "template_id",
+              "displayName": "template_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "approval_required",
+              "displayName": "approval_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "approved_at",
+              "displayName": "approved_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3136,
+        -112
+      ],
+      "id": "5898f9bc-4ae2-40e5-9239-0a271a9cabaf",
+      "name": "Store Human Review Communication"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result =\n  $('Build Human Review Communication').first().json;\n\nconst outcome =\n  String(result.final_outcome).toUpperCase();\n\nconst statusMap = {\n  APPROVE: 'READY_TO_PROCEED',\n  NEED_MORE_INFORMATION: 'WAITING_FOR_INFORMATION',\n  REJECT: 'REJECTED_CONFIRMED',\n};\n\nreturn [\n  {\n    json: {\n      case_run_id:\n        result.case_run_id,\n\n      case_id:\n        result.case_run_id,\n\n      submission_version:\n        Number(result.submission_version),\n\n      country:\n        result.country,\n\n      request_type:\n        'NEW_AUTHORISED_REPRESENTATIVE',\n\n      business_name:\n        result.business_name,\n\n      business_identifier:\n        result.business_identifier,\n\n      customer_id:\n        result.customer_id,\n\n      representative_name:\n        result.representative_name,\n\n      status:\n        statusMap[outcome] || 'REVIEW_COMPLETE',\n\n      current_stage:\n        'HUMAN_REVIEW_COMPLETE',\n\n      final_outcome:\n        outcome,\n\n      primary_reason_code:\n        result.original_primary_reason_code,\n\n      target_queue:\n        result.final_target_queue,\n\n      human_review_required:\n        false,\n\n      updated_at:\n        new Date().toISOString(),\n\n      execution_id:\n        $execution.id,\n\n      synthetic_only:\n        true,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        -112
+      ],
+      "id": "ab7764cc-211e-4f2c-a32d-f553c079bb5f",
+      "name": "Prepare Reviewed Runtime Case"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "CcXJF5L1X798j6CE",
+          "mode": "list",
+          "cachedResultName": "dt_cases_runtime",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/CcXJF5L1X798j6CE"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_Run_ID",
+              "keyValue": "={{$json.case_run_id}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "human_review_required": false,
+            "synthetic_Only": false,
+            "case_Run_ID": "="
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "case_Run_ID",
+              "displayName": "case_Run_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_ID",
+              "displayName": "case_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "request_type",
+              "displayName": "request_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "business_name",
+              "displayName": "business_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "business_identifier",
+              "displayName": "business_identifier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "representative_name",
+              "displayName": "representative_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "current_stage",
+              "displayName": "current_stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "final_outcome",
+              "displayName": "final_outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "target_queue",
+              "displayName": "target_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "human_review_required",
+              "displayName": "human_review_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "synthetic_Only",
+              "displayName": "synthetic_Only",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "primary_reason_code",
+              "displayName": "primary_reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3584,
+        -112
+      ],
+      "id": "1b3c4f0b-eabc-4c03-b4c9-d44dd09d4608",
+      "name": "Update Runtime Case After Review"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Open Review": {
+      "main": [
+        [
+          {
+            "node": "Get Review Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Review Record": {
+      "main": [
+        [
+          {
+            "node": "Check Review Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Review Status": {
+      "main": [
+        [
+          {
+            "node": "Review Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Found?": {
+      "main": [
+        [
+          {
+            "node": "Review Open?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Review Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Open?": {
+      "main": [
+        [
+          {
+            "node": "Get Decision Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Review Already Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Decision Record": {
+      "main": [
+        [
+          {
+            "node": "Get Case Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Case Record": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review Package": {
+      "main": [
+        [
+          {
+            "node": "Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Form": {
+      "main": [
+        [
+          {
+            "node": "Validate Reviewer Submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Reviewer Submission": {
+      "main": [
+        [
+          {
+            "node": "Update Review Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Review Record": {
+      "main": [
+        [
+          {
+            "node": "Update Final Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Final Decision": {
+      "main": [
+        [
+          {
+            "node": "Get Human Review Communication Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Review Audit Event": {
+      "main": [
+        [
+          {
+            "node": "Restore Reviewed Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Reviewed Package": {
+      "main": [
+        [
+          {
+            "node": "Show Review Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Human Review Communication Template": {
+      "main": [
+        [
+          {
+            "node": "Build Human Review Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Human Review Communication": {
+      "main": [
+        [
+          {
+            "node": "Store Human Review Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Human Review Communication": {
+      "main": [
+        [
+          {
+            "node": "Prepare Reviewed Runtime Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Reviewed Runtime Case": {
+      "main": [
+        [
+          {
+            "node": "Update Runtime Case After Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Runtime Case After Review": {
+      "main": [
+        [
+          {
+            "node": "Create Review Audit Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "7Su9PC0hLneBhGnc",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "versionId": "9d02c104-e76e-4311-81fc-3c18cd4c60e4",
+  "meta": {
+    "instanceId": "a314b836c084695b12b69b8d570c98912227d4785e1c5124e122761794634790"
+  },
+  "nodeGroups": [],
+  "id": "PeD6c0JBqEeujSP9",
+  "tags": []
+}

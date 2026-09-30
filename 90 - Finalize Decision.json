@@ -1,0 +1,1310 @@
+{
+  "name": "90 - Finalize Decision",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "9HfhTVucqxkuuCm9",
+          "mode": "list",
+          "cachedResultName": "dt_synthetic_cases",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/9HfhTVucqxkuuCm9"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Case_Run_ID",
+              "keyValue": "={{ $('Receive Finalization Request').first().json.case_run_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        80
+      ],
+      "id": "70251e83-7721-4753-90c6-e2ba3487cdb6",
+      "name": "Get Case",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8GK7hdyGe8VJdsEO",
+          "mode": "list",
+          "cachedResultName": "dt_decision_rules",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/8GK7hdyGe8VJdsEO"
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        80
+      ],
+      "id": "aa677402-3e63-4d80-9d4a-ab294a0256cc",
+      "name": "Get Decision Rules",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"case_run_id\": \"AUTH-001\",\n  \"submission_version\": 1,\n  \"result_source\": \"MOCK\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        80
+      ],
+      "id": "6f160790-0a5d-4473-ba98-458f772ec836",
+      "name": "Receive Finalization Request"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -240
+      ],
+      "id": "3c54f4bb-a1c8-43c1-9b77-1afd77f86861",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "56152c22-d954-46d3-8092-c617ed7ea20c",
+              "name": "case_run_id",
+              "value": "AUTH-001",
+              "type": "string"
+            },
+            {
+              "id": "341aa2b5-f36a-4802-ae6d-1f2b2904294e",
+              "name": "submission_version",
+              "value": "1",
+              "type": "number"
+            },
+            {
+              "id": "e0091d77-9aa9-42b5-8772-ed8acd46a12d",
+              "name": "result_source",
+              "value": "RUNTIME",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        -240
+      ],
+      "id": "7115939e-6641-495c-b29e-7d8987aa928f",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "BJJe7zfswrbX8twx",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/BJJe7zfswrbX8twx",
+          "cachedResultName": "ANZ Authorised Representative - Runtime — 90 - Finalize Decision"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_run_id": "={{ $json.case_run_id }}",
+            "submission_version": "={{ $json.submission_version }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "result_source",
+              "displayName": "result_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        -240
+      ],
+      "id": "efcfc8ab-2dfc-4bb9-8a60-c0c48a4bf795",
+      "name": "Call '90 - Finalize Decision'"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "gCtQkgp45DrDU8vL",
+          "mode": "list",
+          "cachedResultName": "dt_communication_templates",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/gCtQkgp45DrDU8vL"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Template_ID",
+              "keyValue": "={{$json.communication_template_id}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1792,
+        80
+      ],
+      "id": "bb9841fc-35ba-4eb5-8434-1e52f47fe4c4",
+      "name": "Get Communication Template"
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision =\n  $('Determine Final Decision').first().json;\n\nconst template =\n  $('Get Communication Template').first().json;\n\nconst values = {\n  case_id:\n    decision.case_run_id,\n\n  business_name:\n    decision.business_name,\n\n  representative_name:\n    decision.representative_name,\n\n  outcome:\n    decision.outcome,\n\n  reason_code:\n    decision.primary_reason_code,\n\n  queue:\n    decision.target_queue,\n\n  next_action:\n    decision.next_action,\n\n  missing_items:\n    Array.isArray(decision.missing_information) &&\n    decision.missing_information.length > 0\n      ? decision.missing_information.join(', ')\n      : 'None',\n};\n\nfunction fillTemplate(text = '') {\n  return String(text).replace(\n    /\\{(\\w+)\\}/g,\n    (match, key) =>\n      values[key] !== undefined\n        ? String(values[key])\n        : match\n  );\n}\n\nreturn [{\n  json: {\n    ...decision,\n\n    communication: {\n      template_id:\n        template.Template_ID,\n\n      audience:\n        template.Audience,\n\n      subject:\n        fillTemplate(\n          template.Subject_Template\n        ),\n\n      body:\n        fillTemplate(\n          template.Body_Template\n        ),\n\n      status:\n        'DRAFT',\n\n      approval_required:\n        true,\n\n      sent:\n        false,\n    },\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        80
+      ],
+      "id": "f310bebd-9513-490a-a644-349651d8245b",
+      "name": "Build Communication"
+    },
+    {
+      "parameters": {
+        "jsCode": "const caseRow =\n  $('Get Case').first().json;\n\nconst resultSource =\n  $('Prepare Result Source')\n    .first()\n    .json\n    .result_source;\n\nlet utilityRows = [];\n\nif (resultSource === 'RUNTIME') {\n  utilityRows =\n    $('Package Runtime Utility Results')\n      .first()\n      .json\n      .utility_rows || [];\n} else {\n  utilityRows =\n    $('Package Mock Utility Results')\n      .first()\n      .json\n      .utility_rows || [];\n}\n\nconst ruleRows =\n  $('Get Decision Rules')\n    .all()\n    .map(item => item.json);\n\nfunction splitSemi(value) {\n  if (\n    value === undefined ||\n    value === null ||\n    value === ''\n  ) {\n    return [];\n  }\n\n  return String(value)\n    .split(';')\n    .map(value => value.trim())\n    .filter(Boolean);\n}\n\nfunction safeParse(value) {\n  if (!value) {\n    return {};\n  }\n\n  if (typeof value === 'object') {\n    return value;\n  }\n\n  try {\n    return JSON.parse(value);\n  } catch {\n    return {\n      parse_error: true,\n      raw_value: String(value)\n    };\n  }\n}\n\nfunction toBoolean(value) {\n  return (\n    value === true ||\n    String(value).toLowerCase() === 'true' ||\n    String(value).toUpperCase() === 'YES'\n  );\n}\n\nconst rulesById =\n  Object.fromEntries(\n    ruleRows.map(rule => [\n      String(rule.Rule_ID).trim(),\n      rule\n    ])\n  );\n\nconst checks =\n  utilityRows.map(row => ({\n    sequence:\n      Number(row.Sequence || 0),\n\n    agent_id:\n      row.Agent_ID,\n\n    utility_name:\n      row.Utility_Name,\n\n    check_type:\n      row.Check_Type,\n\n    status:\n      row.Status,\n\n    findings:\n      safeParse(row.Findings_JSON),\n\n    reason_codes:\n      splitSemi(row.Reason_Codes),\n\n    evidence_references:\n      splitSemi(row.Evidence_References),\n\n    confidence:\n      Number(row.Confidence || 0),\n\n    human_review_required:\n      toBoolean(\n        row.Human_Review_Required\n      ),\n\n    recommended_next_step:\n      row.Recommended_Next_Step,\n\n    rule_ids:\n      splitSemi(row.Rule_IDs),\n\n    rule_status_used:\n      row.Rule_Status_Used\n  }));\n\nconst requiredChecks = [\n  'DOCUMENT_EXTRACTION',\n  'BUSINESS_VALIDATION',\n  'IDENTITY_VALIDATION',\n  'AUTHORITY_VALIDATION',\n  'SYSTEM_DATA_CHECK',\n  'FINANCIAL_CHECK',\n  'FINAL_VERIFICATION'\n];\n\nconst observedCompletedCheckTypes =\n  new Set(\n    checks\n      .filter(check =>\n        String(check.status).toUpperCase() !==\n        'NOT_RUN'\n      )\n      .map(check => check.check_type)\n  );\n\nconst explicitNotRun =\n  checks\n    .filter(check =>\n      String(check.status).toUpperCase() ===\n      'NOT_RUN'\n    )\n    .map(check => check.check_type);\n\nconst absentMandatoryChecks =\n  requiredChecks.filter(\n    checkType =>\n      !observedCompletedCheckTypes.has(\n        checkType\n      )\n  );\n\nconst referencedRuleIds = [\n  ...new Set(\n    checks.flatMap(\n      check => check.rule_ids\n    )\n  )\n];\n\nconst applicableRules =\n  referencedRuleIds\n    .map(ruleId => rulesById[ruleId])\n    .filter(Boolean)\n    .sort(\n      (a, b) =>\n        Number(a.Priority ?? 9999) -\n        Number(b.Priority ?? 9999)\n    );\n\nconst tbdRule =\n  applicableRules.find(\n    rule =>\n      String(rule.Rule_Status)\n        .toUpperCase() ===\n      'TBD'\n  );\n\nlet selectedRule = null;\nlet governanceControlApplied = false;\n\nif (\n  resultSource === 'RUNTIME' &&\n  checks.length === 0\n) {\n  selectedRule =\n    rulesById['CTRL-002'];\n\n  governanceControlApplied = true;\n\n  if (!selectedRule) {\n    throw new Error(\n      'CTRL-002 is missing from dt_decision_rules.'\n    );\n  }\n} else if (tbdRule) {\n  selectedRule =\n    rulesById['CTRL-001'];\n\n  governanceControlApplied = true;\n\n  if (!selectedRule) {\n    throw new Error(\n      'CTRL-001 is missing from dt_decision_rules.'\n    );\n  }\n} else {\n  selectedRule =\n    applicableRules.find(rule =>\n      [\n        'REJECT',\n        'NEED_MORE_INFORMATION',\n        'MANUAL_REVIEW'\n      ].includes(\n        String(\n          rule.Final_Outcome\n        ).toUpperCase()\n      )\n    ) || null;\n}\n\nif (!selectedRule) {\n  if (\n    resultSource === 'RUNTIME' &&\n    absentMandatoryChecks.length > 0\n  ) {\n    selectedRule =\n      rulesById['CTRL-003'];\n\n    governanceControlApplied = true;\n\n    if (!selectedRule) {\n      throw new Error(\n        'CTRL-003 is missing from dt_decision_rules.'\n      );\n    }\n  } else {\n    const successfulChecks =\n      new Set(\n        checks\n          .filter(check =>\n            [\n              'PASS',\n              'PASS_WITH_FLAG'\n            ].includes(\n              String(check.status)\n                .toUpperCase()\n            )\n          )\n          .map(check =>\n            check.check_type\n          )\n      );\n\n    const failedCompleteness =\n      requiredChecks.filter(\n        checkType =>\n          !successfulChecks.has(\n            checkType\n          )\n      );\n\n    if (\n      failedCompleteness.length > 0\n    ) {\n      throw new Error(\n        `Approval blocked. Mandatory checks incomplete: ${failedCompleteness.join(', ')}`\n      );\n    }\n\n    selectedRule =\n      rulesById['FINAL-001'];\n\n    if (!selectedRule) {\n      throw new Error(\n        'FINAL-001 is missing from dt_decision_rules.'\n      );\n    }\n  }\n}\n\nconst outcome =\n  String(\n    selectedRule.Final_Outcome\n  ).toUpperCase();\n\nconst missingInformation = [];\n\nfor (const check of checks) {\n  const missing =\n    check.findings?.missing;\n\n  if (Array.isArray(missing)) {\n    missingInformation.push(\n      ...missing\n    );\n  }\n}\n\nif (\n  applicableRules.some(\n    rule =>\n      rule.Reason_Code ===\n      'AUTHORITY_MISSING'\n  ) &&\n  !missingInformation.includes(\n    'AUTHORITY_LETTER'\n  )\n) {\n  missingInformation.push(\n    'AUTHORITY_LETTER'\n  );\n}\n\nconst conflicts = [];\n\nfor (const check of checks) {\n  const findings =\n    check.findings || {};\n\n  if (\n    findings.legal_name_conflict ===\n    true\n  ) {\n    conflicts.push(\n      'Conflicting legal names exist across CRM records.'\n    );\n  }\n\n  if (\n    findings.open_duplicate_request ===\n    true\n  ) {\n    conflicts.push(\n      'Another authority request is already open.'\n    );\n  }\n\n  if (\n    String(findings.scope)\n      .toUpperCase() ===\n    'AMBIGUOUS'\n  ) {\n    conflicts.push(\n      'The submitted authority scope is ambiguous.'\n    );\n  }\n\n  if (\n    findings.security_flag &&\n    String(findings.security_flag)\n      .toUpperCase() !==\n    'NONE'\n  ) {\n    conflicts.push(\n      'A document security flag requires specialist review.'\n    );\n  }\n\n  if (\n    String(findings.lookup_status)\n      .toUpperCase() ===\n    'UNAVAILABLE'\n  ) {\n    conflicts.push(\n      'The business-register lookup is unavailable.'\n    );\n  }\n}\n\nconst allReasonCodes = [\n  ...new Set(\n    checks.flatMap(\n      check => check.reason_codes\n    )\n  )\n];\n\nconst assumptionsUsed =\n  applicableRules\n    .filter(\n      rule =>\n        String(rule.Rule_Status)\n          .toUpperCase() ===\n        'ASSUMPTION'\n    )\n    .map(rule => rule.Rule_ID);\n\nconst checksNotRun = [\n  ...new Set([\n    ...explicitNotRun,\n    ...(resultSource === 'RUNTIME'\n      ? absentMandatoryChecks\n      : [])\n  ])\n];\n\nlet customerSafeSummary;\n\nswitch (outcome) {\n  case 'APPROVE':\n    customerSafeSummary =\n      'The prototype assessment completed all mandatory checks successfully. The request is eligible to proceed to the next operational step.';\n    break;\n\n  case 'NEED_MORE_INFORMATION':\n    customerSafeSummary =\n      'The assessment cannot be completed until the requested information is supplied.';\n    break;\n\n  case 'MANUAL_REVIEW':\n    customerSafeSummary =\n      'The assessment identified information that requires review by an operations specialist. No final adverse decision has been made.';\n    break;\n\n  case 'REJECT':\n    customerSafeSummary =\n      'The prototype identified a condition that prevents automated progression. Human confirmation is required before final disposition.';\n    break;\n\n  default:\n    customerSafeSummary =\n      'The assessment requires further processing.';\n}\n\nconst decision = {\n  case_run_id:\n    caseRow.Case_Run_ID,\n\n  case_id:\n    caseRow.Case_ID,\n\n  submission_version:\n    Number(\n      caseRow.Submission_Version\n    ),\n\n  country:\n    caseRow.Country,\n\n  request_type:\n    caseRow.Request_Type,\n\n  business_name:\n    caseRow.Business_Name_Submitted,\n\n  business_identifier:\n    caseRow.Business_Identifier_Submitted,\n\n  customer_id:\n    caseRow.Customer_ID,\n\n  representative_name:\n    caseRow.Representative_Name,\n\n  result_source:\n    resultSource,\n\n  outcome,\n\n  primary_reason_code:\n    selectedRule.Reason_Code,\n\n  secondary_reason_codes:\n    allReasonCodes,\n\n  human_review_required:\n    toBoolean(\n      selectedRule\n        .Human_Review_Required\n    ),\n\n  target_queue:\n    selectedRule.Target_Queue,\n\n  next_action:\n    selectedRule.Next_Action,\n\n  communication_template_id:\n    selectedRule\n      .Communication_Template_ID,\n\n  applied_rule_id:\n    selectedRule.Rule_ID,\n\n  applied_rule_status:\n    selectedRule.Rule_Status,\n\n  governance_control_applied:\n    governanceControlApplied,\n\n  triggering_tbd_rule:\n    tbdRule\n      ? tbdRule.Rule_ID\n      : null,\n\n  missing_information: [\n    ...new Set(\n      missingInformation\n    )\n  ],\n\n  conflicts: [\n    ...new Set(conflicts)\n  ],\n\n  assumptions_used:\n    assumptionsUsed,\n\n  completed_checks:\n    checks.filter(\n      check =>\n        String(check.status)\n          .toUpperCase() !==\n        'NOT_RUN'\n    ),\n\n  checks_not_run:\n    checksNotRun,\n\n  customer_safe_summary:\n    customerSafeSummary,\n\n  prototype_data:\n    true,\n\n  production_write_performed:\n    false\n};\n\nreturn [\n  {\n    json: decision\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        80
+      ],
+      "id": "fdf42591-800c-490a-bcf3-4c7790c43d81",
+      "name": "Determine Final Decision"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "LxAbTzo6q5Chsime",
+          "mode": "list",
+          "cachedResultName": "dt_decisions",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/LxAbTzo6q5Chsime"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_run_id",
+              "keyValue": "={{$json.case_run_id}}"
+            },
+            {
+              "keyName": "submission_version",
+              "keyValue": "={{$json.submission_version}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "decision_id": "=DEC-{{$json.case_run_id}}-{{$json.submission_version}}",
+            "case_run_id": "={{$json.case_run_id}}",
+            "submission_version": "={{$json.submission_version}}",
+            "outcome": "={{$json.outcome}}",
+            "secondary_reason_codes": "={{ $json.secondary_reason_codes.join('; ') }}",
+            "human_review_required": "={{$json.human_review_required}}",
+            "target_queue": "={{$json.target_queue}}",
+            "missing_information": "={{ $json.missing_information.join('; ') }}",
+            "conflicts": "={{ $json.conflicts.join('; ') }}",
+            "next_action": "={{$json.next_action}}",
+            "customer_safe_summary": "={{$json.customer_safe_summary}}",
+            "communication_template_id": "={{$json.communication.template_id}}",
+            "decision_json": "={{ JSON.stringify($json) }}",
+            "created_at": "2026-09-26T12:22:43",
+            "primary_reason_code": "={{$json.primary_reason_code}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "decision_id",
+              "displayName": "decision_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "outcome",
+              "displayName": "outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "primary_reason_code",
+              "displayName": "primary_reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "secondary_reason_codes",
+              "displayName": "secondary_reason_codes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "target_queue",
+              "displayName": "target_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "missing_information",
+              "displayName": "missing_information",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "conflicts",
+              "displayName": "conflicts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "next_action",
+              "displayName": "next_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_safe_summary",
+              "displayName": "customer_safe_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "internal_summary",
+              "displayName": "internal_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "communication_template_id",
+              "displayName": "communication_template_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "decision_json",
+              "displayName": "decision_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "human_review_required",
+              "displayName": "human_review_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        80
+      ],
+      "id": "5176cfe2-ff3a-4c96-a78d-c0f5f9aaed56",
+      "name": "Store Final Decision"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json:\n    $('Build Communication').first().json\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3136,
+        80
+      ],
+      "id": "3f6da5e9-1ca0-40f3-9a7c-8bd86b26a49c",
+      "name": "Return Final Package"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "TllaLLGRsZ6jhBxm",
+          "mode": "list",
+          "cachedResultName": "dt_mock_utility_results",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/TllaLLGRsZ6jhBxm"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Case_Run_ID",
+              "keyValue": "={{ $('Get Case').first().json.Case_Run_ID }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -16
+      ],
+      "id": "804b2602-93db-486d-92a6-677fe541a430",
+      "name": "Get Mock Utility Results"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "KvZNFPuTSDURsnl6",
+          "mode": "list",
+          "cachedResultName": "dt_communications",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/KvZNFPuTSDURsnl6"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "communication_id",
+              "keyValue": "=COMM-{{ $('Build Communication').first().json.case_run_id }}-V{{ $('Build Communication').first().json.submission_version }}-INITIAL"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "approval_required": true,
+            "communication_id": "=COMM-{{ $('Build Communication').first().json.case_run_id }}-V{{ $('Build Communication').first().json.submission_version }}-INITIAL",
+            "case_run_id": "={{ $('Build Communication').first().json.case_run_id }}",
+            "audience": "={{ $('Build Communication').first().json.communication.audience }}",
+            "template_id": "={{ $('Build Communication').first().json.communication.template_id }}",
+            "subject": "={{ $('Build Communication').first().json.communication.subject }}",
+            "body": "={{ $('Build Communication').first().json.communication.body }}",
+            "status": "DRAFT",
+            "created_at": "={{$now.toISO()}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "communication_id",
+              "displayName": "communication_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "audience",
+              "displayName": "audience",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "template_id",
+              "displayName": "template_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "approval_required",
+              "displayName": "approval_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "approved_at",
+              "displayName": "approved_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        80
+      ],
+      "id": "7f4a0d9d-5efb-41bc-a064-136d0578f4d9",
+      "name": "Store Initial Communication"
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision =\n  $('Build Communication').first().json;\n\nconst outcome = String(\n  decision.outcome || ''\n).toUpperCase();\n\nconst statusMap = {\n  APPROVE: 'READY_TO_PROCEED',\n  NEED_MORE_INFORMATION: 'WAITING_FOR_INFORMATION',\n  MANUAL_REVIEW: 'REVIEW_PENDING',\n  REJECT: 'REJECTION_CONFIRMATION_PENDING',\n};\n\nconst stageMap = {\n  APPROVE: 'DECISION_COMPLETE',\n  NEED_MORE_INFORMATION: 'CUSTOMER_ACTION',\n  MANUAL_REVIEW: 'HUMAN_REVIEW',\n  REJECT: 'HUMAN_CONFIRMATION',\n};\n\nreturn [\n  {\n    json: {\n      case_run_id:\n        decision.case_run_id,\n\n      case_id:\n        decision.case_id,\n\n      submission_version:\n        Number(decision.submission_version),\n\n      country:\n        decision.country,\n\n      request_type:\n        decision.request_type,\n\n      business_name:\n        decision.business_name,\n\n      business_identifier:\n        decision.business_identifier,\n\n      customer_id:\n        decision.customer_id,\n\n      representative_name:\n        decision.representative_name,\n\n      status:\n        statusMap[outcome] || 'DECISION_PENDING',\n\n      current_stage:\n        stageMap[outcome] || 'DECISION',\n\n      final_outcome:\n        outcome,\n\n      primary_reason_code:\n        decision.primary_reason_code,\n\n      target_queue:\n        decision.target_queue,\n\n      human_review_required:\n        decision.human_review_required === true,\n\n      created_at:\n        new Date().toISOString(),\n\n      updated_at:\n        new Date().toISOString(),\n\n      execution_id:\n        $execution.id,\n\n      synthetic_only:\n        true,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        80
+      ],
+      "id": "a53c6471-55b3-444e-8d5a-b6c2fb34665c",
+      "name": "Prepare Runtime Case Record"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "CcXJF5L1X798j6CE",
+          "mode": "list",
+          "cachedResultName": "dt_cases_runtime",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/CcXJF5L1X798j6CE"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_Run_ID",
+              "keyValue": "={{$json.case_run_id}}"
+            },
+            {
+              "keyName": "submission_version",
+              "keyValue": "={{$json.submission_version}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "submission_version": "={{$json.submission_version}}",
+            "case_Run_ID": "={{$json.case_run_id}}",
+            "case_ID": "={{$json.case_id}}",
+            "country": "={{$json.country}}",
+            "request_type": "={{$json.request_type}}",
+            "business_name": "={{$json.business_name}}",
+            "business_identifier": "={{$json.business_identifier}}",
+            "customer_id": "={{$json.customer_id}}",
+            "representative_name": "={{$json.representative_name}}",
+            "status": "={{$json.status}}",
+            "current_stage": "={{$json.current_stage}}",
+            "final_outcome": "={{$json.final_outcome}}",
+            "target_queue": "={{$json.target_queue}}",
+            "human_review_required": "={{$json.human_review_required}}",
+            "created_at": "={{$json.created_at}}",
+            "updated_at": "={{$json.updated_at}}",
+            "execution_id": "={{$json.execution_id}}",
+            "synthetic_Only": "={{$json.synthetic_only}}",
+            "primary_reason_code": "={{$json.primary_reason_code}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "case_Run_ID",
+              "displayName": "case_Run_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_ID",
+              "displayName": "case_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "request_type",
+              "displayName": "request_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "business_name",
+              "displayName": "business_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "business_identifier",
+              "displayName": "business_identifier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "representative_name",
+              "displayName": "representative_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "current_stage",
+              "displayName": "current_stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "final_outcome",
+              "displayName": "final_outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "target_queue",
+              "displayName": "target_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "human_review_required",
+              "displayName": "human_review_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "synthetic_Only",
+              "displayName": "synthetic_Only",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "primary_reason_code",
+              "displayName": "primary_reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2912,
+        80
+      ],
+      "id": "c30b4726-83d3-489c-ab62-509b4fa7f6a6",
+      "name": "Upsert Runtime Case"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d4096cf7-80f8-4019-9fe8-117c18ddde6e",
+              "name": "=case_run_id",
+              "value": "={{\n  $('Receive Finalization Request')\n    .first()\n    .json\n    .case_run_id\n}}",
+              "type": "string"
+            },
+            {
+              "id": "be0c988c-e51d-48a1-8a8a-82f4880ae161",
+              "name": "submission_version",
+              "value": "={{ Number($('Receive Finalization Request').first().json.submission_version) }}",
+              "type": "string"
+            },
+            {
+              "id": "38334d1c-a502-49fd-a946-8f66ad5968b5",
+              "name": "result_source",
+              "value": "={{   String(     $('Receive Finalization Request').first().json.result_source || 'MOCK'   ).trim().toUpperCase() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        464,
+        80
+      ],
+      "id": "5ebdcd5e-ded7-4957-852c-c930791dd5b5",
+      "name": "Prepare Result Source"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.result_source}}",
+                    "rightValue": "MOCK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "01228909-4e26-4da8-8508-fcc4a0574405"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "MOCK"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a9dedfce-672d-485f-b1e7-1e7656c4ede5",
+                    "leftValue": "={{$json.result_source}}",
+                    "rightValue": "RUNTIME",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RUNTIME"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "=Unsupported result source: {{$json.result_source}}. Use MOCK or RUNTIME."
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        80
+      ],
+      "id": "87244375-792b-497b-a501-b95e6f2b12c2",
+      "name": "Select Result Source"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input\n  .all()\n  .map(item => item.json)\n  .filter(row =>\n    String(row.Case_Run_ID || '').trim()\n  );\n\nreturn [\n  {\n    json: {\n      result_source: 'MOCK',\n      utility_rows: rows\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -16
+      ],
+      "id": "4a01d31c-ea6b-4489-b370-eb3174ef0797",
+      "name": "Package Mock Utility Results"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "YrYHOgtcP1XctJqM",
+          "mode": "list",
+          "cachedResultName": "dt_utility_results_runtime",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/YrYHOgtcP1XctJqM"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_run_id",
+              "keyValue": "={{ $('Prepare Result Source').item.json.case_run_id }}"
+            },
+            {
+              "keyName": "submission_version",
+              "keyValue": "={{ $('Prepare Result Source').item.json.submission_version }}"
+            },
+            {
+              "keyName": "superseded",
+              "condition": "isFalse"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        176
+      ],
+      "id": "450f1104-40bd-4f62-976f-51c734952a94",
+      "name": "Get Runtime Utility Results",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n============================================================\nPACKAGE RUNTIME UTILITY RESULTS\n============================================================\n\nPurpose:\n- Read only the current input from Get Runtime Utility Results.\n- Normalise runtime-table column names and data types.\n- Filter to the requested case/version.\n- Remove superseded rows.\n- Keep one current row per check type.\n- Preserve all seven mandatory checks.\n- Produce diagnostic counts for troubleshooting.\n============================================================\n*/\n\nconst preparedSource =\n  $('Prepare Result Source')\n    .first()\n    .json || {};\n\nconst expectedCaseRunId =\n  String(\n    preparedSource.case_run_id || ''\n  ).trim();\n\nconst expectedSubmissionVersion =\n  Number(\n    preparedSource.submission_version || 1\n  );\n\n/*\n------------------------------------------------------------\nHELPERS\n------------------------------------------------------------\n*/\n\nfunction pick(object, ...keys) {\n  for (const key of keys) {\n    const value =\n      object?.[key];\n\n    if (\n      value !== undefined &&\n      value !== null &&\n      String(value).trim() !== ''\n    ) {\n      return value;\n    }\n  }\n\n  return '';\n}\n\nfunction toBoolean(value) {\n  return (\n    value === true ||\n    String(value)\n      .trim()\n      .toLowerCase() === 'true' ||\n    String(value)\n      .trim()\n      .toUpperCase() === 'YES'\n  );\n}\n\nfunction asTimestamp(value) {\n  const parsed =\n    Date.parse(\n      String(value || '')\n    );\n\n  return Number.isFinite(parsed)\n    ? parsed\n    : 0;\n}\n\n/*\n------------------------------------------------------------\nREAD CURRENT NODE INPUT ONLY\n------------------------------------------------------------\n\nThe Package node must be connected directly after\nGet Runtime Utility Results.\n\nDo not replace $input.all() with:\n- $('Get Decision Rules').all()\n- $('Get Runtime Utility Results').first()\n- $('Get Runtime Utility Results').item\n*/\n\nconst sourceRows =\n  $input\n    .all()\n    .map(\n      (item, index) => ({\n        ...(item.json || {}),\n\n        __input_index:\n          index,\n      })\n    );\n\n/*\n------------------------------------------------------------\nNORMALISE RUNTIME ROWS\n------------------------------------------------------------\n*/\n\nconst normalisedRows =\n  sourceRows\n    .map(row => {\n      const caseRunId =\n        String(\n          pick(\n            row,\n            'case_run_id',\n            'Case_Run_ID'\n          )\n        ).trim();\n\n      const submissionVersion =\n        Number(\n          pick(\n            row,\n            'submission_version',\n            'Submission_Version'\n          ) || 1\n        );\n\n      const checkType =\n        String(\n          pick(\n            row,\n            'check_type',\n            'Check_Type'\n          )\n        )\n          .trim()\n          .toUpperCase();\n\n      /*\n      Ignore the empty placeholder that Always Output Data\n      can emit when no row is found.\n      */\n      if (\n        !caseRunId ||\n        !checkType\n      ) {\n        return null;\n      }\n\n      return {\n        Case_Run_ID:\n          caseRunId,\n\n        Submission_Version:\n          submissionVersion,\n\n        Sequence:\n          Number(\n            pick(\n              row,\n              'sequence',\n              'Sequence'\n            ) || 0\n          ),\n\n        Agent_ID:\n          String(\n            pick(\n              row,\n              'agent_id',\n              'Agent_ID'\n            )\n          ).trim(),\n\n        Utility_Name:\n          String(\n            pick(\n              row,\n              'utility_name',\n              'Utility_Name'\n            )\n          ).trim(),\n\n        Check_Type:\n          checkType,\n\n        Status:\n          String(\n            pick(\n              row,\n              'status',\n              'Status'\n            )\n          )\n            .trim()\n            .toUpperCase(),\n\n        Findings_JSON:\n          pick(\n            row,\n            'findings_json',\n            'Findings_JSON'\n          ),\n\n        Reason_Codes:\n          String(\n            pick(\n              row,\n              'reason_codes',\n              'Reason_Codes'\n            )\n          ).trim(),\n\n        Evidence_References:\n          String(\n            pick(\n              row,\n              'evidence_references',\n              'Evidence_References'\n            )\n          ).trim(),\n\n        Confidence:\n          Number(\n            pick(\n              row,\n              'confidence',\n              'Confidence'\n            ) || 0\n          ),\n\n        Human_Review_Required:\n          toBoolean(\n            pick(\n              row,\n              'human_review_required',\n              'Human_Review_Required'\n            )\n          ),\n\n        Recommended_Next_Step:\n          String(\n            pick(\n              row,\n              'recommended_next_step',\n              'Recommended_Next_Step'\n            )\n          ).trim(),\n\n        Rule_IDs:\n          String(\n            pick(\n              row,\n              'rule_ids',\n              'Rule_IDs'\n            )\n          ).trim(),\n\n        Rule_Status_Used:\n          String(\n            pick(\n              row,\n              'rule_status_used',\n              'Rule_Status_Used'\n            )\n          ).trim(),\n\n        Created_At:\n          String(\n            pick(\n              row,\n              'created_at',\n              'Created_At',\n              'createdAt'\n            )\n          ).trim(),\n\n        Updated_At:\n          String(\n            pick(\n              row,\n              'updated_at',\n              'Updated_At',\n              'updatedAt'\n            )\n          ).trim(),\n\n        Superseded:\n          toBoolean(\n            pick(\n              row,\n              'superseded',\n              'Superseded'\n            )\n          ),\n\n        __input_index:\n          Number(\n            row.__input_index || 0\n          ),\n      };\n    })\n    .filter(Boolean);\n\n/*\n------------------------------------------------------------\nFILTER TO THE REQUESTED CASE/VERSION\n------------------------------------------------------------\n*/\n\nconst crossCaseRows =\n  normalisedRows.filter(row =>\n    row.Case_Run_ID !==\n      expectedCaseRunId ||\n    row.Submission_Version !==\n      expectedSubmissionVersion\n  );\n\nconst relevantRows =\n  normalisedRows.filter(row =>\n    row.Case_Run_ID ===\n      expectedCaseRunId &&\n    row.Submission_Version ===\n      expectedSubmissionVersion &&\n    row.Superseded !== true\n  );\n\n/*\n------------------------------------------------------------\nKEEP ONE CURRENT ROW PER CHECK TYPE\n------------------------------------------------------------\n\nKey:\ncase_run_id + submission_version + check_type\n\nWhere an unexpected duplicate exists:\n1. prefer the most recently updated row;\n2. then the most recently created row;\n3. then the later incoming item.\n*/\n\nconst rowsByCheckType =\n  new Map();\n\nfor (const candidate of relevantRows) {\n  const key =\n    candidate.Check_Type;\n\n  const existing =\n    rowsByCheckType.get(key);\n\n  if (!existing) {\n    rowsByCheckType.set(\n      key,\n      candidate\n    );\n\n    continue;\n  }\n\n  const existingUpdatedAt =\n    asTimestamp(\n      existing.Updated_At\n    );\n\n  const candidateUpdatedAt =\n    asTimestamp(\n      candidate.Updated_At\n    );\n\n  const existingCreatedAt =\n    asTimestamp(\n      existing.Created_At\n    );\n\n  const candidateCreatedAt =\n    asTimestamp(\n      candidate.Created_At\n    );\n\n  const candidateIsLater =\n    (\n      candidateUpdatedAt >\n      existingUpdatedAt\n    ) ||\n    (\n      candidateUpdatedAt ===\n        existingUpdatedAt &&\n      candidateCreatedAt >\n        existingCreatedAt\n    ) ||\n    (\n      candidateUpdatedAt ===\n        existingUpdatedAt &&\n      candidateCreatedAt ===\n        existingCreatedAt &&\n      candidate.__input_index >\n        existing.__input_index\n    );\n\n  if (candidateIsLater) {\n    rowsByCheckType.set(\n      key,\n      candidate\n    );\n  }\n}\n\nconst utilityRows =\n  Array.from(\n    rowsByCheckType.values()\n  )\n    .sort(\n      (a, b) =>\n        Number(a.Sequence) -\n        Number(b.Sequence)\n    )\n    .map(row => ({\n      Case_Run_ID:\n        row.Case_Run_ID,\n\n      Submission_Version:\n        row.Submission_Version,\n\n      Sequence:\n        row.Sequence,\n\n      Agent_ID:\n        row.Agent_ID,\n\n      Utility_Name:\n        row.Utility_Name,\n\n      Check_Type:\n        row.Check_Type,\n\n      Status:\n        row.Status,\n\n      Findings_JSON:\n        row.Findings_JSON,\n\n      Reason_Codes:\n        row.Reason_Codes,\n\n      Evidence_References:\n        row.Evidence_References,\n\n      Confidence:\n        row.Confidence,\n\n      Human_Review_Required:\n        row.Human_Review_Required,\n\n      Recommended_Next_Step:\n        row.Recommended_Next_Step,\n\n      Rule_IDs:\n        row.Rule_IDs,\n\n      Rule_Status_Used:\n        row.Rule_Status_Used,\n    }));\n\n/*\n------------------------------------------------------------\nDIAGNOSTICS\n------------------------------------------------------------\n*/\n\nconst mandatoryChecks = [\n  'DOCUMENT_EXTRACTION',\n  'BUSINESS_VALIDATION',\n  'IDENTITY_VALIDATION',\n  'AUTHORITY_VALIDATION',\n  'SYSTEM_DATA_CHECK',\n  'FINANCIAL_CHECK',\n  'FINAL_VERIFICATION',\n];\n\nconst packagedCheckTypes =\n  utilityRows.map(row =>\n    row.Check_Type\n  );\n\nconst packagedCheckTypeSet =\n  new Set(\n    packagedCheckTypes\n  );\n\nconst missingMandatoryChecks =\n  mandatoryChecks.filter(\n    checkType =>\n      !packagedCheckTypeSet.has(\n        checkType\n      )\n  );\n\nconst duplicateRowsRemoved =\n  Math.max(\n    0,\n    relevantRows.length -\n      utilityRows.length\n  );\n\n/*\n------------------------------------------------------------\nRETURN ONE PACKAGE\n------------------------------------------------------------\n*/\n\nreturn [\n  {\n    json: {\n      result_source:\n        'RUNTIME',\n\n      expected_case_run_id:\n        expectedCaseRunId,\n\n      expected_submission_version:\n        expectedSubmissionVersion,\n\n      source_row_count:\n        sourceRows.length,\n\n      normalised_row_count:\n        normalisedRows.length,\n\n      relevant_active_row_count:\n        relevantRows.length,\n\n      runtime_row_count:\n        utilityRows.length,\n\n      duplicate_rows_removed:\n        duplicateRowsRemoved,\n\n      cross_case_row_count:\n        crossCaseRows.length,\n\n      packaged_check_types:\n        packagedCheckTypes,\n\n      missing_mandatory_checks:\n        missingMandatoryChecks,\n\n      utility_rows:\n        utilityRows,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        176
+      ],
+      "id": "b8c944d7-3c8c-445d-9e42-3a999e35539b",
+      "name": "Package Runtime Utility Results"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Case": {
+      "main": [
+        [
+          {
+            "node": "Prepare Result Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Decision Rules": {
+      "main": [
+        [
+          {
+            "node": "Determine Final Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Finalization Request": {
+      "main": [
+        [
+          {
+            "node": "Get Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Call '90 - Finalize Decision'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Communication Template": {
+      "main": [
+        [
+          {
+            "node": "Build Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Final Decision": {
+      "main": [
+        [
+          {
+            "node": "Get Communication Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Communication": {
+      "main": [
+        [
+          {
+            "node": "Store Final Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Final Decision": {
+      "main": [
+        [
+          {
+            "node": "Store Initial Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Mock Utility Results": {
+      "main": [
+        [
+          {
+            "node": "Package Mock Utility Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Initial Communication": {
+      "main": [
+        [
+          {
+            "node": "Prepare Runtime Case Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Runtime Case Record": {
+      "main": [
+        [
+          {
+            "node": "Upsert Runtime Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Runtime Case": {
+      "main": [
+        [
+          {
+            "node": "Return Final Package",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Result Source": {
+      "main": [
+        [
+          {
+            "node": "Select Result Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Result Source": {
+      "main": [
+        [
+          {
+            "node": "Get Mock Utility Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Runtime Utility Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Package Mock Utility Results": {
+      "main": [
+        [
+          {
+            "node": "Get Decision Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Runtime Utility Results": {
+      "main": [
+        [
+          {
+            "node": "Package Runtime Utility Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Package Runtime Utility Results": {
+      "main": [
+        [
+          {
+            "node": "Get Decision Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "7Su9PC0hLneBhGnc",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "versionId": "0923ff66-590f-4376-bfb2-274e6e5a9061",
+  "meta": {
+    "instanceId": "a314b836c084695b12b69b8d570c98912227d4785e1c5124e122761794634790"
+  },
+  "nodeGroups": [],
+  "id": "BJJe7zfswrbX8twx",
+  "tags": []
+}

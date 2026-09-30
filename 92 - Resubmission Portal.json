@@ -1,0 +1,1040 @@
+{
+  "name": "92 - Resubmission Portal",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Submit Revised Authority Evidence",
+        "formDescription": "Synthetic prototype only. Use this form to resubmit a case that previously returned NEED_MORE_INFORMATION.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "original_case_run_id",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "revised_case_run_id",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "AUTH-008-V2"
+                  },
+                  {
+                    "option": "AUTH-001"
+                  },
+                  {
+                    "option": "AUTH-002"
+                  },
+                  {
+                    "option": "AUTH-003"
+                  },
+                  {
+                    "option": "AUTH-004"
+                  },
+                  {
+                    "option": "AUTH-005"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "resubmission_comments",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "061929f1-0084-4766-9022-a6f03c525177",
+      "name": "Open Resubmission",
+      "webhookId": "85901bbd-5b32-4cfb-95b4-a51c4834069e"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "LxAbTzo6q5Chsime",
+          "mode": "list",
+          "cachedResultName": "dt_decisions",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/LxAbTzo6q5Chsime"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_run_id",
+              "keyValue": "={{ $('Open Resubmission').first().json.original_case_run_id }}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "feb00ac8-9351-41f5-9b7a-9bf40b4847e2",
+      "name": "Get Original Decision",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const input =\n  $('Open Resubmission').first().json;\n\nconst decision =\n  $('Get Original Decision').first().json || {};\n\nconst found =\n  Boolean(decision.case_run_id);\n\nconst outcome =\n  String(decision.outcome || '').toUpperCase();\n\nconst eligible =\n  found &&\n  outcome === 'NEED_MORE_INFORMATION';\n\nreturn [\n  {\n    json: {\n      original_case_run_id:\n        input.original_case_run_id,\n\n      revised_case_run_id:\n        input.revised_case_run_id,\n\n      resubmission_comments:\n        input.resubmission_comments,\n\n      original_decision_found:\n        found,\n\n      original_outcome:\n        outcome,\n\n      resubmission_eligible:\n        eligible,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "886c32c9-cf3f-4fb1-b23f-73186433c8e5",
+      "name": "Check Resubmission Eligibility"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0b9f53c3-cfec-4ed4-8050-11187c7ae4ca",
+              "leftValue": "={{$json.resubmission_eligible}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        0
+      ],
+      "id": "516c699b-9886-473a-b5ac-f7ed00b06aa3",
+      "name": "Resubmission Eligible?"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "={{$json.resubmission_eligible}}"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        896,
+        96
+      ],
+      "id": "6af4634c-a89e-4f99-9c89-e6b5bff47253",
+      "name": "Show Resubmission Not Allowed",
+      "webhookId": "8dc8a951-e59f-418c-bb9a-b95d97da65fd"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "9HfhTVucqxkuuCm9",
+          "mode": "list",
+          "cachedResultName": "dt_synthetic_cases",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/9HfhTVucqxkuuCm9"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Case_Run_ID",
+              "keyValue": "={{ $('Check Resubmission Eligibility').first().json.original_case_run_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "11dbb7f4-016f-4d3d-9c57-79e8c328334e",
+      "name": "Get Original Case"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "9HfhTVucqxkuuCm9",
+          "mode": "list",
+          "cachedResultName": "dt_synthetic_cases",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/9HfhTVucqxkuuCm9"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Case_Run_ID",
+              "keyValue": "={{ $('Check Resubmission Eligibility').first().json.revised_case_run_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        -96
+      ],
+      "id": "4404749f-3632-42e7-9a33-8978f1674234",
+      "name": "Get Revised Case"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original =\n  $('Get Original Case').first().json;\n\nconst revised =\n  $('Get Revised Case').first().json;\n\nconst sameLogicalCase =\n  original.Case_ID === revised.Case_ID;\n\nconst originalVersion =\n  Number(original.Submission_Version);\n\nconst revisedVersion =\n  Number(revised.Submission_Version);\n\nconst versionIncreased =\n  revisedVersion > originalVersion;\n\nconst differentRun =\n  original.Case_Run_ID !== revised.Case_Run_ID;\n\nconst valid =\n  sameLogicalCase &&\n  versionIncreased &&\n  differentRun;\n\nreturn [\n  {\n    json: {\n      original_case_run_id:\n        original.Case_Run_ID,\n\n      revised_case_run_id:\n        revised.Case_Run_ID,\n\n      logical_case_id:\n        original.Case_ID,\n\n      original_version:\n        originalVersion,\n\n      revised_version:\n        revisedVersion,\n\n      same_logical_case:\n        sameLogicalCase,\n\n      version_increased:\n        versionIncreased,\n\n      relationship_valid:\n        valid,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -96
+      ],
+      "id": "fcc6824d-29f5-4418-851b-f99fc2c05edd",
+      "name": "Validate Version Relationship"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "03d8312e-926c-47ef-b33e-6e48a58c6337",
+              "leftValue": "={{$json.relationship_valid}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        -96
+      ],
+      "id": "b0a20910-b4e8-43a1-b569-dd18693950fc",
+      "name": "Version Relationship Valid?"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "<h2>Invalid revised submission</h2>\n\n<p>The revised case does not represent a later version of the same logical case.</p>\n\n<p>No records were changed.</p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        1792,
+        48
+      ],
+      "id": "98962993-689a-4fb3-8e50-111b791f72db",
+      "name": "Show Invalid Revised Version",
+      "webhookId": "4469203f-6aad-4c5a-86e3-9e59418ecb9f"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2d404aa7-49ee-4dec-b223-09dc805a5967",
+              "name": "case_run_id",
+              "value": "={{ $('Get Revised Case').first().json.Case_Run_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "5aea09ba-2b9e-4856-95c8-543315618fc9",
+              "name": "submission_version",
+              "value": "={{ Number($('Get Revised Case').first().json.Submission_Version) }}",
+              "type": "number"
+            },
+            {
+              "id": "9a18500b-fb0d-4e29-849d-fe63fa477153",
+              "name": "processing_mode",
+              "value": "MOCK",
+              "type": "string"
+            },
+            {
+              "id": "05d83f7e-125d-4fab-9525-22913bdcb901",
+              "name": "persist_results",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1792,
+        -128
+      ],
+      "id": "6f341726-0c89-4d4a-afee-6da620047440",
+      "name": "Prepare Revised Assessment"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "UmvLlimpx3I8sPKB",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/UmvLlimpx3I8sPKB",
+          "cachedResultName": "ANZ Authorised Representative - Runtime — 02 - SBO.02 - Profiling Super Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "persist_results": "={{ $('Prepare Revised Assessment').first().json.persist_results }}",
+            "case_run_id": "={{ $('Prepare Revised Assessment').first().json.case_run_id }}",
+            "submission_version": "={{ $('Prepare Revised Assessment').first().json.submission_version }}",
+            "processing_mode": "={{ $('Prepare Revised Assessment').first().json.processing_mode }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "processing_mode",
+              "displayName": "processing_mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "persist_results",
+              "displayName": "persist_results",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        -128
+      ],
+      "id": "aa094c88-18a4-475b-ad3f-c4a6a0028890",
+      "name": "Run Revised SBO.02 Assessment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original =\n  $('Get Original Case').first().json;\n\nconst revised =\n  $('Get Revised Case').first().json;\n\nconst revisedDecision =\n  $('Run Revised SBO.02 Assessment').first().json;\n\nreturn [\n  {\n    json: {\n      original_case_run_id:\n        original.Case_Run_ID,\n\n      original_case_id:\n        original.Case_ID,\n\n      original_submission_version:\n        Number(original.Submission_Version),\n\n      revised_case_run_id:\n        revised.Case_Run_ID,\n\n      revised_submission_version:\n        Number(revised.Submission_Version),\n\n      revised_outcome:\n        revisedDecision.outcome,\n\n      original_new_status:\n        'SUPERSEDED_BY_RESUBMISSION',\n\n      original_new_stage:\n        'RESUBMITTED',\n\n      updated_at:\n        new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        -128
+      ],
+      "id": "0487555d-7cdf-4636-82e7-5ac568315b87",
+      "name": "Prepare Original Case Supersede Update"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "CcXJF5L1X798j6CE",
+          "mode": "list",
+          "cachedResultName": "dt_cases_runtime",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/CcXJF5L1X798j6CE"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_Run_ID",
+              "keyValue": "={{ $('Prepare Original Case Supersede Update').first().json.original_case_run_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "human_review_required": false,
+            "synthetic_Only": false,
+            "status": "={{ $('Prepare Original Case Supersede Update').first().json.original_new_status }}",
+            "current_stage": "={{ $('Prepare Original Case Supersede Update').first().json.original_new_stage }}",
+            "updated_at": "={{ $('Prepare Original Case Supersede Update').first().json.updated_at }}",
+            "target_queue": "={{ $('Prepare Original Case Supersede Update').first().json.revised_case_run_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "case_Run_ID",
+              "displayName": "case_Run_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_ID",
+              "displayName": "case_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "country",
+              "displayName": "country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "request_type",
+              "displayName": "request_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "business_name",
+              "displayName": "business_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "business_identifier",
+              "displayName": "business_identifier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "representative_name",
+              "displayName": "representative_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "current_stage",
+              "displayName": "current_stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "final_outcome",
+              "displayName": "final_outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "target_queue",
+              "displayName": "target_queue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "human_review_required",
+              "displayName": "human_review_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "synthetic_Only",
+              "displayName": "synthetic_Only",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "primary_reason_code",
+              "displayName": "primary_reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        -128
+      ],
+      "id": "0616e417-6355-4ca8-a48b-b2f24cd42a7f",
+      "name": "Mark Original Case Superseded"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "yxGkpl7zLS8je3TV",
+          "mode": "list",
+          "cachedResultName": "dt_audit_events",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/yxGkpl7zLS8je3TV"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_id": "=EVT-{{ $('Get Original Case').first().json.Case_Run_ID }}-RESUBMISSION-{{$now.toMillis()}}",
+            "case_run_id": "={{ $('Get Original Case').first().json.Case_Run_ID }}",
+            "submission_version": "={{ Number($('Get Original Case').first().json.Submission_Version) }}",
+            "timestamp": "={{$now.toISO()}}",
+            "actor": "CUSTOMER_SYNTHETIC",
+            "event_type": "CASE_RESUBMITTED",
+            "stage": "RESUBMISSION",
+            "previous_state": "WAITING_FOR_INFORMATION",
+            "new_state": "RESUBMITTED",
+            "reason_code": "REVISED_EVIDENCE_SUBMITTED",
+            "evidence_reference": "={{ $('Get Revised Case').first().json.Case_Run_ID }}",
+            "details_json": "={{ JSON.stringify({\n  original_case_run_id:\n    $('Get Original Case').first().json.Case_Run_ID,\n\n  revised_case_run_id:\n    $('Get Revised Case').first().json.Case_Run_ID,\n\n  original_version:\n    Number($('Get Original Case').first().json.Submission_Version),\n\n  revised_version:\n    Number($('Get Revised Case').first().json.Submission_Version),\n\n  revised_outcome:\n    $('Run Revised SBO.02 Assessment').first().json.outcome,\n\n  comments:\n    $('Open Resubmission').first().json.resubmission_comments\n}) }}",
+            "execution_id": "={{$execution.id}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_id",
+              "displayName": "event_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "previous_state",
+              "displayName": "previous_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "new_state",
+              "displayName": "new_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rule_id",
+              "displayName": "rule_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason_code",
+              "displayName": "reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_reference",
+              "displayName": "evidence_reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "details_json",
+              "displayName": "details_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2688,
+        -128
+      ],
+      "id": "b0e2b9e1-5b63-422c-b134-3ec5651c1743",
+      "name": "Create Resubmission Audit Event"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json:\n      $('Run Revised SBO.02 Assessment').first().json\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        -128
+      ],
+      "id": "48db3fd5-9e5e-4245-9643-423609a78319",
+      "name": "Restore Revised Decision"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "=<h2>Revised assessment completed</h2>\n\n<p><strong>Revised case:</strong>\n{{$json.case_run_id}}</p>\n\n<p><strong>Submission version:</strong>\n{{$json.submission_version}}</p>\n\n<p><strong>Outcome:</strong>\n{{$json.outcome}}</p>\n\n<p><strong>Primary reason:</strong>\n{{$json.primary_reason_code}}</p>\n\n<p><strong>Business:</strong>\n{{$json.business_name}}</p>\n\n<p><strong>Representative:</strong>\n{{$json.representative_name}}</p>\n\n<p><strong>Summary:</strong>\n{{$json.customer_safe_summary}}</p>\n\n<p><strong>Next action:</strong>\n{{$json.next_action}}</p>\n\n<hr>\n\n<h3>Updated draft communication</h3>\n\n<p><strong>Subject:</strong>\n{{$json.communication.subject}}</p>\n\n<p>\n{{$json.communication.body}}\n</p>\n\n<p><strong>Communication status:</strong>\n{{$json.communication.status}}</p>\n\n<hr>\n\n<p><em>\nThe original submission has been marked as superseded.\nThis is a synthetic prototype. No production-system action was performed.\n</em></p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        3136,
+        -128
+      ],
+      "id": "b0fc699f-6b56-4841-b7fc-7a4a74ce2766",
+      "name": "Show Resubmission Result",
+      "webhookId": "96b25652-bc9b-44d9-8583-3ef3c134b304"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Open Resubmission": {
+      "main": [
+        [
+          {
+            "node": "Get Original Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Original Decision": {
+      "main": [
+        [
+          {
+            "node": "Check Resubmission Eligibility",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Resubmission Eligibility": {
+      "main": [
+        [
+          {
+            "node": "Resubmission Eligible?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resubmission Eligible?": {
+      "main": [
+        [
+          {
+            "node": "Get Original Case",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Resubmission Not Allowed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Original Case": {
+      "main": [
+        [
+          {
+            "node": "Get Revised Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Revised Case": {
+      "main": [
+        [
+          {
+            "node": "Validate Version Relationship",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Version Relationship": {
+      "main": [
+        [
+          {
+            "node": "Version Relationship Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Version Relationship Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Revised Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Invalid Revised Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Revised Assessment": {
+      "main": [
+        [
+          {
+            "node": "Run Revised SBO.02 Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Revised SBO.02 Assessment": {
+      "main": [
+        [
+          {
+            "node": "Prepare Original Case Supersede Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Original Case Supersede Update": {
+      "main": [
+        [
+          {
+            "node": "Mark Original Case Superseded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Original Case Superseded": {
+      "main": [
+        [
+          {
+            "node": "Create Resubmission Audit Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Resubmission Audit Event": {
+      "main": [
+        [
+          {
+            "node": "Restore Revised Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Revised Decision": {
+      "main": [
+        [
+          {
+            "node": "Show Resubmission Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "7Su9PC0hLneBhGnc",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "versionId": "8c10e006-694b-47d1-b858-c8ba0220522b",
+  "meta": {
+    "instanceId": "a314b836c084695b12b69b8d570c98912227d4785e1c5124e122761794634790"
+  },
+  "nodeGroups": [],
+  "id": "gTF2VhWnz51AuXgV",
+  "tags": []
+}

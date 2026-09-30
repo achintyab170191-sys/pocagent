@@ -1,0 +1,62 @@
+﻿evidence_id,evidence_request_id,case_run_id,submission_version,evidence_type,evidence_source,file_name,mime_type,storage_url,evidence_text,structured_data_json,validation_status,confidence,provided_at,superseded
+EVIDENCE-AUTH-003-1790669761616,EVID-AUTH-003-V1-1790669715152,AUTH-003,1,OTHER,FILE_UPLOAD,AUTH-003_AUTHORITY_LETTER.pdf,application/pdf,,"ANZ B2B AGENT PROTOTYPE - SYNTHETIC DOCUMENT Pack v1.0
+SYNTHETIC POC DATA - NOT A REAL DOCUMENT
+No legal validity. No real person, business, identifier, address, or government record is represented. Page 1
+Authorised Representative Letter
+SYNTHETIC POC DATA ONLY - NOT A REAL CUSTOMER, BUSINESS, IDENTITY, GOVERNMENT RECORD,
+CREDIT RESULT, OR LEGAL DOCUMENT.
+Company 
+Bluegum Vector Demo Pty Ltd
+Synthetic business identifier 
+AU-DEMO-BIZ-1002
+Issue date 
+2026-08-15
+Submission version 
+1
+Representative 
+Liam Chen
+Representative role 
+Office Manager
+To: B2B Telecommunications Operations - Prototype
+Liam Chen is authorised to manage day-to-day telecommunications enquiries, communicate with the service provider,
+and coordinate account administration.
+Prototype note: The letter does not explicitly mention ordering services or signing/approving commitments.
+Signed for and on behalf of the company:
+Olivia Martin - Demo Director
+Synthetic signature reference: SIGN-DEMO-001","{""evidence_notes"":"""",""extracted_character_count"":976}",INSUFFICIENT,0.8,2026-09-29T08:16:01.617Z,false
+EVIDENCE-AUTH-003-1790669812222,EVID-AUTH-003-V1-1790669715152,AUTH-003,1,OTHER,FILE_UPLOAD,AUTH-003_REVISED_AUTHORITY_LETTER_APPROVAL_PATH.pdf,application/pdf,,"ANZ B2B AGENT PROTOTYPE - SYNTHETIC DOCUMENT
+Revised Authorised Representative Letter
+SYNTHETIC POC DATA ONLY - NOT A REAL CUSTOMER, BUSINESS, IDENTITY, GOVERNMENT RECORD, CREDIT RESULT,
+OR LEGAL DOCUMENT.
+Company Bluegum Vector Demo Pty Ltd
+Synthetic business identifier AU-DEMO-BIZ-1002
+Case reference AUTH-003
+Submission version 1
+Issue date 2026-09-29
+Valid until 2027-09-28
+Authorised representative Liam Chen
+Representative role Office Manager
+To: B2B Telecommunications Operations - Prototype
+Bluegum Vector Demo Pty Ltd hereby appoints and expressly authorises Liam Chen to act on behalf of the company for
+the telecommunications permissions stated below.
+Explicit authority scope
+1. Order new telecommunications services, including new service connections, product orders, and associated service
+requests.
+2. Approve commercial commitments associated with those services, including quoted charges, service terms, and
+approved commercial conditions.
+3. Request and approve service or plan changes, including additions, removals, migrations, upgrades, downgrades,
+and other authorised service changes.
+4. Execute and sign telecommunications service agreements and related service-order documentation on behalf of
+Bluegum Vector Demo Pty Ltd.
+Authority confirmation
+This authority applies specifically to authorised-representative case AUTH-003. The permissions above are intentional,
+current, and are not limited to general enquiries or account administration.
+For this synthetic POC, this revised letter supersedes the earlier synthetic authority letter that allowed day-to-day
+enquiries and account administration but did not explicitly grant service-ordering or agreement-signing authority.
+Company declaration
+The undersigned synthetic company officer confirms that Liam Chen is authorised to exercise all permissions listed above
+during the validity period of this document.
+Signed for and on behalf of the company Olivia Martin - Demo Director
+Synthetic signature reference SIGN-DEMO-003-REV1
+Synthetic approval reference AUTH-003-APPROVAL-PATH-001
+Prototype note: Intentionally drafted to resolve AUTHORITY_SCOPE_AMBIGUOUS in the AUTH-003 synthetic test case. Not a real legal instrument.","{""evidence_notes"":"""",""extracted_character_count"":2202}",ACCEPTED,0.9,2026-09-29T08:16:52.222Z,false

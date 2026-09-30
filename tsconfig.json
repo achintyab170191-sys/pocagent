@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noUncheckedIndexedAccess": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@sbo/domain": ["packages/domain/src/index.ts"],
+      "@sbo/persistence": ["packages/persistence/src/index.ts"],
+      "@sbo/governance": ["packages/governance/src/index.ts"],
+      "@sbo/workflows": ["packages/workflows/src/index.ts"],
+      "@sbo/agent-runtime": ["packages/agent-runtime/src/index.ts"],
+      "@sbo/testkit": ["packages/testkit/src/index.ts"]
+    }
+  },
+  "include": ["apps/api/**/*.ts", "packages/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "types/**/*.d.ts", "playwright.config.ts", "eslint.config.js"],
+  "exclude": ["node_modules", "apps/web"]
+}
+

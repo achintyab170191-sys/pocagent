@@ -1,0 +1,23 @@
+﻿Reason_Code,Meaning,Disclosure_Level,Default_Next_Action,Synthetic_Only
+DOCUMENT_MISSING,Required document was not supplied,Customer-safe,Request the exact missing item,true
+DOCUMENT_UNREADABLE,Required document could not be reliably read,Customer-safe,Request a readable replacement,true
+DOCUMENT_CONTRADICTION,Material contradiction exists across documents,Internal summary; customer-safe wording only,Manual review,true
+PROMPT_INJECTION_DETECTED,Document contains text attempting to override agent instructions,Internal only,Security review,true
+BUSINESS_ACTIVE,Mock register confirms active business,Customer-safe,Continue,true
+BUSINESS_INACTIVE,Mock register confirms inactive status,Customer-safe with approved wording,Stop and review,true
+REGISTRY_UNAVAILABLE,Mock registry could not be reached,Customer-safe,Manual verification,true
+IDENTITY_VERIFIED,Synthetic identity details match,Customer-safe,Continue,true
+IDENTITY_MISMATCH,Identity details conflict,Customer-safe at high level,Manual review,true
+DIRECT_AUTHORITY_CONFIRMED,Representative is already authorised in mock CRM,Internal and customer-safe,Continue,true
+AUTHORITY_MISSING,Required authority evidence is absent,Customer-safe,Request document,true
+AUTHORITY_SCOPE_CLEAR,Authority evidence explicitly covers requested activities,Customer-safe,Continue,true
+AUTHORITY_SCOPE_AMBIGUOUS,Authority evidence is open to interpretation,Customer-safe at high level,Manual review,true
+AUTHORITY_SCOPE_INSUFFICIENT,Authority evidence does not cover the requested activities,Customer-safe,Request revised evidence,true
+DUPLICATE_RECORDS_CONSISTENT,Multiple linked records exist without a material conflict,Internal,Continue with flag,true
+DUPLICATE_RECORD_CONFLICT,Multiple records contain conflicting data,Internal; customer-safe wording only,Data reconciliation,true
+FINANCIAL_CHECK_CLEAR,No mock credit hold or policy exception,Internal,Continue,true
+CREDIT_HOLD,Mock credit hold exists,Internal only,Credit review,true
+FINAL_VERIFICATION_SUCCESSFUL,Synthetic final verification passed,Customer-safe,Continue,true
+FINAL_VERIFICATION_FAILED,Synthetic final verification did not pass,Customer-safe with approved wording,Stop and review,true
+TBD_POLICY,Applicable policy has not been confirmed,Internal,Policy review,true
+ALL_CHECKS_PASSED,All mandatory POC checks passed,Customer-safe,Approve recommendation,true

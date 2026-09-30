@@ -1,0 +1,625 @@
+{
+  "name": "07A - SBO.07 - Identity Validation",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"case_run_id\": \"AUTH-001\",\n  \"submission_version\": 1,\n  \"processing_mode\": \"MOCK\",\n  \"persist_results\": true\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "193161bc-7021-4540-8ece-ceeedd04212b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const row =\n  $('Get Mock Utility Result').first().json;\n\nconst rules = $('Get Decision Rules')\n  .all()\n  .map(item => item.json);\n\nfunction splitSemi(value) {\n  if (!value) {\n    return [];\n  }\n\n  return String(value)\n    .split(';')\n    .map(value => value.trim())\n    .filter(Boolean);\n}\n\nfunction safeParse(value) {\n  try {\n    return value ? JSON.parse(value) : {};\n  } catch (error) {\n    return {\n      parse_error: true,\n      raw_value: value,\n    };\n  }\n}\n\nfunction toBoolean(value) {\n  return value === true ||\n    String(value).toLowerCase() === 'true';\n}\n\nconst ruleIds = splitSemi(row.Rule_IDs);\n\nconst applicableRules = rules\n  .filter(rule => ruleIds.includes(rule.Rule_ID))\n  .sort(\n    (a, b) =>\n      Number(a.Priority ?? 9999) -\n      Number(b.Priority ?? 9999)\n  );\n\nconst hasTbd = applicableRules.some(\n  rule =>\n    String(rule.Rule_Status).toUpperCase() ===\n    'TBD'\n);\n\nlet appliedRule = null;\n\nif (hasTbd) {\n  appliedRule = rules.find(\n    rule => rule.Rule_ID === 'CTRL-001'\n  );\n} else {\n  appliedRule =\n    applicableRules.find(rule =>\n      [\n        'REJECT',\n        'NEED_MORE_INFORMATION',\n        'MANUAL_REVIEW',\n      ].includes(\n        String(rule.Final_Outcome).toUpperCase()\n      )\n    ) ||\n    applicableRules[0] ||\n    null;\n}\n\nconst terminalOutcome =\n  appliedRule?.Final_Outcome || 'CONTINUE';\n\nreturn [\n  {\n    json: {\n      case_run_id: row.Case_Run_ID,\n      submission_version: 1,\n      sequence: Number(row.Sequence),\n      agent_id: row.Agent_ID,\n      utility_name: row.Utility_Name,\n      check_type: row.Check_Type,\n      status: row.Status,\n      findings: safeParse(row.Findings_JSON),\n      reason_codes: splitSemi(row.Reason_Codes),\n      evidence_references: splitSemi(\n        row.Evidence_References\n      ),\n      confidence: Number(row.Confidence || 0),\n      human_review_required: toBoolean(\n        row.Human_Review_Required\n      ),\n      recommended_next_step:\n        row.Recommended_Next_Step,\n      rule_ids: ruleIds,\n      rule_status_used: row.Rule_Status_Used,\n      applied_rule: appliedRule,\n      is_terminal: [\n        'REJECT',\n        'NEED_MORE_INFORMATION',\n        'MANUAL_REVIEW',\n      ].includes(\n        String(terminalOutcome).toUpperCase()\n      ),\n      terminal_outcome: terminalOutcome,\n      prototype_data: true,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "e6a8364c-8ef2-49b3-829b-a93236abd15e",
+      "name": "Build Utility Result"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "YrYHOgtcP1XctJqM",
+          "mode": "list",
+          "cachedResultName": "dt_utility_results_runtime",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/YrYHOgtcP1XctJqM"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "case_run_id",
+              "keyValue": "={{ $json.case_run_id }}"
+            },
+            {
+              "keyName": "submission_version",
+              "keyValue": "={{ $json.submission_version }}"
+            },
+            {
+              "keyName": "check_type",
+              "keyValue": "={{ $json.check_type }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "human_review_required": false,
+            "submission_version": "={{ $json.submission_version }}",
+            "check_type": "={{ $json.check_type }}",
+            "case_run_id": "={{ $json.case_run_id }}",
+            "reason_codes": "={{ $json.reason_codes.join('; ') }}",
+            "findings_json": "={{ JSON.stringify($json.findings) }}",
+            "rule_ids": "={{ $json.rule_ids.join('; ') }}",
+            "evidence_references": "={{ $json.evidence_references.join('; ') }}",
+            "result_id": "=RES-{{$json.case_run_id}}-{{$json.sequence}}",
+            "created_at": "={{$now.toISO()}}",
+            "superseded": "false",
+            "sequence": "={{ $json.sequence }}",
+            "agent_id": "={{ $json.agent_id }}",
+            "utility_name": "={{ $json.utility_name }}",
+            "status": "={{ $json.status }}",
+            "confidence": "={{ $json.confidence }}",
+            "recommended_next_step": "={{ $json.recommended_next_step }}",
+            "rule_status_used": "={{ $json.rule_status_used }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "result_id",
+              "displayName": "result_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sequence",
+              "displayName": "sequence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "agent_id",
+              "displayName": "agent_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "utility_name",
+              "displayName": "utility_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "check_type",
+              "displayName": "check_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "findings_json",
+              "displayName": "findings_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason_codes",
+              "displayName": "reason_codes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_references",
+              "displayName": "evidence_references",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "human_review_required",
+              "displayName": "human_review_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recommended_next_step",
+              "displayName": "recommended_next_step",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rule_ids",
+              "displayName": "rule_ids",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rule_status_used",
+              "displayName": "rule_status_used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "superseded",
+              "displayName": "superseded",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "6d58437a-d695-47f4-bb20-f6b398922e4d",
+      "name": "Store Utility Result"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "TllaLLGRsZ6jhBxm",
+          "mode": "list",
+          "cachedResultName": "dt_mock_utility_results",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/TllaLLGRsZ6jhBxm"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Case_Run_ID",
+              "keyValue": "={{ $json.case_run_id }}"
+            },
+            {
+              "keyName": "Check_Type",
+              "condition": "ilike",
+              "keyValue": "IDENTITY_VALIDATION"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "ff7b04d1-55c3-45ff-92f7-3f11a269bf1c",
+      "name": "Get Mock Utility Result"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8GK7hdyGe8VJdsEO",
+          "mode": "list",
+          "cachedResultName": "dt_decision_rules",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/8GK7hdyGe8VJdsEO"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "Rule_ID",
+              "keyValue": "={{ $json.Rule_IDs }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "038c555a-b030-4e03-9ae5-53a8b1d9d6fa",
+      "name": "Get Decision Rules",
+      "alwaysOutputData": true,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "yxGkpl7zLS8je3TV",
+          "mode": "list",
+          "cachedResultName": "dt_audit_events",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/yxGkpl7zLS8je3TV"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_id": "=EVT-{{$json.case_run_id}}-{{$json.sequence}}-{{$now.toMillis()}}",
+            "case_run_id": "={{$json.case_run_id}}",
+            "submission_version": "={{$json.submission_version}}",
+            "actor": "={{$json.agent_id}}",
+            "timestamp": "2026-09-26T01:38:50",
+            "event_type": "UTILITY_CHECK_COMPLETED",
+            "stage": "={{$json.check_type}}",
+            "previous_state": "=",
+            "new_state": "={{$json.status}}",
+            "rule_id": "={{ $json.applied_rule?.Rule_ID || '' }}",
+            "reason_code": "={{ $json.reason_codes[0] || '' }}",
+            "evidence_reference": "={{ $json.evidence_references }}",
+            "details_json": "={{ JSON.stringify($json) }}",
+            "execution_id": "={{ $execution.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_id",
+              "displayName": "event_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "previous_state",
+              "displayName": "previous_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "new_state",
+              "displayName": "new_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rule_id",
+              "displayName": "rule_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason_code",
+              "displayName": "reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_reference",
+              "displayName": "evidence_reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "details_json",
+              "displayName": "details_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "89c308d3-a1de-404b-88c6-a71db908bf57",
+      "name": "Audit Utility Check"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json:\n      $('Build Utility Result').first().json,\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "ace2046c-ecb3-4a72-9453-71c4ca0770ad",
+      "name": "Return Utility Result"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Mock Utility Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Utility Result": {
+      "main": [
+        [
+          {
+            "node": "Store Utility Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Utility Result": {
+      "main": [
+        [
+          {
+            "node": "Audit Utility Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Mock Utility Result": {
+      "main": [
+        [
+          {
+            "node": "Get Decision Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Decision Rules": {
+      "main": [
+        [
+          {
+            "node": "Build Utility Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Utility Check": {
+      "main": [
+        [
+          {
+            "node": "Return Utility Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "7Su9PC0hLneBhGnc",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "versionId": "6d1aa195-9467-4db7-bf43-8f8fba1bd50e",
+  "meta": {
+    "instanceId": "a314b836c084695b12b69b8d570c98912227d4785e1c5124e122761794634790"
+  },
+  "nodeGroups": [],
+  "id": "2bXSWzgDOgT9HOFy",
+  "tags": []
+}

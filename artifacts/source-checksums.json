@@ -1,0 +1,162 @@
+[
+  {
+    "path": "03 - SBO.02 - Agentic Reasoning Orchestrator.json",
+    "bytes": 249558,
+    "sha256": "f1be529bcd1f50cde75d0a5b31b6966ae4f68ef8d36be2285c9932a21ad60ec0"
+  },
+  {
+    "path": "05 - SBO.05 - Document Checks.json",
+    "bytes": 20792,
+    "sha256": "4c789d3920c8d463ef18bdb0e1c6d1939ca81f6f21291fff80c1c094ad7502b8"
+  },
+  {
+    "path": "06 - SBO.06 - Business Validation.json",
+    "bytes": 20804,
+    "sha256": "12732009a44360679919db981fe58f89aaec00362ad42d6d4a9e40b545149c8b"
+  },
+  {
+    "path": "07A - SBO.07 - Identity Validation.json",
+    "bytes": 20805,
+    "sha256": "1dea0331dfebbc20aab45d9b3fd14b380c8b7ff038bc1a9a91ebea085d5893ec"
+  },
+  {
+    "path": "07B - SBO.07 - Authority Validation.json",
+    "bytes": 20807,
+    "sha256": "a734fcef2984494709a6fee24e7adccfcffd374d2e988e74d87f7e41785e770d"
+  },
+  {
+    "path": "09 - SBO.09 - Financial Check.json",
+    "bytes": 21035,
+    "sha256": "c49b1d5f35b1b1d1b29077f53802a9c977e4b740ce66c7a55ea406adc40ef6ee"
+  },
+  {
+    "path": "10 - SBO.10 - Final Verification.json",
+    "bytes": 21041,
+    "sha256": "dbb56e1c15b55e7bbf01492f7dd91e85209b4ff7095d513b6b12bb938209e4b9"
+  },
+  {
+    "path": "12 - SBO.12 - System Data Check.json",
+    "bytes": 22517,
+    "sha256": "2044ab3e80260f7182bcfac03318850d8d232f06cd648664921b0a4c7daed702"
+  },
+  {
+    "path": "90 - Finalize Decision.json",
+    "bytes": 61840,
+    "sha256": "fb64e5d921774c8ecde1d8ef5dc2d90b8a7bb14ca09d436f001d672888f9eb96"
+  },
+  {
+    "path": "91 - Human Review Portal.json",
+    "bytes": 61063,
+    "sha256": "4b54bf70a11e483d6d656568471606c7103f81261cebf7d4c9172b24e96b42bf"
+  },
+  {
+    "path": "92 - Resubmission Portal.json",
+    "bytes": 33539,
+    "sha256": "a5b867c0d8a21c3684200a07eb15d4ee20f212c5501eba69097be762e3042b6e"
+  },
+  {
+    "path": "95 - Evidence Resolution Utility.json",
+    "bytes": 59764,
+    "sha256": "66c55d8b30ef58887e273eaa0cb979ca1fba22598eee48c29781dd69c4b6a06f"
+  },
+  {
+    "path": "96 - Customer Evidence Upload Portal.json",
+    "bytes": 39944,
+    "sha256": "86545ad006a437b341c21d0112a78e51c94ed7de77e56ad72d573cf62b5e83b8"
+  },
+  {
+    "path": "dt_audit_events.csv",
+    "bytes": 632049,
+    "sha256": "115cd0d605dc43a952cbb7649f804e1cb2dbe6a2d0558bd694d67c80293b3a45"
+  },
+  {
+    "path": "dt_business_register.csv",
+    "bytes": 2503,
+    "sha256": "f4df0dfd11a8697e601072fde4d562cf65bab21b747e68867259025bda216c64"
+  },
+  {
+    "path": "dt_cases_runtime.csv",
+    "bytes": 3476,
+    "sha256": "f7732485519d28685d896f8e02b1cf5742f710f932f3bbf308fa8a9730b3e8b9"
+  },
+  {
+    "path": "dt_case_evidence.csv",
+    "bytes": 3915,
+    "sha256": "7931c16b97e3dedfac0c505fd10d444c1377866d575af24b94b7cb43cb2832c8"
+  },
+  {
+    "path": "dt_communications.csv",
+    "bytes": 4773,
+    "sha256": "79e09f445fd050896661248915dcf195e985af2abff7039b4e844dbf7be95328"
+  },
+  {
+    "path": "dt_communication_templates.csv",
+    "bytes": 2216,
+    "sha256": "5b8f301ea866b0630cb2a6a82a977dc435ef283212a2cecefca2ea84d58c541d"
+  },
+  {
+    "path": "dt_country_requirements.csv",
+    "bytes": 862,
+    "sha256": "695caa00a080abcdef4733b99bb2910a8e435daaf376833a454aecca167ac239"
+  },
+  {
+    "path": "dt_crm_accounts.csv",
+    "bytes": 2112,
+    "sha256": "dc36f51758d6c5d417fd89a34a954dd4de2cbe2bc8193f08734ac9bade5cbca7"
+  },
+  {
+    "path": "dt_decisions.csv",
+    "bytes": 51722,
+    "sha256": "03a50d5f0eac65e7318a54d8c56ce2fab77a564de762500aac45d7d2feb1e9ed"
+  },
+  {
+    "path": "dt_decision_rules.csv",
+    "bytes": 9740,
+    "sha256": "138739ebb31a6d9e9f5a55171be6cc8e1fa7e956d6367619a908a85321d16230"
+  },
+  {
+    "path": "dt_documents_index.csv",
+    "bytes": 13206,
+    "sha256": "99cd1539665ac9535bfa8eb01102c3656278ba2adab2f8bf639adec48109c1a7"
+  },
+  {
+    "path": "dt_evidence_requests.csv",
+    "bytes": 1048,
+    "sha256": "a254d722b0e1b55de163c245ffeff40ac841f7cc3af3c08f38f01c9efe68c86b"
+  },
+  {
+    "path": "dt_financial_records.csv",
+    "bytes": 1551,
+    "sha256": "225bf0aa46af8a5d765242aaadc63b50787de5f0284e5479447e75b4d03f620d"
+  },
+  {
+    "path": "dt_human_reviews.csv",
+    "bytes": 395,
+    "sha256": "28e256c831335a3f69d8b297c98adf56096da1d72c31b8737f5467249fbe1d67"
+  },
+  {
+    "path": "dt_mock_utility_results.csv",
+    "bytes": 21437,
+    "sha256": "fa855250bf94debd2d40f3e491ec2094a3a1211e353646372916e2406fa9dad5"
+  },
+  {
+    "path": "dt_process_catalog.csv",
+    "bytes": 348,
+    "sha256": "a1c95c8af614a0f672aff6467d345f6463f3aaa22d2233198a0804b398b0a7af"
+  },
+  {
+    "path": "dt_reason_codes.csv",
+    "bytes": 2375,
+    "sha256": "055cefb457ca82cccde642f7a74f71aff113204f07cb22ed206112e31f695e0a"
+  },
+  {
+    "path": "dt_synthetic_cases.csv",
+    "bytes": 6113,
+    "sha256": "7eda6f03d5aa63d82b3236d4382bd08afd6102da3235e07d152a8c1350593c46"
+  },
+  {
+    "path": "dt_utility_results_runtime.csv",
+    "bytes": 5781,
+    "sha256": "b626ef0315dbc6c89d41b1324df1dc0dea0303ee99ec21277046fe623f451a32"
+  }
+]

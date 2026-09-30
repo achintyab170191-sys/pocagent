@@ -1,0 +1,5 @@
+﻿evidence_request_id,case_run_id,submission_version,session_id,process_code,originating_check_type,originating_reason_code,evidence_channel,requested_items_json,customer_message,status,attempt_count,max_attempts,created_at,due_at,received_at,resolved_at
+EVID-AUTH-002-V1-1790589177295,AUTH-002,1,030f5432-265f-4a5d-b4db-2530dfdbcd54,P-1.1,AUTHORITY_VALIDATION,AUTHORITY_MISSING,FILE_UPLOAD,"[""Authority letter or approved delegation evidence""]","Please provide the following additional evidence:
+- Authority letter or approved delegation evidence",OPEN,0,3,2026-09-28T09:52:57.295Z,2026-09-30T09:52:57.295Z,,
+EVID-AUTH-003-V1-1790669715152,AUTH-003,1,08e29cd3-0922-4afb-814b-511eacf9de9f,P-1.1,AUTHORITY_VALIDATION,AUTHORITY_SCOPE_AMBIGUOUS,CHAT_OR_FILE,"[""Exact authority clause or revised authority document""]","Please provide the following additional evidence:
+- Exact authority clause or revised authority document",ACCEPTED,2,3,2026-09-29T08:15:15.152Z,2026-10-01T08:15:15.152Z,2026-09-29T13:46:52.320+05:30,2026-09-29T13:47:16.472+05:30

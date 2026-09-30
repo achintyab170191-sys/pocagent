@@ -1,0 +1,12 @@
+﻿Financial_Record_ID,Customer_ID,PID,Outstanding_Amount,Currency,Oldest_Aging_Days,Credit_Hold,Historical_Suspension,Write_Off_Flag,Risk_Classification,Check_Status,Notes,Synthetic_Only
+FIN-PID-DEMO-AU-001,CUST-DEMO-AU-1001,PID-DEMO-AU-001,0,AUD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-NZ-002,CUST-DEMO-NZ-2001,PID-DEMO-NZ-002,0,NZD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-AU-003,CUST-DEMO-AU-1002,PID-DEMO-AU-003,0,AUD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-NZ-004,CUST-DEMO-NZ-2002,PID-DEMO-NZ-004,0,NZD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-AU-005A,CUST-DEMO-AU-1003,PID-DEMO-AU-005A,450,AUD,15,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-AU-005B,CUST-DEMO-AU-1003-B,PID-DEMO-AU-005B,450,AUD,15,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-NZ-006,CUST-DEMO-NZ-2003,PID-DEMO-NZ-006,0,NZD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-AU-007,CUST-DEMO-AU-1004,PID-DEMO-AU-007,0,AUD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-AU-008,CUST-DEMO-AU-1005,PID-DEMO-AU-008,0,AUD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-NZ-009,CUST-DEMO-NZ-2004,PID-DEMO-NZ-009,0,NZD,0,NO,NO,NO,LOW,CLEAR,Synthetic clear financial result.,true
+FIN-PID-DEMO-AU-010,CUST-DEMO-AU-1006,PID-DEMO-AU-010,12450,AUD,75,YES,NO,NO,REVIEW,REVIEW_REQUIRED,Synthetic credit hold used to test TBD policy.,true

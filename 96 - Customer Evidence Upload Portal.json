@@ -1,0 +1,1052 @@
+{
+  "name": "96 - Customer Evidence Upload Portal",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Submit Additional Case Evidence",
+        "formDescription": "Upload the additional synthetic evidence requested by the\nB2B Authorised Representative Agent.\n\nDo not upload real customer, identity, financial, or commercially sensitive data.",
+        "formFields": {
+          "values": [
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "evidence_request_id"
+            },
+            {
+              "fieldType": "hiddenField",
+              "fieldName": "case_run_id"
+            },
+            {
+              "fieldLabel": "Evidence Type",
+              "fieldType": "dropdown",
+              "fieldName": "evidence_type",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "AUTHORITY_DOCUMENT"
+                  },
+                  {
+                    "option": "IDENTITY_DOCUMENT"
+                  },
+                  {
+                    "option": "BUSINESS_DOCUMENT"
+                  },
+                  {
+                    "option": "ADDRESS_PROOF"
+                  },
+                  {
+                    "option": "CUSTOMER_CONFIRMATION"
+                  },
+                  {
+                    "option": "OTHER"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Evidence Notes",
+              "fieldType": "textarea",
+              "fieldName": "evidence_notes"
+            },
+            {
+              "fieldLabel": "Evidence File",
+              "fieldType": "file",
+              "fieldName": "evidence_file",
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "submit-case-evidence"
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2c8835b3-eae4-4124-b501-59253b6d5e81",
+      "name": "Open Evidence Upload",
+      "webhookId": "e1e02f09-7f44-4e5e-a6d6-7538f23f7a54"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "UbtbBPzZCJ6wVsuC",
+          "mode": "list",
+          "cachedResultName": "dt_evidence_requests",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/UbtbBPzZCJ6wVsuC"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "evidence_request_id",
+              "keyValue": "={{\n  $('Normalise Evidence Upload Input')\n    .first()\n    .json\n    .evidence_request_id\n}}"
+            }
+          ]
+        },
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "f5a98d23-47bb-41dc-ae78-6578968e5fd5",
+      "name": "Get Evidence Request",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n============================================================\nVALIDATE EVIDENCE REQUEST\n============================================================\n\nThe evidence-request table row is the authoritative source\nfor case_run_id.\n\nRules:\n- Evidence request must exist.\n- Status must permit evidence submission.\n- If the form supplied a case ID, it must match.\n- If the form omitted case ID, use the stored case ID.\n============================================================\n*/\n\nconst submitted =\n  $('Normalise Evidence Upload Input')\n    .first()\n    .json || {};\n\nconst requestRows =\n  $input\n    .all()\n    .map(item =>\n      item.json || {}\n    )\n    .filter(row =>\n      String(\n        row.evidence_request_id || ''\n      ).trim()\n    );\n\nconst request =\n  requestRows[0] || {};\n\nconst submittedEvidenceRequestId =\n  String(\n    submitted.evidence_request_id || ''\n  ).trim();\n\nconst storedEvidenceRequestId =\n  String(\n    request.evidence_request_id || ''\n  ).trim();\n\nconst suppliedCaseRunId =\n  String(\n    submitted.supplied_case_run_id ||\n    submitted.case_run_id ||\n    ''\n  ).trim();\n\nconst storedCaseRunId =\n  String(\n    request.case_run_id || ''\n  ).trim();\n\nconst currentStatus =\n  String(\n    request.status || ''\n  )\n    .trim()\n    .toUpperCase();\n\nconst permittedStatuses = [\n  'OPEN',\n  'PARTIALLY_RECEIVED',\n  'INSUFFICIENT',\n];\n\nconst requestFound =\n  Boolean(\n    storedEvidenceRequestId\n  );\n\nconst requestIdMatches =\n  requestFound &&\n  storedEvidenceRequestId ===\n    submittedEvidenceRequestId;\n\n/*\nA missing supplied case ID is acceptable because the request\nrecord already owns the authoritative case ID.\n\nA supplied but different case ID is not acceptable.\n*/\nconst caseMismatch =\n  Boolean(\n    suppliedCaseRunId &&\n    storedCaseRunId &&\n    suppliedCaseRunId !==\n      storedCaseRunId\n  );\n\nconst statusPermitted =\n  permittedStatuses.includes(\n    currentStatus\n  );\n\nconst effectiveCaseRunId =\n  storedCaseRunId ||\n  suppliedCaseRunId;\n\nconst uploadAllowed =\n  requestFound &&\n  requestIdMatches &&\n  Boolean(\n    effectiveCaseRunId\n  ) &&\n  !caseMismatch &&\n  statusPermitted;\n\nlet rejectionReason = '';\n\nif (!submittedEvidenceRequestId) {\n  rejectionReason =\n    'EVIDENCE_REQUEST_ID_NOT_SUPPLIED';\n} else if (!requestFound) {\n  rejectionReason =\n    'EVIDENCE_REQUEST_NOT_FOUND';\n} else if (!requestIdMatches) {\n  rejectionReason =\n    'EVIDENCE_REQUEST_ID_MISMATCH';\n} else if (!effectiveCaseRunId) {\n  rejectionReason =\n    'CASE_RUN_ID_NOT_AVAILABLE';\n} else if (caseMismatch) {\n  rejectionReason =\n    'CASE_RUN_ID_MISMATCH';\n} else if (!statusPermitted) {\n  rejectionReason =\n    'EVIDENCE_REQUEST_NOT_OPEN';\n}\n\nreturn [\n  {\n    json: {\n      evidence_request_id:\n        storedEvidenceRequestId ||\n        submittedEvidenceRequestId,\n\n      /*\n      Authoritative effective value used downstream.\n      */\n      case_run_id:\n        effectiveCaseRunId,\n\n      supplied_case_run_id:\n        suppliedCaseRunId,\n\n      stored_case_run_id:\n        storedCaseRunId,\n\n      current_status:\n        currentStatus,\n\n      request_found:\n        requestFound,\n\n      request_id_matches:\n        requestIdMatches,\n\n      case_mismatch:\n        caseMismatch,\n\n      status_permitted:\n        statusPermitted,\n\n      upload_allowed:\n        uploadAllowed,\n\n      rejection_reason:\n        rejectionReason,\n\n      submission_version:\n        Number(\n          request.submission_version || 1\n        ),\n\n      originating_check_type:\n        String(\n          request.originating_check_type ||\n          ''\n        ).trim(),\n\n      evidence_channel:\n        String(\n          request.evidence_channel ||\n          ''\n        ).trim(),\n\n      evidence_acceptance_policy:\n        String(\n          request.evidence_acceptance_policy ||\n          ''\n        ).trim(),\n\n      request_row:\n        request,\n    },\n\n    /*\n    Preserve the uploaded file through validation.\n    */\n    binary:\n      $('Normalise Evidence Upload Input')\n        .first()\n        .binary || {},\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "d56bd070-9892-4aef-9fcd-9332d2140b61",
+      "name": "Validate Evidence Request"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "=<h2>Upload cannot be accepted</h2>\n\n<p>\nThe evidence request could not be validated for this upload.\n</p>\n\n<p>\n<strong>Evidence Request ID:</strong>\n{{$json.evidence_request_id || 'Not supplied'}}\n</p>\n\n<p>\n<strong>Supplied Case Run ID:</strong>\n{{$json.supplied_case_run_id || 'Not supplied'}}\n</p>\n\n<p>\n<strong>Stored Case Run ID:</strong>\n{{$json.stored_case_run_id || 'Not found'}}\n</p>\n\n<p>\n<strong>Current Status:</strong>\n{{$json.current_status || 'Not found'}}\n</p>\n\n<p>\n<strong>Validation reason:</strong>\n{{$json.rejection_reason || 'Unknown'}}\n</p>\n\n<hr>\n\n<p>\n<em>No case or evidence record was changed.</em>\n</p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        96
+      ],
+      "id": "a75135bf-4e31-4eba-9e27-843241d2e948",
+      "name": "Show Upload Not Allowed",
+      "webhookId": "561d110f-9f3c-43a6-98cd-60bebba5e78e"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "evidence_file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        -96
+      ],
+      "id": "b7b5295e-4823-4b36-8d1f-65ada1c07933",
+      "name": "Extract PDF Text"
+    },
+    {
+      "parameters": {
+        "jsCode": "const extracted =\n  $json || {};\n\nconst candidates = [\n  extracted.text,\n  extracted.content,\n  extracted.data,\n  extracted.document?.text,\n  extracted.pages,\n];\n\nlet text = '';\n\nfor (const candidate of candidates) {\n  if (\n    candidate !== undefined &&\n    candidate !== null\n  ) {\n    if (typeof candidate === 'string') {\n      text = candidate.trim();\n      break;\n    }\n\n    if (Array.isArray(candidate)) {\n      text = candidate\n        .map(item =>\n          typeof item === 'string'\n            ? item\n            : (\n                item.text ??\n                item.content ??\n                JSON.stringify(item)\n              )\n        )\n        .join('\\n')\n        .trim();\n\n      if (text) {\n        break;\n      }\n    }\n  }\n}\n\nreturn [\n  {\n    json: {\n      extracted_text:\n        text,\n\n      text_available:\n        text.length >= 20,\n\n      extracted_character_count:\n        text.length,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -96
+      ],
+      "id": "84aeac7d-89ed-481f-acfe-6cc86458c67f",
+      "name": "Check Extracted PDF"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f8fe0a66-3202-4a0d-9307-daf0d92ec6db",
+              "leftValue": "={{$json.text_available}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        -96
+      ],
+      "id": "1b4e53ab-d6f5-4141-a98a-2aee503e4762",
+      "name": "PDF Text Available?"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "<h2>The uploaded PDF could not be read</h2>\n\n<p>The PDF did not contain enough extractable text for the prototype\nto assess it.</p>\n\n<p>Please upload a clear, text-based PDF and try again.</p>\n\n<p><em>The evidence request remains open.</em></p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        1792,
+        0
+      ],
+      "id": "6a950808-11fc-4771-b1f3-39fa2a0a2939",
+      "name": "Show Unreadable PDF",
+      "webhookId": "b5857807-b449-4b77-b389-6800b2f8ae43"
+    },
+    {
+      "parameters": {
+        "jsCode": "const form =\n  $('Validate Evidence Request')\n    .first()\n    .json;\n\nconst request =\n  $('Get Evidence Request')\n    .first()\n    .json;\n\nconst extracted =\n  $('Check Extracted PDF')\n    .first()\n    .json;\n\nconst binary =\n  $('Validate Evidence Request')\n    .first()\n    .binary || {};\n\nconst uploadedFile =\n  binary.evidence_file ||\n  Object.values(binary)[0] ||\n  {};\n\nreturn [\n  {\n    json: {\n      evidence_id:\n        `EVIDENCE-${request.case_run_id}-${Date.now()}`,\n\n      evidence_request_id:\n        request.evidence_request_id,\n\n      case_run_id:\n        request.case_run_id,\n\n      submission_version:\n        Number(\n          request.submission_version || 1\n        ),\n\n      evidence_type:\n        form.evidence_type ||\n        'OTHER',\n\n      evidence_source:\n        'FILE_UPLOAD',\n\n      file_name:\n        uploadedFile.fileName || '',\n\n      mime_type:\n        uploadedFile.mimeType ||\n        'application/pdf',\n\n      storage_url:\n        '',\n\n      evidence_text:\n        extracted.extracted_text,\n\n      structured_data_json:\n        JSON.stringify({\n          evidence_notes:\n            form.evidence_notes || '',\n\n          extracted_character_count:\n            extracted\n              .extracted_character_count,\n        }),\n\n      validation_status:\n        'RECEIVED',\n\n      confidence:\n        0,\n\n      provided_at:\n        new Date().toISOString(),\n\n      superseded:\n        false,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        -192
+      ],
+      "id": "fbdf24e6-160a-47d4-9ec3-50eb601681e0",
+      "name": "Prepare Uploaded Evidence"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "qA9cwZncAvsJ25Vq",
+          "mode": "list",
+          "cachedResultName": "dt_case_evidence",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/qA9cwZncAvsJ25Vq"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "evidence_id",
+              "keyValue": "={{$json.evidence_id}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "superseded": "={{$json.superseded}}",
+            "evidence_id": "={{$json.evidence_id}}",
+            "evidence_request_id": "={{$json.evidence_request_id}}",
+            "case_run_id": "={{$json.case_run_id}}",
+            "submission_version": "={{$json.submission_version}}",
+            "evidence_type": "={{$json.evidence_type}}",
+            "evidence_source": "={{$json.evidence_source}}",
+            "file_name": "={{$json.file_name}}",
+            "mime_type": "={{$json.mime_type}}",
+            "storage_url": "={{$json.storage_url}}",
+            "evidence_text": "={{$json.evidence_text}}",
+            "structured_data_json": "={{$json.structured_data_json}}",
+            "validation_status": "={{$json.validation_status}}",
+            "confidence": "={{$json.confidence}}",
+            "provided_at": "={{$json.provided_at}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "evidence_id",
+              "displayName": "evidence_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_request_id",
+              "displayName": "evidence_request_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_type",
+              "displayName": "evidence_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_source",
+              "displayName": "evidence_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "mime_type",
+              "displayName": "mime_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "storage_url",
+              "displayName": "storage_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_text",
+              "displayName": "evidence_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "structured_data_json",
+              "displayName": "structured_data_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "validation_status",
+              "displayName": "validation_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "provided_at",
+              "displayName": "provided_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "superseded",
+              "displayName": "superseded",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2016,
+        -192
+      ],
+      "id": "3338fc31-15c2-4fb9-acb4-af23f0d24a97",
+      "name": "Store Uploaded Evidence"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "UbtbBPzZCJ6wVsuC",
+          "mode": "list",
+          "cachedResultName": "dt_evidence_requests",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/UbtbBPzZCJ6wVsuC"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "evidence_request_id",
+              "keyValue": "={{ $('Prepare Uploaded Evidence').first().json.evidence_request_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "RECEIVED",
+            "received_at": "={{$now.toISO()}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "evidence_request_id",
+              "displayName": "evidence_request_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "process_code",
+              "displayName": "process_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "originating_check_type",
+              "displayName": "originating_check_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "originating_reason_code",
+              "displayName": "originating_reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_channel",
+              "displayName": "evidence_channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "requested_items_json",
+              "displayName": "requested_items_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "customer_message",
+              "displayName": "customer_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "attempt_count",
+              "displayName": "attempt_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "max_attempts",
+              "displayName": "max_attempts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "due_at",
+              "displayName": "due_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "received_at",
+              "displayName": "received_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "resolved_at",
+              "displayName": "resolved_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2240,
+        -192
+      ],
+      "id": "3c3a0b16-bf5c-40e7-8243-8c5c3dc99b5f",
+      "name": "Mark Uploaded Evidence Received"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "yxGkpl7zLS8je3TV",
+          "mode": "list",
+          "cachedResultName": "dt_audit_events",
+          "cachedResultUrl": "/projects/TWEOEyrpKxxODRMz/datatables/yxGkpl7zLS8je3TV"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_run_id": "={{ $('Prepare Uploaded Evidence').first().json.case_run_id }}",
+            "event_id": "=EVT-{{ $('Prepare Uploaded Evidence').first().json.case_run_id }}-FILE-EVIDENCE-{{$now.toMillis()}}",
+            "submission_version": "={{ $('Prepare Uploaded Evidence').first().json.submission_version }}",
+            "timestamp": "={{$now.toISO()}}",
+            "actor": "CUSTOMER_SYNTHETIC",
+            "event_type": "ADDITIONAL_EVIDENCE_RECEIVED",
+            "stage": "EVIDENCE_COLLECTION",
+            "previous_state": "WAITING_FOR_EVIDENCE",
+            "new_state": "EVIDENCE_RECEIVED",
+            "reason_code": "CUSTOMER_FILE_EVIDENCE_RECEIVED",
+            "evidence_reference": "={{ $('Prepare Uploaded Evidence').first().json.evidence_id }}",
+            "details_json": "={{ JSON.stringify($('Prepare Uploaded Evidence').first().json) }}",
+            "execution_id": "={{$execution.id}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_id",
+              "displayName": "event_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "case_run_id",
+              "displayName": "case_run_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submission_version",
+              "displayName": "submission_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "previous_state",
+              "displayName": "previous_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "new_state",
+              "displayName": "new_state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rule_id",
+              "displayName": "rule_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason_code",
+              "displayName": "reason_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "evidence_reference",
+              "displayName": "evidence_reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "details_json",
+              "displayName": "details_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2464,
+        -192
+      ],
+      "id": "dedd34bc-6034-49ad-a091-c7200672b215",
+      "name": "Audit Uploaded Evidence Received"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "=<h2>Evidence uploaded</h2>\n\n<p><strong>Case:</strong>\n{{$('Prepare Uploaded Evidence').first().json.case_run_id}}</p>\n\n<p><strong>Evidence request:</strong>\n{{$('Prepare Uploaded Evidence').first().json.evidence_request_id}}</p>\n\n<p><strong>File:</strong>\n{{$('Prepare Uploaded Evidence').first().json.file_name || 'Uploaded PDF'}}</p>\n\n<p>Your synthetic evidence has been received.</p>\n\n<p>Return to the Agent chat and type <strong>UPLOADED</strong>\nso the assessment can continue.</p>\n\n<hr>\n\n<p><em>No production-system update has been performed.</em></p>"
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        2688,
+        -192
+      ],
+      "id": "5189cb7e-d653-45d5-a3b9-522eb00568db",
+      "name": "Show Upload Completed",
+      "webhookId": "5e349bed-cd90-48b4-b697-b035f7d894c7"
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n============================================================\nNORMALISE EVIDENCE UPLOAD INPUT\n============================================================\n\nReads IDs defensively from possible Form Trigger payload shapes.\n\nAlso preserves the uploaded binary PDF.\n============================================================\n*/\n\nconst item =\n  $input.first() || {};\n\nconst input =\n  item.json || {};\n\nconst body =\n  input.body &&\n  typeof input.body === 'object'\n    ? input.body\n    : {};\n\nconst query =\n  input.query &&\n  typeof input.query === 'object'\n    ? input.query\n    : {};\n\nconst formData =\n  input.formData &&\n  typeof input.formData === 'object'\n    ? input.formData\n    : {};\n\nconst data =\n  input.data &&\n  typeof input.data === 'object'\n    ? input.data\n    : {};\n\nfunction firstNonEmpty(...values) {\n  for (const value of values) {\n    if (\n      value !== undefined &&\n      value !== null &&\n      String(value).trim() !== ''\n    ) {\n      return String(value).trim();\n    }\n  }\n\n  return '';\n}\n\nconst evidenceRequestId =\n  firstNonEmpty(\n    input.evidence_request_id,\n    body.evidence_request_id,\n    query.evidence_request_id,\n    formData.evidence_request_id,\n    data.evidence_request_id\n  );\n\nconst caseRunId =\n  firstNonEmpty(\n    input.case_run_id,\n    body.case_run_id,\n    query.case_run_id,\n    formData.case_run_id,\n    data.case_run_id\n  );\n\nreturn [\n  {\n    json: {\n      ...input,\n\n      evidence_request_id:\n        evidenceRequestId,\n\n      /*\n      This remains the customer/form-supplied value.\n      The authoritative value will be retrieved from\n      dt_evidence_requests later.\n      */\n      supplied_case_run_id:\n        caseRunId,\n\n      case_run_id:\n        caseRunId,\n\n      upload_input_received_at:\n        new Date().toISOString(),\n    },\n\n    /*\n    Preserve the uploaded file.\n    */\n    binary:\n      item.binary || {},\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c8fc23ee-06d0-4158-b292-fce2b265881d",
+      "name": "Normalise Evidence Upload Input"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cac01a44-ce6e-43d9-a8f2-ec33d18ecd45",
+              "leftValue": "={{$json.upload_allowed}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        0
+      ],
+      "id": "f524f672-b486-48c0-abd6-87f323358f74",
+      "name": "Request Open?"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Open Evidence Upload": {
+      "main": [
+        [
+          {
+            "node": "Normalise Evidence Upload Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Evidence Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Evidence Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Evidence Request": {
+      "main": [
+        [
+          {
+            "node": "Request Open?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Check Extracted PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Extracted PDF": {
+      "main": [
+        [
+          {
+            "node": "PDF Text Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF Text Available?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Uploaded Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Unreadable PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Uploaded Evidence": {
+      "main": [
+        [
+          {
+            "node": "Store Uploaded Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Uploaded Evidence": {
+      "main": [
+        [
+          {
+            "node": "Mark Uploaded Evidence Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Uploaded Evidence Received": {
+      "main": [
+        [
+          {
+            "node": "Audit Uploaded Evidence Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Uploaded Evidence Received": {
+      "main": [
+        [
+          {
+            "node": "Show Upload Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Evidence Upload Input": {
+      "main": [
+        [
+          {
+            "node": "Get Evidence Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Open?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Show Upload Not Allowed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "a4ebc3a1-1f5a-4d39-a1a1-47467c66c9a2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a314b836c084695b12b69b8d570c98912227d4785e1c5124e122761794634790"
+  },
+  "nodeGroups": [],
+  "id": "Eb8lc2dfZbCiphHK",
+  "tags": []
+}
