@@ -10,14 +10,15 @@
  * Evidence is documents only: anything typed while a document request is open is not evidence (the customer is told to attach the document).
  */
 import { type AgentRuntime } from '@sbo/agent-runtime';
-import { type ChatSessionState, type EvidenceRequest, type IntakeDetails, type RequestType, businessNamesMatch, documentLabels, findKnownBusiness, intakeDocumentTypes, matchRequestType, requestTypeById, requestTypes, sameName, stageById, suggestKnownBusinesses } from '@sbo/domain';
+import { type ChatSessionState, type EvidenceRequest, type IntakeDetails, type RequestType, documentLabels, findKnownBusiness, intakeDocumentTypes, matchRequestType, requestTypeById, requestTypes, stageById, suggestKnownBusinesses } from '@sbo/domain';
 import { type Repository, now } from '@sbo/persistence';
 import { buildChatResponse, customerReason } from './chat-response.js';
-import { cancelEvidenceRequest, cancelWords, readEvidenceDocument, resolveEvidenceAndContinue, submitDocumentEvidence, type EvidenceContinuation } from './evidence.js';
+import { assessDocuments, cancelEvidenceRequest, cancelWords, readEvidenceDocument, resolveEvidenceAndContinue, submitDocumentEvidence, type EvidenceContinuation } from './evidence.js';
 import { captureNewLead, captureRequest } from './capture.js';
 import { reopenCase } from './reopen.js';
+import { classifyCase, findPriorCase, resumeCancelledCase, type PriorCase } from './returning.js';
 import { documentRequestMessage, extractIntake, introMessage, isFullName, looksLikeBareCompany, looksLikeBareName, openIntakeCase } from './intake.js';
-import { openEvidenceRequest, reopenedStatus, type AssessmentResult } from './super-agent.js';
+import { openEvidenceRequest, type AssessmentResult } from './super-agent.js';
 
 export interface ChatReply {
   sessionId: string;
@@ -106,6 +107,7 @@ export async function handleChatEvidenceUpload(deps: ChatDependencies, input: { 
 /** What the conversation is waiting for right now (used when the page is opened or reloaded, e.g. after a reviewer reopened the case). */
 export async function describeChatState(repository: Repository, sessionId: string): Promise<ChatReply | undefined> {
   const current = await repository.getSession(sessionId);
+  if (current?.step === 'CONFIRM_REOPEN') return { sessionId, step: 'INTAKE', messages: [`Would you like to **reopen** case **${current.caseRunId}**? Reply **yes** to reopen it, or **no** to leave it closed.`], caseRunId: current.caseRunId, syntheticDataDisclaimer: true };
   if (current?.step === 'CONFIRM_COMPANY') return { sessionId, step: 'INTAKE', messages: [didYouMeanMessage(current.intake.businessName, (current.intake.suggestedBusiness ?? '').split('|').filter(Boolean))], caseRunId: '', syntheticDataDisclaimer: true };
   if (current?.step === 'CONFIRM_LEAD') return { sessionId, step: 'INTAKE', messages: [confirmLeadMessage(current.intake.businessName)], caseRunId: '', syntheticDataDisclaimer: true };
   if (current?.step === 'REOPEN_PROOF') return { sessionId, step: 'AWAITING_EVIDENCE', messages: [reopenPrompt(current.caseRunId)], caseRunId: current.caseRunId, evidenceRequest: proofRequestView(), syntheticDataDisclaimer: true };
@@ -177,6 +179,30 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
     return { sessionId, step: 'INTAKE', messages: [confirmLeadMessage(pending.businessName)], caseRunId: '', ...pendingReply, syntheticDataDisclaimer: true };
   }
 
+  // A closed case: the customer decides whether to reopen it. Yes → the same case asks for its documents again (cancelled request) or waits for proof (closed by a reviewer); no → it stays closed.
+  if (current?.step === 'CONFIRM_REOPEN') {
+    if (cancelWords.includes(upper) || noWords.test(message)) {
+      await repository.saveSession(session(sessionId, current.caseRunId, 'DONE'));
+      return { sessionId, step: 'DONE', messages: [`Understood — case ${current.caseRunId} stays closed. Start again whenever you are ready.`], caseRunId: current.caseRunId, syntheticDataDisclaimer: true };
+    }
+    if (yesWords.test(message)) {
+      const caseRecord = await repository.getCase(current.caseRunId);
+      const prior = caseRecord ? await classifyCase(repository, caseRecord) : undefined;
+      if (prior?.kind === 'CLOSED' && prior.how === 'CANCELLED') {
+        const request = await resumeCancelledCase(repository, current.caseRunId, sessionId);
+        await repository.saveSession(session(sessionId, current.caseRunId, 'AWAITING_EVIDENCE', request.evidenceRequestId));
+        return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`I've reopened case **${current.caseRunId}**.\n\n${evidencePrompt(request)}`], caseRunId: current.caseRunId, evidenceRequest: requestView(request), syntheticDataDisclaimer: true };
+      }
+      if (prior?.kind === 'CLOSED') {
+        await repository.saveSession(session(sessionId, current.caseRunId, 'REOPEN_PROOF'));
+        return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Good.\n\n${reopenPrompt(current.caseRunId)}`], caseRunId: current.caseRunId, evidenceRequest: proofRequestView(), syntheticDataDisclaimer: true };
+      }
+      if (prior && caseRecord) return presentPriorCase(deps, sessionId, caseRecord.representativeName, prior, '', {}); // it is no longer closed (for example a reviewer reopened it): report where it stands
+      await repository.saveSession(session(sessionId, current.caseRunId, 'DONE'));
+      return { sessionId, step: 'DONE', messages: [`Case ${current.caseRunId} cannot be reopened.`], caseRunId: current.caseRunId, syntheticDataDisclaimer: true };
+    }
+    return { sessionId, step: 'INTAKE', messages: [`Please reply **yes** to reopen case **${current.caseRunId}**, or **no** to leave it closed.`], caseRunId: current.caseRunId, syntheticDataDisclaimer: true };
+  }
   // A closed rejection is open to the customer again once they furnish proof: only documents count, and "cancel" leaves it closed.
   if (current?.step === 'REOPEN_PROOF') {
     if (cancelWords.includes(upper)) {
@@ -237,20 +263,51 @@ const confirmLeadMessage = (businessName: string): string => `I couldn't find **
 const reopenPrompt = (caseRunId: string): string => `Please attach the proof that resolves it — your ${intakeDocumentTypes.map((type) => documentLabels[type]).join(', ')}, plus any authority document that applies (PDF, Word or image files). I'll reopen ${caseRunId} as a new version for reassessment. To leave it closed, choose "Cancel request".`;
 const proofRequestView = (): NonNullable<ChatReply['evidenceRequest']> => ({ evidenceRequestId: '', evidenceChannel: 'CHAT', requestedItems: intakeDocumentTypes.map((type) => documentLabels[type]), status: 'OPEN', attemptCount: 0, maxAttempts: 3 });
 
-/** The latest version of the customer's earlier case, when a human already confirmed and closed its rejection. */
-async function findClosedRejection(repository: Repository, representativeName: string, businessName: string): Promise<{ caseRunId: string; reasonCode: string } | undefined> {
-  const matching = (await repository.listCases()).filter((entry) => entry.requestType !== 'NEW_LEAD' && sameName(entry.representativeName, representativeName) && businessNamesMatch(entry.businessName, businessName));
-  const latest = matching.sort((left, right) => right.submissionVersion - left.submissionVersion)[0];
-  if (!latest) return undefined;
-  const [decision, runtime] = await Promise.all([repository.getDecision(latest.caseRunId), repository.getRuntimeCase(latest.caseRunId)]);
-  if (decision?.outcome !== 'REJECT' || decision.humanReviewRequired || runtime?.status === reopenedStatus) return undefined;
-  return { caseRunId: latest.caseRunId, reasonCode: decision.primaryReasonCode };
+const statusItems = (items: string[]): string => items.map((item) => `- ${item}`).join('\n');
+const inProgressFooter = '\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*';
+
+/** The customer already has a case: say where it stands instead of opening a duplicate (and offer to resume or reopen it where that makes sense). */
+async function presentPriorCase(deps: ChatDependencies, sessionId: string, name: string, prior: PriorCase, requestTypeId: string, requestReply: { requestType?: NonNullable<ChatReply['requestType']> }): Promise<ChatReply> {
+  const { repository } = deps;
+  const ref = prior.caseRecord.caseRunId;
+  const company = prior.caseRecord.businessName;
+  const done = async (message: string): Promise<ChatReply> => {
+    await repository.saveSession(session(sessionId, ref, 'DONE'));
+    return { sessionId, step: 'DONE', messages: [message + inProgressFooter], caseRunId: ref, ...requestReply, syntheticDataDisclaimer: true };
+  };
+  switch (prior.kind) {
+    case 'DOCUMENTS': {
+      // Same case, same open document request: the customer carries on right here, in this conversation.
+      await repository.saveSession(session(sessionId, ref, 'AWAITING_EVIDENCE', prior.request.evidenceRequestId, emptyIntake, requestTypeId));
+      const left = prior.request.maxAttempts - prior.request.attemptCount;
+      const gaps = assessDocuments(prior.request, await repository.getEvidence(prior.request.evidenceRequestId)).remainingGaps.map((gap) => gap.replace(/ is still needed\.$/, ''));
+      return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Welcome back ${name}. Your request **${ref}** for **${company}** is **already in progress** — I'm still waiting for these documents:\n\n${statusItems(gaps.length > 0 ? gaps : prior.request.requestedItems)}\n\nAttach them here and I'll carry on from where we left off (${left} attempt${left === 1 ? '' : 's'} left). ${attachHint}`], caseRunId: ref, evidenceRequest: requestView(prior.request), ...requestReply, syntheticDataDisclaimer: true };
+    }
+    case 'SPECIALIST':
+      return done(`Welcome back ${name}. Your request **${ref}** for **${company}** is **already in progress**: our checks are complete and a specialist is reviewing it.\n\nThere is nothing more you need to send right now, and I have not opened a new case. You will be contacted once a decision is confirmed.`);
+    case 'LEAD':
+      return done(`Welcome back ${name}. **${company}** is **already registered as new lead case ${ref}**, and **onboarding status is Pending**.\n\nA representative from our onboarding team will get back to you — there is no need to submit it again.`);
+    case 'APPROVED':
+      return done(`Welcome back ${name}. Your request **${ref}** for **${company}** has **already been approved**, so there is nothing more to submit and I have not opened a new case.`);
+    case 'CLOSED': {
+      // Closed (by a reviewer, or because the document request was cancelled): ask before doing anything.
+      await repository.saveSession(session(sessionId, ref, 'CONFIRM_REOPEN', '', emptyIntake, requestTypeId));
+      const why = prior.how === 'DECISION' ? customerReason(prior.reasonCode) : '';
+      const closedHow = prior.how === 'DECISION' ? 'reviewed and closed without approval' : 'closed when the document request was cancelled';
+      const proof = prior.how === 'DECISION' ? 'the correct proof' : 'the documents';
+      return { sessionId, step: 'INTAKE', messages: [`Welcome back ${name}. Your earlier request **${ref}** for **${company}** was ${closedHow}.${why ? `\n\n${why}` : ''}\n\nWould you like to **reopen** it so you can submit ${proof}? Reply **yes** to reopen it, or **no** to leave it closed.`], caseRunId: ref, ...requestReply, syntheticDataDisclaimer: true };
+    }
+  }
 }
 
-/** Full name and company are known. A company that is not on record asks for confirmation before a lead is created; a closed rejection offers a reopen. */
+/** Full name and company are known. An existing case is reported (or resumed / offered for reopening) instead of duplicated; a company that is not on record asks for confirmation before a lead is created. */
 async function proceed(deps: ChatDependencies, sessionId: string, details: IntakeDetails, chosen: RequestType | undefined, requestTypeId: string, requestReply: { requestType?: NonNullable<ChatReply['requestType']> }): Promise<ChatReply> {
   const { repository } = deps;
   const known = findKnownBusiness(details.businessName);
+  if (!chosen || chosen.automated) {
+    const prior = await findPriorCase(repository, details.representativeName, known?.businessName ?? details.businessName);
+    if (prior) return presentPriorCase(deps, sessionId, details.representativeName, prior, requestTypeId, requestReply);
+  }
   if (!known) {
     const candidates = suggestKnownBusinesses(details.businessName);
     if (candidates.length) {
@@ -259,14 +316,6 @@ async function proceed(deps: ChatDependencies, sessionId: string, details: Intak
     }
     await repository.saveSession(session(sessionId, '', 'CONFIRM_LEAD', '', details, requestTypeId));
     return { sessionId, step: 'INTAKE', messages: [confirmLeadMessage(details.businessName)], caseRunId: '', ...requestReply, syntheticDataDisclaimer: true };
-  }
-  if (!chosen || chosen.automated) {
-    const closed = await findClosedRejection(repository, details.representativeName, known.businessName);
-    if (closed) {
-      await repository.saveSession(session(sessionId, closed.caseRunId, 'REOPEN_PROOF', '', emptyIntake, requestTypeId));
-      const why = customerReason(closed.reasonCode);
-      return { sessionId, step: 'AWAITING_EVIDENCE', messages: [`Welcome back ${details.representativeName}. Your earlier request **${closed.caseRunId}** for **${known.businessName}** was reviewed and closed without approval.${why ? `\n\n${why}` : ''}\n\n${reopenPrompt(closed.caseRunId)}`], caseRunId: closed.caseRunId, evidenceRequest: proofRequestView(), ...requestReply, syntheticDataDisclaimer: true };
-    }
   }
   const opened = await openIntakeCase(repository, details, requestTypeId);
   const { caseRecord } = opened;

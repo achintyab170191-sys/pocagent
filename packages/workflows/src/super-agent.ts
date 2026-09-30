@@ -104,14 +104,25 @@ export function createToolbox(repository: Repository, caseRecord: CaseRecord): U
 // "Classify Continuation Requirement" / "Create Evidence Request"
 // ---------------------------------------------------------------------------------------------------------------
 
-export interface ContinuationConfig { remediable: boolean; channel: string; checkType: string; requestedItems: string[]; }
+export interface ContinuationConfig { remediable: boolean; channel: string; checkType: string; requestedItems: string[]; /** What the customer is told when the request opens (defaults to the list of requested items). */ message?: string; }
 
 /** Which findings the customer can fix by attaching a document (NEED_MORE_INFORMATION); everything else goes to a human reviewer. */
-export function classifyContinuation(decision: Pick<Decision, 'outcome' | 'primaryReasonCode' | 'missingInformation'>): ContinuationConfig {
+export function classifyContinuation(decision: Pick<Decision, 'outcome' | 'primaryReasonCode' | 'missingInformation'> & { conflicts?: string[] }): ContinuationConfig {
+  // An authority document that was read but does not satisfy the request: the customer is told exactly what is missing and uploads a revised one.
+  const authorityGaps = (decision.conflicts ?? []).filter(Boolean);
+  // A supporting document was read and its details are missing or inconsistent: the same check asks for a corrected one, naming the problems.
+  const replaceTypes = (decision.missingInformation ?? []).filter((item): item is keyof typeof documentLabels => item in documentLabels);
+  const detailsRequest = (checkType: string, fallback: keyof typeof documentLabels, what: string): ContinuationConfig => ({ remediable: true, channel: 'FILE_UPLOAD', checkType, requestedItems: (replaceTypes.length > 0 ? replaceTypes : [fallback]).map((type) => documentLabels[type]), message: `I read the ${what} you provided, and it is not enough yet:\n\n${authorityGaps.map((gap) => `- ${gap}`).join('\n')}\n\nPlease attach a corrected ${what}.` });
+  const authorityRequest: ContinuationConfig = { remediable: true, channel: 'FILE_UPLOAD', checkType: 'POA_MOA_CHECK', requestedItems: ['A revised authority letter or Power of Attorney / Memorandum of Association'], message: `I read the authority document you provided, and it is not enough yet:\n\n${authorityGaps.map((gap) => `- ${gap}`).join('\n')}\n\nPlease attach a revised authority letter or Power of Attorney / Memorandum of Association that fixes this.` };
   const table: Record<string, ContinuationConfig> = {
     DOCUMENT_UNREADABLE: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'TRADE_LICENSE_CHECK', requestedItems: [documentLabels.TRADE_LICENSE] },
     EID_UNREADABLE: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'IDENTITY_VALIDATION', requestedItems: [documentLabels.EMIRATES_ID] },
     EID_EXPIRED: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'IDENTITY_VALIDATION', requestedItems: ['A valid (unexpired) Emirates ID of the representative'] },
+    TRADE_LICENSE_DETAILS_INSUFFICIENT: detailsRequest('TRADE_LICENSE_CHECK', 'TRADE_LICENSE', 'Trade License / Establishment Card'),
+    EID_DETAILS_INSUFFICIENT: detailsRequest('IDENTITY_VALIDATION', 'EMIRATES_ID', 'Emirates ID'),
+    ADDRESS_PROOF_INSUFFICIENT: detailsRequest('AVCV_VERIFICATION', 'ADDRESS_PROOF', 'proof of address'),
+    AUTHORITY_SCOPE_INSUFFICIENT: authorityRequest,
+    AUTHORITY_DETAILS_MISMATCH: authorityRequest,
     POA_MOA_MISSING: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'POA_MOA_CHECK', requestedItems: [documentLabels.POA_MOA] },
     AVCV_INSUFFICIENT_INFORMATION: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'AVCV_VERIFICATION', requestedItems: [documentLabels.ADDRESS_PROOF] },
   };
@@ -155,7 +166,7 @@ export async function openEvidenceRequest(repository: Repository, input: Evidenc
 }
 
 export async function createEvidenceRequest(repository: Repository, decision: Decision, config: ContinuationConfig, sessionId: string): Promise<EvidenceRequest> {
-  return openEvidenceRequest(repository, { caseRunId: decision.caseRunId, submissionVersion: decision.submissionVersion, sessionId, originatingCheckType: config.checkType, reasonCode: decision.primaryReasonCode, requestedItems: config.requestedItems, previousState: decision.outcome, ruleId: decision.appliedRuleId });
+  return openEvidenceRequest(repository, { caseRunId: decision.caseRunId, submissionVersion: decision.submissionVersion, sessionId, originatingCheckType: config.checkType, reasonCode: decision.primaryReasonCode, requestedItems: config.requestedItems, previousState: decision.outcome, ruleId: decision.appliedRuleId, message: config.message });
 }
 /**
  * A MANUAL_REVIEW or REJECT decision creates a review row (REV-{case}-{n}) on the review dashboard; a rejection stays pending until a human confirms it.

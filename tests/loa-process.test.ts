@@ -192,9 +192,11 @@ describe('the five checks (To-Be process)', () => {
     const good = personaAttachments('fatima-al-noor');
     const unreadable = { ...good[1]!, extractedText: renderDocumentText('TRADE_LICENSE', { businessName: 'Al Noor Trading LLC', licenseHolder: 'Fatima Al Mansoori' }) };
     const asked = await handleChatEvidenceUpload(deps(store), { sessionId: 's', files: [good[0]!, unreadable, good[2]!] });
+    // The document is read when it arrives: the request stays open and says what is missing (no check has to fail first).
     expect(asked.step).toBe('AWAITING_EVIDENCE');
-    expect(asked.outcome).toMatchObject({ governedOutcome: 'NEED_MORE_INFORMATION', primaryReasonCode: 'DOCUMENT_UNREADABLE', toolsCalled: [tools.tl] });
-    expect(asked.evidenceRequest).toMatchObject({ requestedItems: ['Trade License of the business'] });
+    expect(asked.outcome).toBeUndefined();
+    expect(asked.messages.join(' ')).toContain('The Trade License shows neither a readable licence number nor a scannable QR code.');
+    expect(asked.evidenceRequest).toMatchObject({ status: 'INSUFFICIENT', attemptCount: 1 });
     const fixed = await handleChatEvidenceUpload(deps(store), { sessionId: 's', files: [good[1]!] });
     expect(fixed.outcome).toMatchObject({ governedOutcome: 'APPROVE', toolsCalled: [tools.tl, tools.id, tools.poa, tools.debt, tools.avcv] });
   });
@@ -241,14 +243,18 @@ describe('the five checks (To-Be process)', () => {
     expect(reply.messages.join('\n')).not.toMatch(/PD-DEMO/);
   });
 
-  it('Hessa: acts under an expired POA → the POA is requested, then not cleared → REJECT', async () => {
+  it('Hessa: acts under an expired POA → the POA is requested, read, found insufficient (expired) and asked for again; the third failed attempt goes to a human', async () => {
     const { store, sessionId, reply } = await assess('hessa-al-noor');
     expect(reply.outcome).toMatchObject({ governedOutcome: 'NEED_MORE_INFORMATION', primaryReasonCode: 'POA_MOA_MISSING' });
-    const rejected = await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA']);
-    expect(rejected.outcome).toMatchObject({ governedOutcome: 'REJECT', primaryReasonCode: 'POA_MOA_NOT_CLEARED' });
-    expect((await store.getRuntimeResults(rejected.caseRunId, 1)).find((row) => row.checkType === 'POA_MOA_CHECK')?.findings.conflicts).toContain('The POA/MOA has expired.');
+    const first = await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA']);
+    expect(first).toMatchObject({ step: 'AWAITING_EVIDENCE', evidenceRequest: { status: 'INSUFFICIENT', attemptCount: 1, maxAttempts: 3 } });
+    expect(first.messages.join(' ')).toContain('The document expired on 2020-01-31.');
+    expect((await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA'])).evidenceRequest).toMatchObject({ attemptCount: 2 });
+    const third = await attach(store, sessionId, 'hessa-al-noor', ['POA_MOA']);
+    expect(third.step).toBe('DONE');
+    expect(third.messages.join(' ')).toContain('passed to a human reviewer');
+    expect((await listReviewDashboard(store)).filter((row) => row.reviewOpen)).toHaveLength(1);
   });
-
   it('a known company but a person that is not in the identity register → MANUAL_REVIEW (never an automatic pass or fail)', async () => {
     const store = newStore();
     await say(store, 'z', 'My name is Zed Nobody and I represent Al Noor Trading LLC');
@@ -265,7 +271,8 @@ describe('the five checks (To-Be process)', () => {
     const docs = personaAttachments('fatima-al-noor');
     const expiredId = { ...docs[0]!, extractedText: renderDocumentText('EMIRATES_ID', { idNumber: '784-1985-1234567-1', fullName: 'Fatima Al Mansoori', nationality: 'UAE', expiryDate: '2020-01-31' }) };
     const asked = await handleChatEvidenceUpload(deps(store), { sessionId: 's', files: [expiredId, docs[1]!, docs[2]!] });
-    expect(asked.outcome).toMatchObject({ governedOutcome: 'NEED_MORE_INFORMATION', primaryReasonCode: 'EID_EXPIRED' });
+    expect(asked.step).toBe('AWAITING_EVIDENCE');
+    expect(asked.messages.join(' ')).toContain('The Emirates ID expired on 2020-01-31.');
     const fixed = await handleChatEvidenceUpload(deps(store), { sessionId: 's', files: [docs[0]!] });
     expect(fixed.outcome?.governedOutcome).toBe('APPROVE');
   });
@@ -273,8 +280,11 @@ describe('the five checks (To-Be process)', () => {
   it('the Emirates ID name must match the name in the request, even when the ID itself is genuine', async () => {
     const store = newStore();
     await say(store, 's', 'My name is Someone Else and I represent Al Noor Trading LLC');
+    // A genuine ID of another person (the register agrees with what is printed) is a fixable gap: the representative's own ID is asked for.
     const reply = await attach(store, 's', 'fatima-al-noor');
-    expect(reply.outcome).toMatchObject({ governedOutcome: 'REJECT', primaryReasonCode: 'IDENTITY_MISMATCH' });
+    expect(reply.step).toBe('AWAITING_EVIDENCE');
+    expect(reply.messages.join(' ')).toContain('The Emirates ID belongs to Fatima Al Mansoori, but the request is from Someone Else.');
+    expect(reply.evidenceRequest).toMatchObject({ status: 'INSUFFICIENT', attemptCount: 1 });
   });
 
   it('the persisted result key is the three-part case_run_id + submission_version + check_type: a re-run replaces, never duplicates', async () => {
@@ -342,7 +352,9 @@ describe('who may act without a POA/MOA (recorded capacity), and the six AVCV ou
     const { store, sessionId } = await assess('adel-coral-reef');
     const wrong = { ...personaAttachments('adel-coral-reef', ['ADDRESS_PROOF'])[0]!, extractedText: renderDocumentText('ADDRESS_PROOF', { holderName: 'Someone Else Trading', address: '1 Nowhere Street', documentKind: 'Utility bill' }) };
     const again = await handleChatEvidenceUpload(deps(store), { sessionId, files: [wrong] });
-    expect(again.outcome).toMatchObject({ governedOutcome: 'NEED_MORE_INFORMATION', primaryReasonCode: 'AVCV_INSUFFICIENT_INFORMATION' });
+    expect(again.step).toBe('AWAITING_EVIDENCE');
+    expect(again.messages.join(' ')).toContain('The proof of address is in the name of Someone Else Trading, not the business or its owner.');
+    expect(again.evidenceRequest).toMatchObject({ status: 'INSUFFICIENT', attemptCount: 1 });
   });
 });
 describe('review dashboard and the reopen workflow', () => {
@@ -499,18 +511,28 @@ describe('follow-up questions, lead confirmation and reopening closed cases', ()
   });
 
   it('a closed, human-confirmed rejection is reopened by the customer only once they furnish documents; before confirmation nothing is offered', async () => {
-    const { store, reply, sessionId } = await assess('sara-desert-bloom');
+    const { store, reply } = await assess('sara-desert-bloom');
     expect(reply.outcome?.governedOutcome).toBe('REJECT');
-    // still awaiting confirmation: a returning customer simply starts a new case, nothing is revealed or reopened
+    // still awaiting confirmation: a returning customer is told it is in progress — the rejection is never revealed and nothing is reopened
     const early = await intro(store, 'early', 'sara-desert-bloom');
-    expect(early.step).toBe('AWAITING_EVIDENCE');
-    expect(early.caseRunId).not.toBe(reply.caseRunId);
+    expect(early).toMatchObject({ step: 'DONE', caseRunId: reply.caseRunId });
+    expect(early.messages[0]).toContain('already in progress');
+    expect(early.messages[0]).not.toMatch(/reject|expired|not approved/i);
+    expect((await store.listCases()).map((entry) => entry.caseRunId)).toEqual([reply.caseRunId]);
     const review = (await listReviewDashboard(store)).find((row) => row.caseRunId === reply.caseRunId)!;
     await completeHumanReview(store, review.reviewId, { reviewerName: 'Reviewer', reviewerDecision: 'REJECT', reviewerComments: 'Confirmed: the licence has expired.' });
+    // closed: the agent asks first
     const back = await intro(store, 'back', 'sara-desert-bloom');
-    expect(back).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: reply.caseRunId });
+    expect(back).toMatchObject({ step: 'INTAKE', caseRunId: reply.caseRunId });
     expect(back.messages[0]).toContain('closed without approval');
-    expect(back.messages[0]).toContain('attach the proof');
+    expect(back.messages[0]).toContain('The Trade License has expired.');
+    expect(back.messages[0]).toContain('Would you like to **reopen** it');
+    expect((await store.getSession('back'))?.step).toBe('CONFIRM_REOPEN');
+    expect((await store.getCase(`${reply.caseRunId}-V2`))).toBeUndefined();
+    expect((await say(store, 'back', 'maybe')).messages[0]).toContain('Please reply **yes**');
+    const yes = await say(store, 'back', 'yes');
+    expect(yes).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: reply.caseRunId });
+    expect(yes.messages[0]).toContain('attach the proof');
     expect((await store.getCase(`${reply.caseRunId}-V2`))).toBeUndefined(); // no proof yet: nothing reopened
     expect((await store.getSession('back'))?.step).toBe('REOPEN_PROOF');
     const typed = await say(store, 'back', 'I have paid, please reopen');
@@ -527,7 +549,78 @@ describe('follow-up questions, lead confirmation and reopening closed cases', ()
     expect(audit).toMatchObject({ actor: 'Customer (chat)', reasonCode: 'REOPENED_BY_CUSTOMER_PROOF' });
     expect(audit?.details).toMatchObject({ initiatedBy: 'CUSTOMER' });
     expect(await store.getDecision(`${reply.caseRunId}-V2`)).toBeDefined(); // reassessed
-    void sessionId;
+    // saying no leaves a closed case closed
+    const other = await assess('rashid-falcon');
+    const otherReview = (await listReviewDashboard(other.store))[0]!;
+    await completeHumanReview(other.store, otherReview.reviewId, { reviewerName: 'Reviewer', reviewerDecision: 'REJECT', reviewerComments: 'Confirmed.' });
+    await intro(other.store, 'again', 'rashid-falcon');
+    const no = await say(other.store, 'again', 'no');
+    expect(no).toMatchObject({ step: 'DONE' });
+    expect(no.messages[0]).toContain('stays closed');
+    expect(await other.store.getCase(`${other.reply.caseRunId}-V2`)).toBeUndefined();
+  });
+
+  it('a returning customer whose documents are still outstanding is told the case is already in progress and carries on in the same case', async () => {
+    const store = newStore();
+    await intro(store, 'first', 'fatima-al-noor');
+    const partial = await attach(store, 'first', 'fatima-al-noor', ['EMIRATES_ID']);
+    expect(partial).toMatchObject({ step: 'AWAITING_EVIDENCE', evidenceRequest: { status: 'INSUFFICIENT', attemptCount: 1 } });
+    // later, in a new conversation
+    const back = await intro(store, 'later', 'fatima-al-noor');
+    expect(back).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: 'AUTH-101' });
+    expect(back.messages[0]).toContain('already in progress');
+    expect(back.messages[0]).toContain('Trade License');
+    expect(back.messages[0]).toContain('2 attempts left');
+    expect(back.messages[0]).not.toContain('Emirates ID of the representative');
+    expect((await store.listCases()).map((entry) => entry.caseRunId)).toEqual(['AUTH-101']); // no duplicate
+    expect((await store.getSession('later'))?.evidenceRequestId).toBe(partial.evidenceRequest?.evidenceRequestId);
+    const rest = await attach(store, 'later', 'fatima-al-noor', ['TRADE_LICENSE', 'ESTABLISHMENT_CARD']);
+    expect(rest).toMatchObject({ step: 'DONE', caseRunId: 'AUTH-101', outcome: { governedOutcome: 'APPROVE' } });
+  });
+
+  it('a returning customer whose case is with a specialist, already approved, or a pending lead is told so and no duplicate case is opened', async () => {
+    const store = newStore();
+    // approved
+    const approved = await assess('fatima-al-noor', store, 'a1');
+    expect(approved.reply.outcome?.governedOutcome).toBe('APPROVE');
+    const again = await intro(store, 'a2', 'fatima-al-noor');
+    expect(again).toMatchObject({ step: 'DONE', caseRunId: approved.reply.caseRunId });
+    expect(again.messages[0]).toContain('already been approved');
+    // with a specialist (an address-and-credit discrepancy goes to manual review)
+    const review = await assess('ibrahim-cedar-point', store, 'b1');
+    const inReview = await intro(store, 'b2', 'ibrahim-cedar-point');
+    expect(inReview.caseRunId).toBe(review.reply.caseRunId);
+    expect(inReview.messages[0]).toContain('already in progress');
+    expect(inReview.messages[0]).toContain('specialist is reviewing');
+    // a pending lead
+    await say(store, 'c1', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
+    const lead = await say(store, 'c1', 'yes');
+    const backLead = await say(store, 'c2', 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd');
+    expect(backLead).toMatchObject({ step: 'DONE', caseRunId: lead.caseRunId });
+    expect(backLead.messages[0]).toContain(`already registered as new lead case ${lead.caseRunId}`);
+    expect(backLead.messages[0]).toContain('onboarding status is Pending');
+    expect((await store.listCases()).map((entry) => entry.caseRunId)).toEqual([approved.reply.caseRunId, review.reply.caseRunId, lead.caseRunId]);
+  });
+
+  it('a case closed by cancelling its document request is offered for reopening; yes resumes the same case, no leaves it closed', async () => {
+    const store = newStore();
+    await intro(store, 'one', 'fatima-al-noor');
+    expect((await say(store, 'one', 'cancel')).messages[0]).toContain('cancelled');
+    const back = await intro(store, 'two', 'fatima-al-noor');
+    expect(back).toMatchObject({ step: 'INTAKE', caseRunId: 'AUTH-101' });
+    expect(back.messages[0]).toContain('closed when the document request was cancelled');
+    expect(back.messages[0]).toContain('Would you like to **reopen** it');
+    expect((await say(store, 'two', 'no')).messages[0]).toContain('stays closed');
+    expect((await store.getRuntimeCase('AUTH-101'))?.status).toBe('EVIDENCE_REQUEST_CANCELLED');
+    // changes their mind later, in another conversation
+    await intro(store, 'three', 'fatima-al-noor');
+    const reopened = await say(store, 'three', 'yes');
+    expect(reopened).toMatchObject({ step: 'AWAITING_EVIDENCE', caseRunId: 'AUTH-101', evidenceRequest: { status: 'OPEN' } });
+    expect(reopened.messages[0]).toContain('reopened case **AUTH-101**');
+    expect((await store.listCases()).map((entry) => entry.caseRunId)).toEqual(['AUTH-101']);
+    expect((await store.getAudit('AUTH-101')).find((event) => event.eventType === 'CASE_REOPENED')).toMatchObject({ actor: 'Customer (chat)', reasonCode: 'REOPENED_BY_CUSTOMER_CONFIRMATION' });
+    const done = await attach(store, 'three', 'fatima-al-noor', intakeTypes);
+    expect(done).toMatchObject({ step: 'DONE', caseRunId: 'AUTH-101', outcome: { governedOutcome: 'APPROVE' } });
   });
 });
 describe('company-name suggestions', () => {

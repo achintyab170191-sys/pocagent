@@ -3,7 +3,7 @@
  * opens a case and asks for the documents. A company that is NOT in the trade-licence register is only a NEW LEAD (a case is recorded but
  * nothing is verified or approved); a company on record proceeds to document collection and the five checks.
  */
-import { type CaseRecord, type IntakeDetails, documentLabels, findKnownBusiness, intakeDocumentTypes, personas } from '@sbo/domain';
+import { type CaseRecord, type IntakeDetails, documentLabels, findKnownBusiness, guidedScenarios, intakeDocumentTypes, personas } from '@sbo/domain';
 import { type Repository, now } from '@sbo/persistence';
 
 export const intakeChannel = 'CHAT_INTAKE';
@@ -101,7 +101,7 @@ export function looksLikeBareCompany(text: string): string {
 export interface ScenarioSummary { slug: string; representativeName: string; businessName: string; story: string; expectedOutcome: string; documents: Array<{ type: string; fileName: string; path: string }>; }
 /** Demo aid: the synthetic personas a tester can introduce themselves as, with links to their sample documents. */
 export function listScenarios(): ScenarioSummary[] {
-  return personas.map((persona) => ({ slug: persona.slug, representativeName: persona.representativeName, businessName: persona.businessName, story: persona.story, expectedOutcome: persona.expectedOutcome, documents: persona.documents.map((document) => ({ type: document.type, fileName: document.fileName, path: `/samples/${persona.slug}/${document.fileName}` })) }));
+  return personas.map((persona) => ({ slug: persona.slug, representativeName: persona.representativeName, businessName: persona.businessName, story: persona.story, expectedOutcome: persona.expectedOutcome, documents: [...persona.documents.map((document) => ({ type: document.type, fileName: document.fileName, path: `/samples/${persona.slug}/${document.fileName}` })), ...(persona.staticDocuments ?? []).map((document) => ({ type: document.type, fileName: document.fileName, path: `/samples/${persona.slug}/${document.fileName}` }))] }));
 }
 
 export type IntakeKind = 'KNOWN_BUSINESS' | 'NEW_LEAD';
@@ -120,4 +120,17 @@ export async function openIntakeCase(repository: Repository, details: IntakeDeta
     },
   });
   return { caseRecord, kind: known ? 'KNOWN_BUSINESS' : 'NEW_LEAD' };
+}
+export interface GuidedScenarioSummary {
+  slug: string; title: string; representativeName: string; businessName: string; story: string;
+  files: Array<{ fileName: string; type: string; note: string; path: string }>;
+  steps: Array<{ attach: string[]; expect: string }>;
+}
+/** The guided scenarios (flawed → corrected documents) with links to their sample files and a one-line expectation per step. */
+export function listGuidedScenarios(): GuidedScenarioSummary[] {
+  return guidedScenarios.map((scenario) => ({
+    slug: scenario.slug, title: scenario.title, representativeName: scenario.representativeName, businessName: scenario.businessName, story: scenario.story,
+    files: scenario.files.map((file) => ({ fileName: file.fileName, type: file.type, note: file.note, path: file.existing ? `/samples/${file.existing}` : `/samples/scenarios/${scenario.slug}/${file.fileName}` })),
+    steps: scenario.steps.map((step) => ({ attach: step.upload, expect: step.expect.step === 'DONE' ? `Decision: ${step.expect.outcome ?? 'handled'}${step.expect.reason ? ` (${step.expect.reason})` : ''}` : step.expect.outcome ? `Asks for more: ${step.expect.reason ?? step.expect.outcome}` : `Still insufficient${step.expect.includes?.[0] ? `: “${step.expect.includes[0]}”` : ''}` })),
+  }));
 }

@@ -8,6 +8,9 @@ COPY packages packages
 RUN npm ci
 COPY . .
 # API bundle (dist/api, dist/prompts, dist/migrations) + web app (apps/web/dist -> dist/web). The type check is skipped here: it runs in CI / before deploy.
+# The guided-scenario sample documents are dated from the build day, so a deployment never serves stale or expired samples.
+ARG SAMPLE_TODAY=
+RUN SAMPLE_TODAY="${SAMPLE_TODAY:-$(date +%F)}" npx tsx scripts/generate-samples.ts
 RUN node scripts/build-api.mjs && npm --workspace @sbo/web run build && node scripts/copy-web.mjs
 # Only runtime dependencies go into the final image.
 RUN npm prune --omit=dev

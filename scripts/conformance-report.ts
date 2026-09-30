@@ -68,9 +68,10 @@ for (const persona of personas) {
   let reply = await handleChatEvidenceUpload(deps, { sessionId: 'r', files: personaAttachments(persona.slug, intake) });
   const extras = persona.documents.map((document) => document.type).filter((type) => !intake.includes(type));
   if (reply.step === 'AWAITING_EVIDENCE' && extras.length > 0) reply = await handleChatEvidenceUpload(deps, { sessionId: 'r', files: personaAttachments(persona.slug, extras) });
-  const actual = reply.outcome?.governedOutcome ?? reply.step;
+  // A document that was read and found insufficient keeps the request open (needs more information) rather than reaching a decision.
+  const actual = reply.outcome?.governedOutcome ?? (reply.step === 'AWAITING_EVIDENCE' ? 'NEED_MORE_INFORMATION' : reply.step);
   const expected = persona.expectedOutcome === 'NEED_MORE_INFORMATION_THEN_APPROVE' ? 'APPROVE' : persona.expectedOutcome;
-  personaRows.push({ slug: persona.slug, customer: `${persona.representativeName} / ${persona.businessName}`, expected: persona.expectedOutcome, actual, reason: reply.outcome?.primaryReasonCode ?? '', tools: reply.outcome?.toolsCalled.length ?? 0, matches: actual === expected });
+  personaRows.push({ slug: persona.slug, customer: `${persona.representativeName} / ${persona.businessName}`, expected: persona.expectedOutcome, actual, reason: reply.outcome?.primaryReasonCode ?? (reply.evidenceRequest ? 'DOCUMENT_INSUFFICIENT' : ''), tools: reply.outcome?.toolsCalled.length ?? 0, matches: actual === expected });
 }
 
 // ---- suites ----

@@ -4,6 +4,7 @@ import { makePdf } from '@sbo/testkit';
 
 const samples = (slug: string, ...files: string[]): string[] => files.map((file) => join(process.cwd(), 'apps', 'web', 'public', 'samples', slug, file));
 const intakeFiles = ['emirates-id.pdf', 'trade-license.pdf', 'establishment-card.pdf'];
+test.beforeEach(async ({ request }) => { await request.get(`http://127.0.0.1:${process.env.E2E_API_PORT ?? 3100}/__test/reset`); });
 
 async function say(page: Page, message: string) {
   await page.getByLabel('Message').fill(message);
@@ -71,6 +72,60 @@ test.describe('customer chat (To-Be New LOA process)', () => {
     await expect(log).toContainText('Bluegum Vector Demo Pty Ltd');
   });
 
+  test('an authority letter that does not cover the requested clauses is read and asked for again with the exact gaps, instead of being rejected', async ({ page }) => {
+    await introduce(page, 'Liam Chen', 'Bluegum Vector Demo Pty Ltd');
+    await sendDocuments(page, samples('n8n-liam-chen-bluegum-vector', ...intakeFiles));
+    await expect(page.getByTestId('chat-log')).toContainText('Power of Attorney or Memorandum of Association is required');
+    await sendDocuments(page, [join(process.cwd(), 'tests', 'fixtures', 'authority-letter-v1.pdf')]);
+    const log = page.getByTestId('chat-log');
+    await expect(log).toContainText('does not explicitly authorise the representative to order services');
+    await expect(log).not.toContainText(/Awaiting specialist confirmation|not approved/);
+    await expect(page.getByTestId('evidence-card')).toContainText('INSUFFICIENT');
+    await expect(page.getByTestId('evidence-card')).toContainText('attempt 1 of 3');
+  });
+  test('a guided scenario: the wrong Emirates ID is explained and the right one is accepted; the scenarios are listed with their files', async ({ page }) => {
+    await page.goto('/');
+    const guided = page.getByTestId('guided-scenarios');
+    await guided.locator('summary').click();
+    await expect(guided.locator('li[data-testid^="guided-"]')).toHaveCount(10);
+    await expect(guided).toContainText('Authority letter: insufficient, then corrected');
+    const scenario = (...files: string[]): string[] => files.map((file) => join(process.cwd(), 'apps', 'web', 'public', 'samples', 'scenarios', 'noura-emirates-id-three-attempts', file));
+    await say(page, 'My name is Noura Al Falasi and I represent Marina Bay Catering LLC.');
+    await expect(page.getByTestId('chat-log')).toContainText(/opened case\s+AUTH-1\d\d/);
+    await sendDocuments(page, scenario('emirates-id-v2.pdf', 'trade-license.pdf', 'establishment-card.pdf'));
+    await expect(page.getByTestId('chat-log')).toContainText('The Emirates ID belongs to Mariam Saeed, but the request is from Noura Al Falasi.');
+    await expect(page.getByTestId('evidence-card')).toContainText('attempt 1 of 3');
+    await sendDocuments(page, scenario('emirates-id-v3.pdf'));
+    await expect(lastMeta(page)).toContainText('APPROVE');
+  });
+  test('a returning customer is told the case is already in progress and carries on in the same case; a closed case is offered for reopening', async ({ page, context }) => {
+    await introduce(page, 'Fatima Al Mansoori', 'Al Noor Trading LLC');
+    await sendDocuments(page, samples('fatima-al-noor', 'emirates-id.pdf'));
+    await expect(page.getByTestId('chat-log')).toContainText('Trade License of the business is still needed');
+    // a new conversation (no cookies), the same person and company
+    await context.clearCookies();
+    await page.goto('/');
+    await say(page, 'My name is Fatima Al Mansoori and I represent Al Noor Trading LLC.');
+    const log = page.getByTestId('chat-log');
+    await expect(log).toContainText('already in progress');
+    await expect(log).toContainText('Trade License of the business');
+    await expect(page.getByTestId('evidence-card')).toBeVisible();
+    await sendDocuments(page, samples('fatima-al-noor', 'trade-license.pdf', 'establishment-card.pdf'));
+    await expect(lastMeta(page)).toContainText('APPROVE');
+    await expect(log).toContainText(/Case:\s*AUTH-1\d\d/);
+    // cancelling a document request closes the case; coming back asks whether to reopen it
+    await context.clearCookies();
+    await introduce(page, 'Noura Al Falasi', 'Marina Bay Catering LLC');
+    await page.getByRole('button', { name: 'Cancel request' }).click();
+    await expect(log).toContainText('cancelled');
+    await context.clearCookies();
+    await page.goto('/');
+    await say(page, 'My name is Noura Al Falasi and I represent Marina Bay Catering LLC.');
+    await expect(log).toContainText('Would you like to reopen it');
+    await say(page, 'yes');
+    await expect(log).toContainText('reopened case');
+    await expect(page.getByTestId('evidence-card')).toBeVisible();
+  });
   test('a company that is not on record is confirmed first and becomes a new lead with onboarding pending', async ({ page }) => {
     await page.goto('/');
     await say(page, 'My name is Zed Nobody and I represent Acme Imaginary Holdings Ltd.');

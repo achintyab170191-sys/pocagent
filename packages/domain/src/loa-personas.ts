@@ -31,12 +31,16 @@ export function renderDocumentText(type: DocumentType, fields: DocumentFields): 
 }
 
 export interface SampleDocument { type: DocumentType; fileName: string; fields: DocumentFields; }
+/** A ready-made file that is not generated from the persona's fields (for example a real-format authority letter), listed with the persona's sample documents. */
+export interface StaticSampleDocument { type: DocumentType; fileName: string; note: string; }
 export interface Persona {
   slug: string; representativeName: string; businessName: string;
   /** What this persona demonstrates. */
   story: string;
   expectedOutcome: 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW' | 'NEED_MORE_INFORMATION' | 'NEED_MORE_INFORMATION_THEN_APPROVE';
   documents: SampleDocument[];
+  /** Extra ready-made files (not read by the replay): shown next to the sample documents. */
+  staticDocuments?: StaticSampleDocument[];
 }
 
 const FAR = '2099-12-31';
@@ -56,7 +60,7 @@ const corePersonas: Persona[] = [
     documents: [eid('784-1988-2233445-1', 'Mariam Saeed'), licence('TL-DEMO-100209', 'Dune Ridge Engineering LLC', 'Mariam Saeed', { licenseNumber: undefined }), card('EC-DEMO-100209', 'Dune Ridge Engineering LLC', '', ['Mariam Saeed'])] },
   { slug: 'omar-gulf-horizon', representativeName: 'Omar Haddad', businessName: 'Gulf Horizon Contracting LLC', story: 'Not the licence owner: the chat asks for a Power of Attorney, then approves. The POA is in the sample pack.', expectedOutcome: 'NEED_MORE_INFORMATION_THEN_APPROVE',
     documents: [eid('784-1990-3456789-3', 'Omar Haddad'), licence('TL-DEMO-100202', 'Gulf Horizon Contracting LLC', 'Khalid Al Suwaidi'), card('EC-DEMO-100202', 'Gulf Horizon Contracting LLC', 'TL-DEMO-100202', ['Khalid Al Suwaidi']), poa('POA-DEMO-2001', 'Khalid Al Suwaidi', 'Omar Haddad', 'Gulf Horizon Contracting LLC', FAR)] },
-  { slug: 'hessa-al-noor', representativeName: 'Hessa Al Ameri', businessName: 'Al Noor Trading LLC', story: 'Acts under a Power of Attorney that has expired: POA/MOA checks are not cleared, rejected.', expectedOutcome: 'REJECT',
+  { slug: 'hessa-al-noor', representativeName: 'Hessa Al Ameri', businessName: 'Al Noor Trading LLC', story: 'Acts under a Power of Attorney that has expired: the document is read, found insufficient (expired) and the customer is asked to upload a current one; after three failed attempts a human decides.', expectedOutcome: 'NEED_MORE_INFORMATION',
     documents: [eid('784-1993-1122334-0', 'Hessa Al Ameri'), licence('TL-DEMO-100201', 'Al Noor Trading LLC', 'Fatima Al Mansoori'), card('EC-DEMO-100201', 'Al Noor Trading LLC', 'TL-DEMO-100201', ['Fatima Al Mansoori']), poa('POA-DEMO-2002', 'Fatima Al Mansoori', 'Hessa Al Ameri', 'Al Noor Trading LLC', '2020-01-31')] },
   { slug: 'sara-desert-bloom', representativeName: 'Sara Khan', businessName: 'Desert Bloom Cafe LLC', story: 'The Trade License has expired: rejected, with a drafted email and a root-cause analysis.', expectedOutcome: 'REJECT',
     documents: [eid('784-1989-4567890-4', 'Sara Khan'), licence('TL-DEMO-100203', 'Desert Bloom Cafe LLC', 'Sara Khan', { expiryDate: '2020-01-31' }), card('EC-DEMO-100203', 'Desert Bloom Cafe LLC', 'TL-DEMO-100203', ['Sara Khan'])] },
@@ -87,9 +91,14 @@ const corePersonas: Persona[] = [
 const achintyaBluegum: Persona = {
   slug: 'achintya-bluegum-vector', representativeName: 'Achintya Bundelkhandi', businessName: 'Bluegum Vector Demo Pty Ltd',
   story: 'Acts for Bluegum Vector under a full Power of Attorney. Try attaching only one document first (the request stays open and asks for the rest), then the full set: the checks run through to a decision.', expectedOutcome: 'APPROVE',
-  documents: [eid('784-1995-4455667-7', 'Achintya Bundelkhandi'), licence('TL-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'Bluegum Vector Director', { issuingAuthority: 'Demo Registry (n8n data)', qrCode: 'QR-TL-N8N-1002' }), card('EC-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'TL-N8N-1002', ['Bluegum Vector Director']), poa('POA-DEMO-2101', 'Bluegum Vector Director', 'Achintya Bundelkhandi', 'Bluegum Vector Demo Pty Ltd', FAR)],
+  documents: [eid('784-1995-4455667-7', 'Achintya Bundelkhandi'), licence('TL-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'Olivia Martin', { issuingAuthority: 'Demo Registry (n8n data)', qrCode: 'QR-TL-N8N-1002' }), card('EC-N8N-1002', 'Bluegum Vector Demo Pty Ltd', 'TL-N8N-1002', ['Olivia Martin']), poa('POA-DEMO-2101', 'Olivia Martin', 'Achintya Bundelkhandi', 'Bluegum Vector Demo Pty Ltd', FAR)],
 };
 
-export const personas: Persona[] = [...corePersonas, ...n8nPersonas, achintyaBluegum];
+/** The two real-format authority letters of the n8n AUTH-003 case: V1 is insufficient (day-to-day only), V2 explicitly grants the requested authority. */
+const liamLetters: StaticSampleDocument[] = [
+  { type: 'POA_MOA', fileName: 'authority-letter-v1.pdf', note: 'V1 - covers day-to-day enquiries only: insufficient evidence, the assistant asks for a revised letter' },
+  { type: 'POA_MOA', fileName: 'authority-letter-v2.pdf', note: 'V2 - explicitly authorises ordering, plan changes, commitments and signing: accepted' },
+];
+export const personas: Persona[] = [...corePersonas, ...n8nPersonas.map((persona) => persona.slug === 'n8n-liam-chen-bluegum-vector' ? { ...persona, staticDocuments: liamLetters } : persona), achintyaBluegum];
 
 export function documentText(document: SampleDocument): string { return renderDocumentText(document.type, document.fields); }

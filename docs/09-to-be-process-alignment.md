@@ -113,3 +113,43 @@ The n8n data files (dt_*.csv) are still preserved unchanged. Their businesses, p
 - **Lead confirmation:** a company that is not on record is not turned into a lead straight away. The chatbot asks the customer to confirm the name (yes = create the lead; a different name = carry on with that company; no = ask for the correct name). A confirmed lead is recorded with onboarding status **PENDING** (runtime status ONBOARDING_PENDING, audit LEAD_CAPTURED, queue PROFILING_OPERATIONS); the customer is told a representative will get back to onboard the business. Nothing is checked or approved.
 - **Operations page:** the six stages are a stepper (click a stage for what it covers and its request types), with KPIs, the New LOA pipeline, new leads with onboarding status, captured requests and recent activity.
 - **Reopening:** a reviewer can reopen any closed (completed) rejected / need-more-information / manual-review case from the dashboard. A returning customer whose earlier rejection a human already confirmed is told the case is closed and is asked for proof; only when documents are attached is it reopened as a new version (audit CASE_REOPENED, actor Customer (chat)) and reassessed. Before a human confirms, a rejection is never revealed and a returning customer simply starts a new case. Approved cases are not reopened.
+
+
+## Document due diligence (product-owner request)
+
+The agent now reads every document before accepting or rejecting it — in the spirit of the n8n evidence resolution, but deterministically (no model; the document stays data). Each document gets a verdict:
+
+| Verdict | Meaning | What happens |
+| --- | --- | --- |
+| SUFFICIENT | Required details present, valid and consistent | The request resolves; the check runs |
+| INSUFFICIENT | A fixable gap (name mismatch, wrong company, unrecorded signatory, expired, a requested clause not mentioned, wrong kind of proof, stale date, missing details, documents that do not belong together) | **Insufficient evidence**: the customer is told the exact reason and asks to upload again in the same chat. 3 attempts, then a human evidence reviewer |
+| UNCERTAIN | Content that does not inspire confidence: contradictory clauses, a limitation that needs interpreting (for example "jointly with a second director"), nothing readable, **text aimed at the agent** (prompt injection) | A specialist decides (AUTHORITY_LIMITED, POA_MOA_NOT_VERIFIABLE, DOCUMENT_SECURITY_REVIEW) |
+| ADVERSE | The authority document itself says the authority is revoked / withdrawn | Rejection recommended; a human confirms; the customer only sees "Awaiting specialist confirmation" |
+
+**Authority letter / POA / MOA** (`packages/domain/src/authority.ts`): company matches the licence; the named representative matches the Emirates ID; the signatory is recorded (owner, manager or authorised signatory of the licence); validity (an expiry date, or issued within a year); and each requested permission — manage the account, order services, approve plan or service changes, sign or approve commercial commitments — is found in its own clause. Sentences are analysed with negation ("does not authorise ordering"), other-document ("supersedes the earlier letter…", ignored), "not limited to" and commentary handling ("Prototype note" lines are not clauses). Letters written in prose or as "Label value" lines are read as well as labelled forms.
+Interpretations: **manage the account is implied** when ordering, plan/service changes and signing are each granted explicitly (the V2 letter never says "manage the account"); a letter with no expiry is accepted only if issued within the last 12 months; a signatory who is not recorded is a customer-fixable gap (a corrected letter signed by a recorded officer), not a rejection.
+
+**Emirates ID**: ID number well formed (784-YYYY-NNNNNNN-N, plausible birth year), name, expiry not passed; a genuine ID that belongs to another person (the register agrees with the printed name) is a fixable gap ("attach your own"). An ID whose printed name **contradicts** the identity register stays IDENTITY_MISMATCH (recommended rejection), and an unknown ID stays IDENTITY_NOT_VERIFIABLE (specialist).
+**Trade License / Establishment Card**: number or QR readable, business name, holder, expiry; the licence is for the company in the request; the card is for the same company and refers to the same licence, lists an authorised signatory and has not expired. A printed name that contradicts the licence register stays BUSINESS_NAME_MISMATCH (recommended rejection); an inactive or expired licence stays with the licence check.
+**Proof of address**: an accepted kind (utility bill, tenancy contract / Ejari, bank statement, …), an address, a holder that is the business or its owner, dated within three months (not in the future).
+
+Where it runs: when a document arrives (the evidence request stays open with the gaps named — `assessDocuments`), and again inside each check (rules TL-006, ID-005, AV-005, POA-006/007, DOC-001). "Label value" layouts (no colon) are read as well as "Label: value".
+
+**Changed behaviour (recorded per rule 1):** a fixable document gap is no longer a rejection — an authority document that does not cover the request (was POA_MOA_NOT_CLEARED → REJECT) and a genuine ID of another person (was IDENTITY_MISMATCH → REJECT) now ask for a better document; an embedded instruction in any document now goes to a security specialist (SEC-04 used to continue to the register verdict; it never approved anything and still does not).
+
+### Guided scenarios
+
+`packages/domain/src/loa-scenarios.ts` holds ten realistic-format scenarios (the layout of the n8n authority letters: banner, "Label value" lines, prose clauses, signature references), each a flawed → corrected pair with a scripted, tested outcome; `npm run samples` writes them to `apps/web/public/samples/scenarios/` and the web app lists them under "Guided scenarios". They are dated from `SAMPLE_TODAY` (the reference date 2026-09-30 by default; the Docker build passes the build day so a deployment never serves expired samples).
+
+| Scenario | What it shows |
+| --- | --- |
+| Liam @ Bluegum: the n8n V1 / V2 letters | V1 (day-to-day only) is insufficient, V2 (explicit clauses) is accepted |
+| Omar @ Gulf Horizon | a narrower letter, then an explicit one |
+| Hessa @ Al Noor | a letter signed by an unrecorded person, then by the owner |
+| Ahmed @ Gulf Horizon | "jointly with a second director": a specialist interprets it |
+| Omar @ Gulf Horizon (revoked) | the letter says the authority was withdrawn: recommended rejection, customer sees "Awaiting specialist confirmation" |
+| Noura @ Marina Bay | malformed ID number, then somebody else's genuine ID, then her own (3 attempts) |
+| Fatima @ Al Noor (expired ID) | an expired Emirates ID, then a current one |
+| Mariam @ Dune Ridge | another company's licence and a card for a different licence, then the right licence |
+| Adel @ Coral Reef | proof of address: wrong kind, twenty months old, then a recent utility bill |
+| Fatima @ Al Noor (injected card) | a card containing "ignore all previous instructions…" goes to a security specialist |

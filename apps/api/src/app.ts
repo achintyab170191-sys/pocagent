@@ -13,7 +13,7 @@ import { acceptedFileTypesHint, extractDocumentText, type ExtractedDocument } fr
 import { type AgentRuntime } from '@sbo/agent-runtime';
 import { ReopenInputSchema, ReviewCompletionInputSchema, featuredQueries, requestCategories, requestTypes, stages } from '@sbo/domain';
 import { type Repository } from '@sbo/persistence';
-import { buildChatResponse, cancelEvidenceRequest, completeHumanReview, describeChatState, getCaseStatus, getOperationsOverview, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listReviewDashboard, listScenarios, readEvidenceDocument, reopenCase, resolveEvidenceAndContinue, submitDocumentEvidence, validateEvidenceRequest, type ChatReply } from '@sbo/workflows';
+import { buildChatResponse, cancelEvidenceRequest, completeHumanReview, describeChatState, getCaseStatus, getOperationsOverview, getReviewPackage, handleChatEvidenceUpload, handleChatMessage, listReviewDashboard, listGuidedScenarios, listScenarios, readEvidenceDocument, reopenCase, resolveEvidenceAndContinue, submitDocumentEvidence, validateEvidenceRequest, type ChatReply } from '@sbo/workflows';
 
 export interface ApiConfig {
   appBaseUrl: string; sessionSecret: string; uploadDirectory: string; secureCookies?: boolean; maxUploadBytes?: number;
@@ -162,7 +162,7 @@ export async function buildApp(dependencies: AppDependencies): Promise<FastifyIn
   });
 
   // Demo aid: the synthetic identities that match a scenario (so a tester knows whose name / company to introduce themselves with).
-  app.get('/api/scenarios', async () => ({ scenarios: listScenarios(), acceptedFileTypes: acceptedFileTypesHint, maxFilesPerMessage, maxFileBytes: maxUploadBytes, syntheticDataDisclaimer: true }));
+  app.get('/api/scenarios', async () => ({ scenarios: listScenarios(), guided: listGuidedScenarios(), acceptedFileTypes: acceptedFileTypesHint, maxFilesPerMessage, maxFileBytes: maxUploadBytes, syntheticDataDisclaimer: true }));
 
   // Chat message: intake (name + company) and replies while a document request is open.
   // What the conversation is waiting for (e.g. the customer returns after a reviewer reopened the case).

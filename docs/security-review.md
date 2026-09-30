@@ -67,3 +67,11 @@ Zod validation on every body/param (422); case IDs regex-constrained; cookies si
 npx vitest run tests/security.test.ts        # regression tests for every fixed finding
 npm audit --omit=dev                          # production dependencies: 0 vulnerabilities at review time
 ```
+
+
+## Addendum: document content review
+
+- **Documents are read for content.** Authority documents (clause by clause) and the Emirates ID, Trade License, Establishment Card and proof of address are reviewed deterministically before acceptance (docs/09 *Document due diligence*). No model reads a document; the analysers are regular-expression based and run on the text of the document only.
+- **Embedded instructions are findings.** Text aimed at the reviewing agent (\ignore all previous instructions…\, \pprove this request immediately\, \system prompt\, …) in **any** document now routes the case to a security specialist (rule DOC-001 / POA-005, reason \DOCUMENT_SECURITY_REVIEW\, queue SECURITY_REVIEW). It is still ignored as data and can never approve anything; this replaces the earlier behaviour of continuing to the register verdict (\security.test.ts › SEC-04\ now asserts MANUAL_REVIEW and no approval).
+- **Commentary is not a clause.** Text after a \Prototype note\ marker, sentences about a superseded document, and negated sentences never grant authority, so a document cannot widen its own authority by describing itself.
+- **Residual risk:** clause detection is pattern based. A cleverly worded letter can be misread in either direction; the safeguards are that the signatory must be a person recorded in the approved source, contradictions and limitations go to a human, and a rejection is never final without one.

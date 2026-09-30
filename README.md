@@ -58,6 +58,10 @@ No model key? Set `AGENT_RUNTIME=deterministic` in `.env`: the five checks and t
 
 One Docker image serves the API and the web app on a single address, with a shared password and no database (`PERSISTENCE=memory`). Step-by-step for Render and other Docker hosts: [docs/10-deployment.md](docs/10-deployment.md); Render Blueprint: [render.yaml](render.yaml).
 
+## Documents are read, not just collected
+
+Before a document is accepted the agent reads its content: an authority letter clause by clause (company, representative, recorded signatory, validity and each requested permission), and the Emirates ID, Trade License, Establishment Card and proof of address for their required details and for consistency with the request and with each other. A fixable gap is **insufficient evidence** — the customer is told exactly what is wrong and asks again in the same chat (3 attempts, then a human); a person is only involved when the content cannot be trusted (contradictory or limited authority, text aimed at the agent, nothing readable). Ten **guided scenarios** (flawed → corrected documents, in the layout of the n8n authority letters) are listed in the chat page's side panel with their files; see [docs/09](docs/09-to-be-process-alignment.md) (Document due diligence).
+
 ## What the assistant offers
 
 The chat opens with **eight topics** (authorised representative & company profile · correct or verify data · mobile and SIM · new services · change a service · move, transfer or port · renew or cease · verification, compliance and legal) and **ready-made questions** you can click, or you can type a request in your own words. Every request type of the operating model (profiling → verifier task → processing) is in the catalog. **Only New LOA is automated**; any other request is *captured and routed* to the team that owns it (VERIFIER_OPERATIONS, PROCESSING_ORDERS, ...) with a plain statement that nothing was checked, approved or changed. The **Operations** page shows the six stages of the operating model and the captured requests.

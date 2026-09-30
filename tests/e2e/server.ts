@@ -11,10 +11,13 @@ import { newStore } from '@sbo/testkit';
 import { buildApp } from '../../apps/api/src/app.js';
 
 const port = Number(process.env.E2E_API_PORT ?? 3100);
+const store = newStore();
 const app = await buildApp({
-  repository: newStore(),
+  repository: store,
   agentRuntime: new DeterministicAgentRuntime(),
   config: { appBaseUrl: process.env.E2E_APP_URL ?? 'http://localhost:5273', sessionSecret: 'e2e-secret-e2e-secret-e2e-secret-12345', uploadDirectory: mkdtempSync(join(tmpdir(), 'sbo-e2e-')), rateLimit: { global: 100_000, strict: 100_000, upload: 100_000 } },
 });
+// Test-only: every spec starts from an empty runtime (a returning customer would otherwise be recognised from an earlier spec's case).
+app.get('/__test/reset', async () => { await store.resetRuntime(); return { reset: true }; });
 await app.listen({ port, host: '127.0.0.1' });
 console.log(`E2E API listening on ${port}`);

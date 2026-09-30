@@ -16,6 +16,8 @@
  */
 import type { CommunicationTemplate, DecisionRule } from './index.js';
 import { n8nAvcv, n8nEmiratesIds, n8nLicenses, n8nParties, n8nPoas } from './n8n-registers.js';
+import { assessAuthorityDocument, looksLikeAuthorityLetter, readAuthorityLetterFields, type AuthorityExpectations } from './authority.js';
+import { reviewDocuments, type DocumentReviewContext, type DocumentsReview, type GapCode } from './document-review.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // Mandatory checks (governed order)
@@ -62,7 +64,7 @@ const fieldLabels: Record<DocumentType, Record<string, string>> = {
   TRADE_LICENSE: { licenseNumber: 'License Number', businessName: 'Business Name', licenseHolder: 'License Holder', issuingAuthority: 'Issuing Authority', expiryDate: 'Expiry Date', qrCode: 'QR Code' },
   ESTABLISHMENT_CARD: { establishmentNumber: 'Establishment Number', businessName: 'Business Name', licenseNumber: 'Trade License Number', signatories: 'Authorised Signatory', expiryDate: 'Expiry Date' },
   POA_MOA: { reference: 'Reference', grantor: 'Grantor', grantee: 'Grantee', businessName: 'Business Name', scope: 'Scope', validUntil: 'Valid Until' },
-  ADDRESS_PROOF: { holderName: 'Holder Name', address: 'Address', documentKind: 'Document Type' },
+  ADDRESS_PROOF: { holderName: 'Holder Name', address: 'Address', documentKind: 'Document Type', issueDate: 'Issue Date' },
 };
 const multiValued = new Set(['signatories']);
 
@@ -83,9 +85,17 @@ export function extractFields(documentType: DocumentType, text: string): Documen
     if (value) byLabel.set(key, [...(byLabel.get(key) ?? []), value]);
   }
   const fields: DocumentFields = {};
+  // Documents laid out as "Label value" lines (no colon), as a PDF table extracts: read the label at the start of a line (never the heading lines).
+  const bodyLines = text.split(/\r?\n/).slice(3);
+  const lineValue = (label: string): string => {
+    const pattern = new RegExp(`^\\s*${escapeRegex(label)}\\s*[:\\-]?\\s+(\\S.*?)\\s*$`, 'i');
+    for (const line of bodyLines) { const match = line.match(pattern); if (match?.[1]) return match[1].replace(/[;,.\s]+$/, ''); }
+    return '';
+  };
   for (const [field, label] of Object.entries(labels)) {
     const values = byLabel.get(label.toLowerCase());
     if (values?.length) fields[field] = multiValued.has(field) ? values.flatMap((value) => value.split(/\s*;\s*/)).filter(Boolean) : values[0];
+    else { const value = lineValue(label); if (value) fields[field] = multiValued.has(field) ? value.split(/\s*;\s*/).filter(Boolean) : value; }
   }
   return fields;
 }
@@ -96,14 +106,17 @@ export function classifyDocument(text: string): ClassifiedDocument | undefined {
   const whole = text.toUpperCase();
   const detect = (haystack: string): DocumentType | undefined => {
     if (/PROOF OF ADDRESS|UTILITY BILL|TENANCY CONTRACT/.test(haystack)) return 'ADDRESS_PROOF';
-    if (/POWER OF ATTORNEY|MEMORANDUM OF ASSOCIATION/.test(haystack)) return 'POA_MOA';
+    if (/POWER OF ATTORNEY|MEMORANDUM OF ASSOCIATION/.test(haystack) || looksLikeAuthorityLetter(haystack)) return 'POA_MOA';
     if (/ESTABLISHMENT CARD/.test(haystack)) return 'ESTABLISHMENT_CARD';
     if (/EMIRATES ID/.test(haystack)) return 'EMIRATES_ID';
     if (/TRADE LICEN[SC]E/.test(haystack)) return 'TRADE_LICENSE';
     return undefined;
   };
   const documentType = detect(head) ?? detect(whole);
-  return documentType ? { documentType, fields: extractFields(documentType, text) } : undefined;
+  if (!documentType) return undefined;
+  const fields = extractFields(documentType, text);
+  // An authority letter written in prose ("Company …", "Representative …", "Signed for and on behalf of the company …") has no labelled form: read its details from the lines and clauses.
+  return { documentType, fields: documentType === 'POA_MOA' && !fields.grantee && !fields.grantor ? { ...readAuthorityLetterFields(text), ...fields } : fields };
 }
 
 // ------------------------------------------------------------------------------------------------------------------
@@ -133,8 +146,9 @@ export function sameName(left: string | undefined, right: string | undefined): b
 }
 /** Companies: legal-form words ignored; one name may be a prefix-subset of the other only when it still has two distinctive words. */
 export function businessNamesMatch(left: string | undefined, right: string | undefined): boolean {
-  const a = normalise(left ?? '').filter((token) => !companyStopWords.has(token));
-  const b = normalise(right ?? '').filter((token) => !companyStopWords.has(token));
+  const canonical = (value: string | undefined): string => (value ?? '').replace(/\bl\s*\.\s*l\s*\.\s*c\b\.?/gi, 'llc'); // "L.L.C." = "LLC"
+  const a = normalise(canonical(left)).filter((token) => !companyStopWords.has(token));
+  const b = normalise(canonical(right)).filter((token) => !companyStopWords.has(token));
   if (!a.length || !b.length) return false;
   if (a.join(' ') === b.join(' ')) return true;
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
@@ -217,7 +231,7 @@ const demoEmiratesIds: EmiratesIdRecord[] = [
 ];
 
 const demoPoas: PoaRecord[] = [
-  { reference: 'POA-DEMO-2101', grantor: 'Bluegum Vector Director', grantee: 'Achintya Bundelkhandi', businessName: 'Bluegum Vector Demo Pty Ltd', scopes: [...requiredAuthorityScopes], validUntil: FAR },
+  { reference: 'POA-DEMO-2101', grantor: 'Olivia Martin', grantee: 'Achintya Bundelkhandi', businessName: 'Bluegum Vector Demo Pty Ltd', scopes: [...requiredAuthorityScopes], validUntil: FAR },
   { reference: 'POA-DEMO-2001', grantor: 'Khalid Al Suwaidi', grantee: 'Omar Haddad', businessName: 'Gulf Horizon Contracting LLC', scopes: [...requiredAuthorityScopes], validUntil: FAR },
   { reference: 'POA-DEMO-2002', grantor: 'Fatima Al Mansoori', grantee: 'Hessa Al Ameri', businessName: 'Al Noor Trading LLC', scopes: [...requiredAuthorityScopes], validUntil: PAST },
   { reference: 'POA-DEMO-2003', grantor: 'Khalid Al Suwaidi', grantee: 'Ahmed Yusuf', businessName: 'Gulf Horizon Contracting LLC', scopes: [...requiredAuthorityScopes], validUntil: FAR },
@@ -253,7 +267,7 @@ export function findKnownBusiness(businessName: string): TradeLicenseRecord | un
 // The five checks (pure)
 // ------------------------------------------------------------------------------------------------------------------
 
-export interface StoredDocument { evidenceId: string; fields: DocumentFields; }
+export interface StoredDocument { evidenceId: string; fields: DocumentFields; /** The document's full text, read for its clauses (authority documents). */ text?: string; }
 export interface CheckContext {
   businessName: string; representativeName: string; asOf: Date;
   /** Latest accepted or received document of each type (uploaded by the customer in the chat). */
@@ -288,6 +302,25 @@ const hasRepresentativeAuthority = (person: RecordedPerson | undefined): person 
 const recordedPerson = (record: TradeLicenseRecord, name: string): RecordedPerson | undefined => record.persons.find((person) => sameName(person.name, name));
 /** Whether the approved source records this person as someone who may grant authority (owner, manager with representative authority, authorised signatory). */
 const canGrantAuthority = (record: TradeLicenseRecord, name: string): boolean => hasRepresentativeAuthority(recordedPerson(record, name));
+/** What the supporting documents are read against: the request, the licence on record, the register entry of the Emirates ID that was printed, and the other documents. */
+export function documentReviewContext(context: CheckContext): DocumentReviewContext {
+  const printedId = text(context.documents.EMIRATES_ID?.fields.idNumber);
+  return { representativeName: context.representativeName, businessName: context.businessName, asOf: context.asOf, documents: context.documents, license: resolveLicense(context).record, idRecord: printedId ? emiratesIdRegister.find((entry) => entry.idNumber === printedId) : undefined };
+}
+/** A document was read and its details are missing or inconsistent: the customer can fix it by uploading a better one (insufficient evidence, never a rejection). */
+function detailsOutcome(review: DocumentsReview, ruleId: string, reasonCode: string, evidence: string[], what: string): CheckOutcome {
+  return outcome('INCONCLUSIVE', ruleId, reasonCode, { conflicts: review.gaps, missing: review.replace, document_review: review.reviews.map((entry) => ({ document_type: entry.documentType, verdict: entry.verdict, gaps: entry.gaps.length })) }, `Insufficient evidence: ask the customer for a corrected ${what}.`, evidence, { confidence: 0.9, humanReview: false });
+}
+/** A document carries text that tries to instruct the process: it is ignored and a specialist looks at it. */
+function documentSecurityOutcome(review: DocumentsReview, evidence: string[]): CheckOutcome {
+  return outcome('INCONCLUSIVE', 'DOC-001', 'DOCUMENT_SECURITY_REVIEW', { security_finding: true, document_type: review.uncertain?.documentType, conflicts: review.uncertain?.reasons ?? [] }, 'A document contains an embedded instruction that was ignored; a specialist reviews it.', evidence, { confidence: 0.5, humanReview: true });
+}
+/** Returns the outcome for a document review that found something, or undefined when every document is in order. */
+function reviewOutcome(types: DocumentType[], context: CheckContext, ignore: GapCode[], ruleId: string, reasonCode: string, evidence: string[], what: string): CheckOutcome | undefined {
+  const review = reviewDocuments(types, documentReviewContext(context), ignore);
+  if (review.uncertain) return documentSecurityOutcome(review, evidence);
+  return review.gaps.length > 0 ? detailsOutcome(review, ruleId, reasonCode, evidence, what) : undefined;
+}
 function tradeLicenseCheck(context: CheckContext): CheckOutcome {
   const licence = context.documents.TRADE_LICENSE;
   const card = context.documents.ESTABLISHMENT_CARD;
@@ -296,6 +329,8 @@ function tradeLicenseCheck(context: CheckContext): CheckOutcome {
   if (!licence || (!text(licence.fields.licenseNumber) && !text(licence.fields.qrCode))) {
     return outcome('INCONCLUSIVE', 'TL-001', 'DOCUMENT_UNREADABLE', { missing: ['TRADE_LICENSE'], conflicts: [], licence_number_readable: false, qr_code_readable: false }, 'Ask the customer for a readable Trade License (or one with a scannable QR code).', evidence, { confidence: 0.6 });
   }
+  const reviewed = reviewOutcome(['TRADE_LICENSE', 'ESTABLISHMENT_CARD'], context, ['EXPIRED'], 'TL-006', 'TRADE_LICENSE_DETAILS_INSUFFICIENT', evidence, 'Trade License / Establishment Card');
+  if (reviewed) return reviewed;
   const record = resolved.record;
   if (!record) return outcome('INCONCLUSIVE', 'TL-005', 'LICENSE_NOT_VERIFIABLE', { printed_license_number: resolved.printedNumber, verified: false, conflicts: [] }, 'The licence could not be matched in the licence register; route to a specialist. An unavailable or unmatched lookup is never treated as proof the business is invalid.', evidence, { confidence: 0.5, humanReview: true });
   if (record.lookupAvailable === false) return outcome('INCONCLUSIVE', 'TL-005', 'LICENSE_NOT_VERIFIABLE', { license_number: record.licenseNumber, verification_channel: 'NONE_AVAILABLE', verified: false, conflicts: [] }, 'Neither the DUL API nor the government portal answered; a specialist verifies. An unavailable lookup is never treated as proof the business is invalid.', evidence, { confidence: 0.5, humanReview: true });
@@ -317,6 +352,8 @@ function identityValidation(context: CheckContext): CheckOutcome {
   const printedNumber = text(card?.fields.idNumber);
   const printedName = text(card?.fields.fullName);
   if (!card || !printedNumber || !printedName) return outcome('INCONCLUSIVE', 'ID-004', 'EID_UNREADABLE', { missing: ['EMIRATES_ID'], conflicts: [] }, 'Ask the customer for a readable Emirates ID.', evidence, { confidence: 0.6 });
+  const reviewed = reviewOutcome(['EMIRATES_ID'], context, ['EXPIRED'], 'ID-005', 'EID_DETAILS_INSUFFICIENT', evidence, 'Emirates ID'); // an expired ID is decided below (ID-002)
+  if (reviewed) return reviewed;
   const record = emiratesIdRegister.find((entry) => entry.idNumber === printedNumber);
   if (!record) return outcome('INCONCLUSIVE', 'ID-003', 'IDENTITY_NOT_VERIFIABLE', { verified: false, emirates_id: maskId(printedNumber), conflicts: [] }, 'The Emirates ID could not be matched in the identity register; route to a specialist.', evidence, { confidence: 0.5, humanReview: true });
   const findings: Record<string, unknown> = { emirates_id: maskId(printedNumber), name_on_id_matches_register: sameName(record.fullName, printedName), name_on_id_matches_request: sameName(printedName, context.representativeName), conflicts: [] as string[] };
@@ -336,6 +373,11 @@ function identityValidation(context: CheckContext): CheckOutcome {
  * action, (4) the licence and registration are current and consistent (the Trade License check has passed), (5) there is no conflicting evidence
  * or limitation on their authority. Otherwise a POA/MOA is required, and a recorded limitation is a specialist decision, not something a POA overrides.
  */
+/** What an authority document is compared with: the person (as printed on the Emirates ID), the company on record and who may sign for it. */
+export function authorityExpectations(context: CheckContext): AuthorityExpectations {
+  const license = resolveLicense(context).record;
+  return { representativeName: text(context.documents.EMIRATES_ID?.fields.fullName) || context.representativeName, businessName: license?.businessName ?? context.businessName, asOf: context.asOf, isRecordedSigner: license ? (name: string) => canGrantAuthority(license, name) : undefined };
+}
 function poaMoaCheck(context: CheckContext): CheckOutcome {
   const printedName = text(context.documents.EMIRATES_ID?.fields.fullName) || context.representativeName;
   const license = resolveLicense(context).record;
@@ -348,21 +390,29 @@ function poaMoaCheck(context: CheckContext): CheckOutcome {
   const poa = context.documents.POA_MOA;
   if (!poa) return outcome('INCONCLUSIVE', 'POA-001', 'POA_MOA_MISSING', { poa_moa_required: true, poa_moa_reason: why, recorded_capacity: person?.capacity ?? 'NOT_RECORDED', missing: ['POA_MOA'], conflicts: [] }, 'Ask the customer for a Power of Attorney or Memorandum of Association authorising the representative.', evidence, { confidence: 0.9, humanReview: false });
   const reference = text(poa.fields.reference);
-  const record = poaRegister.find((entry) => entry.reference.toUpperCase() === reference.toUpperCase());
-  if (!record) return outcome('INCONCLUSIVE', 'POA-003', 'POA_MOA_NOT_VERIFIABLE', { poa_moa_required: true, reference, verified: false, conflicts: [] }, 'The POA/MOA reference could not be matched; route to a specialist.', evidence, { confidence: 0.5, humanReview: true });
-  if (record.securityFlag) return outcome('INCONCLUSIVE', 'POA-005', 'DOCUMENT_SECURITY_REVIEW', { poa_moa_required: true, reference: record.reference, security_finding: true, conflicts: [] }, 'The document carries a security finding (for example an embedded instruction that was ignored); a specialist reviews it.', evidence, { confidence: 0.6, humanReview: true });
-  const conflicts: string[] = [];
-  if (!sameName(record.grantee, printedName)) conflicts.push('The POA/MOA was not granted to this representative.');
-  if (license && !businessNamesMatch(record.businessName, license.businessName)) conflicts.push('The POA/MOA is for a different business.');
-  if (license && !canGrantAuthority(license, record.grantor)) conflicts.push('The POA/MOA was not granted by a person recorded with authority to grant it.');
-  if (expired(record.validUntil, context.asOf) || expired(text(poa.fields.validUntil), context.asOf)) conflicts.push('The POA/MOA has expired.');
-  const uncovered = requiredAuthorityScopes.filter((scope) => !record.scopes.includes(scope));
-  if (uncovered.length > 0) conflicts.push('The POA/MOA does not cover every requested permission.');
-  const findings = { poa_moa_required: true, poa_moa_reason: why, reference: record.reference, conflicts, missing_scopes: uncovered };
-  if (conflicts.length > 0) return outcome('FAIL', 'POA-002', 'POA_MOA_NOT_CLEARED', findings, 'Reject the request: the POA/MOA checks were not cleared. Draft the customer email and request root-cause analysis.', evidence);
-  return outcome('PASS', 'POA-000', 'POA_MOA_CLEARED', findings, 'Continue with the bad debt check.', evidence);
-}
-function badDebtCheck(context: CheckContext): CheckOutcome {
+  const record = reference ? poaRegister.find((entry) => entry.reference.toUpperCase() === reference.toUpperCase()) : undefined;
+  if (record?.securityFlag) return outcome('INCONCLUSIVE', 'POA-005', 'DOCUMENT_SECURITY_REVIEW', { poa_moa_required: true, reference: record.reference, security_finding: true, conflicts: [] }, 'The document carries a security finding (for example an embedded instruction that was ignored); a specialist reviews it.', evidence, { confidence: 0.6, humanReview: true });
+  // The document is read clause by clause (authority.ts): what it says decides, not a register reference.
+  const assessment = assessAuthorityDocument({ text: poa.text ?? Object.values(poa.fields).flat().join('. '), fields: poa.fields }, authorityExpectations(context));
+  const findings = {
+    poa_moa_required: true, poa_moa_reason: why, reference, document_form: assessment.form, verdict: assessment.verdict,
+    clauses_found: Object.keys(assessment.granted), clauses_implied: assessment.implied, missing_scopes: assessment.missingScopes,
+    checks: assessment.findings.map((entry) => ({ key: entry.key, status: entry.status })), conflicts: assessment.verdict === 'INSUFFICIENT' ? assessment.gaps : assessment.reasons,
+  };
+  const options = { confidence: assessment.confidence, humanReview: false };
+  switch (assessment.verdict) {
+    case 'SUFFICIENT': return outcome('PASS', 'POA-000', 'POA_MOA_CLEARED', findings, 'Continue with the bad debt check.', evidence, { confidence: assessment.confidence });
+    case 'INSUFFICIENT': return assessment.detailsMismatch
+      ? outcome('INCONCLUSIVE', 'POA-007', 'AUTHORITY_DETAILS_MISMATCH', findings, 'Insufficient evidence: ask the customer for a revised authority document that fixes the listed points.', evidence, options)
+      : outcome('INCONCLUSIVE', 'POA-006', 'AUTHORITY_SCOPE_INSUFFICIENT', findings, 'Insufficient evidence: ask the customer for a revised authority document that explicitly covers the requested permissions.', evidence, options);
+    case 'ADVERSE': return outcome('FAIL', 'POA-002', 'POA_MOA_NOT_CLEARED', findings, 'Reject the request: the authority document states the authority is withdrawn. Draft the customer email and request root-cause analysis.', evidence, { confidence: assessment.confidence });
+    default:
+      if (assessment.securityFinding) return outcome('INCONCLUSIVE', 'POA-005', 'DOCUMENT_SECURITY_REVIEW', findings, 'The document contains an embedded instruction that was ignored; a specialist reviews it.', evidence, { confidence: assessment.confidence, humanReview: true });
+      return assessment.reasons.some((reason) => /both grants and excludes|limitation/.test(reason))
+        ? outcome('INCONCLUSIVE', 'POA-004', 'AUTHORITY_LIMITED', findings, 'The document limits or contradicts the authority; a specialist interprets it.', evidence, { confidence: assessment.confidence, humanReview: true })
+        : outcome('INCONCLUSIVE', 'POA-003', 'POA_MOA_NOT_VERIFIABLE', findings, 'The content of the authority document could not be read with confidence; a specialist verifies it.', evidence, { confidence: assessment.confidence, humanReview: true });
+  }
+}function badDebtCheck(context: CheckContext): CheckOutcome {
   const printedName = text(context.documents.EMIRATES_ID?.fields.fullName) || context.representativeName;
   const licenseNumber = resolveLicense(context).record?.licenseNumber ?? '';
   const parties = partyRegister.filter((party) => (licenseNumber !== '' && party.licenseNumber === licenseNumber) || sameName(party.holderName, printedName));
@@ -386,14 +436,18 @@ function avcvVerification(context: CheckContext): CheckOutcome {
   const avcvRecord = avcvRegister.find((entry) => entry.licenseNumber === record?.licenseNumber);
   const evidence = references(context, 'TRADE_LICENSE', 'ADDRESS_PROOF');
   const proof = context.documents.ADDRESS_PROOF;
-  const proofMatches = proof !== undefined && Boolean(record) && (businessNamesMatch(text(proof.fields.holderName), record!.businessName) || sameName(text(proof.fields.holderName), record!.ownerName));
   const results = avcvRecord ? [avcvRecord.address, avcvRecord.credit] : [];
   const findings = { address_result: avcvRecord?.address ?? 'NOT_AVAILABLE', credit_result: avcvRecord?.credit ?? 'NOT_AVAILABLE', address_proof_received: proof !== undefined, conflicts: [] as string[] };
   if (!avcvRecord) return outcome('INCONCLUSIVE', 'AV-002', 'AVCV_UNVERIFIED', findings, 'AVCV could not be established; route to a specialist. This is not a failure.', evidence, { confidence: 0.5, humanReview: true });
   if (results.includes('NEGATIVE')) { findings.conflicts.push('Address or credit verification returned an adverse result.'); return outcome('FAIL', 'AV-001', 'AVCV_ADVERSE', findings, 'Reject the request: the address or credit verification is adverse. Draft the customer email and request root-cause analysis.', evidence); }
   if (results.includes('DISCREPANCY')) { findings.conflicts.push('Address or credit details do not match.'); return outcome('INCONCLUSIVE', 'AV-003', 'AVCV_DISCREPANCY', findings, 'A discrepancy was found in the address or credit details; a specialist reviews it.', evidence, { confidence: 0.6, humanReview: true }); }
   if (results.includes('REFER') || results.includes('UNABLE_TO_VERIFY')) return outcome('INCONCLUSIVE', 'AV-002', 'AVCV_UNVERIFIED', findings, 'AVCV could not be completed (unable to verify, or referred for review); a specialist decides. Unable to verify is not a failure.', evidence, { confidence: 0.5, humanReview: true });
-  if (results.includes('INSUFFICIENT_INFORMATION') && !proofMatches) return outcome('INCONCLUSIVE', 'AV-004', 'AVCV_INSUFFICIENT_INFORMATION', { ...findings, missing: ['ADDRESS_PROOF'] }, 'Ask the customer for proof of address so the verification can be completed.', evidence, { confidence: 0.85, humanReview: false });
+  if (results.includes('INSUFFICIENT_INFORMATION') && proof) {
+    // Proof of address was supplied: it is read (kind, holder, address, recency) and, when it is not enough, the customer is told why.
+    const reviewed = reviewOutcome(['ADDRESS_PROOF'], context, [], 'AV-005', 'ADDRESS_PROOF_INSUFFICIENT', evidence, 'proof of address');
+    if (reviewed) return reviewed;
+  }
+  if (results.includes('INSUFFICIENT_INFORMATION') && !proof) return outcome('INCONCLUSIVE', 'AV-004', 'AVCV_INSUFFICIENT_INFORMATION', { ...findings, missing: ['ADDRESS_PROOF'] }, 'Ask the customer for proof of address so the verification can be completed.', evidence, { confidence: 0.85, humanReview: false });
   return outcome('PASS', 'AV-000', 'AVCV_POSITIVE', findings, 'Approve the request and share the communication with the stakeholders.', evidence);
 }
 export function evaluateLoaCheck(checkType: string, context: CheckContext): CheckOutcome {
@@ -416,6 +470,10 @@ function rule(priority: number, ruleId: string, stage: string, condition: string
 }
 const reject = (queue = 'REJECTION_REVIEW'): { review: boolean; queue: string; template: string } => ({ review: true, queue, template: 'COMM-REJECT' });
 export const loaDecisionRules: DecisionRule[] = [
+  rule(16, 'TL-006', 'TRADE_LICENSE_CHECK', 'Trade License / Establishment Card read: details missing or inconsistent with the request or with each other; the customer can fix it by uploading a corrected document', 'NEED_MORE_INFORMATION', 'TRADE_LICENSE_DETAILS_INSUFFICIENT', { next: 'Ask the customer for a corrected Trade License / Establishment Card.', queue: 'CUSTOMER_FOLLOW_UP', template: 'COMM-NEED-INFO', agent: 'SBO.06' }),
+  rule(25, 'ID-005', 'IDENTITY_VALIDATION', 'Emirates ID read: details missing, malformed, or it belongs to another person; the customer can fix it by uploading the representative\'s own ID', 'NEED_MORE_INFORMATION', 'EID_DETAILS_INSUFFICIENT', { next: 'Ask the customer for the representative\'s own, readable Emirates ID.', queue: 'CUSTOMER_FOLLOW_UP', template: 'COMM-NEED-INFO', agent: 'SBO.07' }),
+  rule(55, 'AV-005', 'AVCV_VERIFICATION', 'Proof of address read: wrong kind, wrong holder, missing details or out of date; the customer can fix it by uploading a proper one', 'NEED_MORE_INFORMATION', 'ADDRESS_PROOF_INSUFFICIENT', { next: 'Ask the customer for a recent proof of address in the name of the business or its owner.', queue: 'CUSTOMER_FOLLOW_UP', template: 'COMM-NEED-INFO', agent: 'SBO.10' }),
+  rule(38, 'DOC-001', 'DOCUMENT_REVIEW', 'A submitted document contains text that tries to instruct the process (ignored as data)', 'MANUAL_REVIEW', 'DOCUMENT_SECURITY_REVIEW', { review: true, queue: 'SECURITY_REVIEW', next: 'A specialist reviews the document security finding.', agent: 'SBO.02' }),
   rule(10, 'TL-001', 'TRADE_LICENSE_CHECK', 'Trade licence not readable and no scannable QR code', 'NEED_MORE_INFORMATION', 'DOCUMENT_UNREADABLE', { next: 'Ask the customer to re-upload a readable Trade License.', queue: 'CUSTOMER_FOLLOW_UP', template: 'COMM-NEED-INFO', agent: 'SBO.06' }),
   rule(11, 'TL-002', 'TRADE_LICENSE_CHECK', 'Trade licence expired', 'REJECT', 'TRADE_LICENSE_EXPIRED', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.06' }),
   rule(12, 'TL-003', 'TRADE_LICENSE_CHECK', 'Trade licence not active', 'REJECT', 'TRADE_LICENSE_INACTIVE', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.06' }),
@@ -431,6 +489,8 @@ export const loaDecisionRules: DecisionRule[] = [
   rule(31, 'POA-002', 'POA_MOA_CHECK', 'POA/MOA checks not cleared', 'REJECT', 'POA_MOA_NOT_CLEARED', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.02' }),
   rule(32, 'POA-003', 'POA_MOA_CHECK', 'POA/MOA reference not found', 'MANUAL_REVIEW', 'POA_MOA_NOT_VERIFIABLE', { review: true, queue: 'POA_MOA_REVIEW', next: 'A specialist verifies the POA/MOA manually.', agent: 'SBO.02' }),
   rule(34, 'POA-004', 'POA_MOA_CHECK', 'A limitation or conflicting evidence is recorded on the person\'s authority', 'MANUAL_REVIEW', 'AUTHORITY_LIMITED', { review: true, queue: 'AUTHORITY_REVIEW', next: 'A specialist reviews the recorded limitation.', agent: 'SBO.02' }),
+  rule(36, 'POA-006', 'POA_MOA_CHECK', 'Authority document read: it does not explicitly cover the requested permissions; the customer can fix it by uploading a revised document', 'NEED_MORE_INFORMATION', 'AUTHORITY_SCOPE_INSUFFICIENT', { next: 'Ask the customer for a revised authority document that explicitly covers the requested permissions.', queue: 'CUSTOMER_FOLLOW_UP', template: 'COMM-NEED-INFO', agent: 'SBO.02' }),
+  rule(37, 'POA-007', 'POA_MOA_CHECK', 'Authority document read: its details (person, company, signatory, dates) do not match the request; the customer can fix it by uploading a revised document', 'NEED_MORE_INFORMATION', 'AUTHORITY_DETAILS_MISMATCH', { next: 'Ask the customer for a revised authority document with the correct details.', queue: 'CUSTOMER_FOLLOW_UP', template: 'COMM-NEED-INFO', agent: 'SBO.02' }),
   rule(35, 'POA-005', 'POA_MOA_CHECK', 'Document security finding', 'MANUAL_REVIEW', 'DOCUMENT_SECURITY_REVIEW', { review: true, queue: 'SECURITY_REVIEW', next: 'A specialist reviews the document security finding.', agent: 'SBO.02' }),
   rule(33, 'POA-000', 'POA_MOA_CHECK', 'POA/MOA not required or cleared', 'CONTINUE', 'POA_MOA_CLEARED', { agent: 'SBO.02' }),
   rule(40, 'BD-001', 'BAD_DEBT_CHECK', 'Bad debt observed on a linked party', 'REJECT', 'BAD_DEBT_OBSERVED', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.09' }),

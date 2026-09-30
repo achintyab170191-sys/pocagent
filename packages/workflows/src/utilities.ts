@@ -38,7 +38,7 @@ export async function loadCaseDocuments(repository: Repository, caseRunId: strin
   for (const record of records) {
     const type = String(record.structuredData.document_type ?? '') as DocumentType;
     const fields = record.structuredData.fields;
-    if (type && fields && typeof fields === 'object') documents[type] = { evidenceId: record.evidenceId, fields: fields as StoredDocument['fields'] };
+    if (type && fields && typeof fields === 'object') documents[type] = { evidenceId: record.evidenceId, fields: fields as StoredDocument['fields'], text: record.evidenceText };
   }
   return documents;
 }
