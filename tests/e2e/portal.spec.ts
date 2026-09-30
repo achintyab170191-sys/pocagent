@@ -75,12 +75,19 @@ test.describe('chat', () => {
     await expect(page.getByTestId('chat-log')).toContainText('was not found. No assessment was performed.');
   });
 
-  test('a brand-new customer gets a synthetic case and is assessed end to end', async ({ page }) => {
+  test('a company that is not on record becomes a new lead: no checks, no approval', async ({ page }) => {
     await introduce(page, 'Zed Nobody', 'Acme Imaginary Holdings Ltd');
-    await expect(page.getByTestId('outcome-meta')).toContainText('Document Checks → Business Validation → Identity Validation');
-    await expect(page.getByTestId('chat-log')).toContainText('you are a new customer');
+    await expect(page.getByTestId('chat-log')).toContainText('new lead case');
+    await expect(page.getByTestId('chat-log')).toContainText('nothing has been approved');
+    await expect(page.getByTestId('outcome-meta')).toHaveCount(0);
   });
 
+  test('a known company with a representative who is not on record is assessed and must evidence authority', async ({ page }) => {
+    await introduce(page, 'Zed Nobody', 'Bluegum Vector Demo Pty Ltd');
+    await expect(page.getByTestId('chat-log')).toContainText('is not one of its recorded representatives');
+    await expect(page.getByTestId('evidence-card')).toBeVisible();
+    await expect(page.getByTestId('outcome-meta')).not.toContainText('APPROVE');
+  });
   test('evidence loop: the customer just types the answer (no TEXT/UPLOAD/UPLOADED words) and the assessment resumes', async ({ page }) => {
     await evaluate(page, 'AUTH-003');
     await expect(page.getByTestId('evidence-card')).toContainText('Exact authority clause or revised authority document');

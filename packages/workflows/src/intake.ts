@@ -133,29 +133,45 @@ export async function listScenarios(repository: Repository): Promise<ScenarioSum
   return firstVersions.map((entry) => ({ caseRunId: entry.caseRunId, representativeName: entry.representativeName, businessName: entry.businessName, businessIdentifier: entry.businessIdentifier }));
 }
 
-/** Synthetic baseline profile a brand-new customer is assessed with when no named scenario matches (docs/07 G-35). */
-export const syntheticBaselineCaseRunId = 'AUTH-001';
+/**
+ * The canned pipeline used when the company is on record but the person is not one of its recorded representatives:
+ * AUTH-003's "authority must be evidenced" path (checks run, then the customer supplies authority evidence, then the assessment resumes).
+ */
+export const unrecognisedRepresentativeTemplate = 'AUTH-003';
 
-export interface OpenedCase { caseRecord: CaseRecord; scenario?: CaseRecord; synthesised: boolean; }
+export type IntakeKind = 'KNOWN_CUSTOMER' | 'UNRECOGNISED_REPRESENTATIVE' | 'NEW_LEAD';
+export interface OpenedCase { caseRecord: CaseRecord; scenario?: CaseRecord; kind: IntakeKind; }
 
-export async function openIntakeCase(repository: Repository, details: IntakeDetails): Promise<OpenedCase> {
-  const matched = await findScenario(repository, details);
-  const scenario = matched ?? await repository.getCase(syntheticBaselineCaseRunId);
-  const representativeName = cleanText(details.representativeName, 120);
-  const businessName = cleanText(details.businessName, 160);
-  const caseRecord = await repository.createIntakeCase({
-    templateCaseRunId: scenario?.caseRunId ?? '',
-    record: {
-      submissionVersion: 1, country: scenario?.country ?? '', requestType: 'NEW_AUTHORISED_REPRESENTATIVE', channel: intakeChannel,
-      businessName, businessIdentifier: details.businessIdentifier || (matched ? matched.businessIdentifier : ''), customerId: matched ? matched.customerId : '',
-      representativeName, representativeRole: scenario?.representativeRole ?? '', requestedAuthority: scenario?.requestedAuthority ?? standardAuthority,
-      requestNarrative: `Please add ${representativeName} as an authorised representative for ${businessName} with the requested account, ordering, plan-change, and approval permissions.`,
-      documentsSubmitted: scenario?.documentsSubmitted ?? '', submittedAt: now(), processingPriority: 'STANDARD', syntheticOnly: true,
-    },
-  });
-  return { caseRecord, scenario: matched, synthesised: !matched };
+/** A company already on record = any scenario whose business name (or identifier) matches, whoever the representative is. */
+export async function findKnownBusiness(repository: Repository, details: IntakeDetails): Promise<CaseRecord | undefined> {
+  return (await repository.listCases()).filter(isScenario).sort((left, right) => left.submissionVersion - right.submissionVersion)
+    .find((entry) => businessMatches(entry.businessName, details.businessName) || (details.businessIdentifier !== '' && entry.businessIdentifier.toUpperCase() === details.businessIdentifier.toUpperCase()));
 }
 
+/**
+ * Opens the customer's case (docs/07 G-33, G-35):
+ *  - company AND representative on record        → case backed by that scenario, full assessment;
+ *  - company on record, representative not       → case for the recorded company, assessed via the authority-evidence path;
+ *  - company not on record                       → a NEW_LEAD case only: nothing is verified, no checks or decision are run.
+ */
+export async function openIntakeCase(repository: Repository, details: IntakeDetails): Promise<OpenedCase> {
+  const matched = await findScenario(repository, details);
+  const knownBusiness = matched ?? await findKnownBusiness(repository, details);
+  const template = matched ?? (knownBusiness ? await repository.getCase(unrecognisedRepresentativeTemplate) : undefined);
+  const representativeName = cleanText(details.representativeName, 120);
+  const businessName = knownBusiness ? knownBusiness.businessName : cleanText(details.businessName, 160);
+  const caseRecord = await repository.createIntakeCase({
+    templateCaseRunId: template?.caseRunId ?? '',
+    record: {
+      submissionVersion: 1, country: knownBusiness?.country ?? '', requestType: 'NEW_AUTHORISED_REPRESENTATIVE', channel: intakeChannel,
+      businessName, businessIdentifier: details.businessIdentifier || knownBusiness?.businessIdentifier || '', customerId: knownBusiness?.customerId ?? '',
+      representativeName, representativeRole: matched?.representativeRole ?? '', requestedAuthority: matched?.requestedAuthority ?? standardAuthority,
+      requestNarrative: `Please add ${representativeName} as an authorised representative for ${businessName} with the requested account, ordering, plan-change, and approval permissions.`,
+      documentsSubmitted: template?.documentsSubmitted ?? '', submittedAt: now(), processingPriority: 'STANDARD', syntheticOnly: true,
+    },
+  });
+  return { caseRecord, scenario: matched, kind: matched ? 'KNOWN_CUSTOMER' : knownBusiness ? 'UNRECOGNISED_REPRESENTATIVE' : 'NEW_LEAD' };
+}
 // ------------------------------------------------------------------------------------------------------------------
 // Versioned resubmission target
 // ------------------------------------------------------------------------------------------------------------------

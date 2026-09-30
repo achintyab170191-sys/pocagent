@@ -173,10 +173,16 @@ export async function handleChatMessage(deps: ChatDependencies, input: { session
     return { sessionId, step: 'INTAKE', messages: [ask], caseRunId: '', syntheticDataDisclaimer: true };
   }
   const opened = await openIntakeCase(repository, details);
-  const scenarioNote = opened.scenario ? `\n\n*Synthetic prototype: your details were matched to synthetic scenario ${opened.scenario.caseRunId}.*` : '\n\n*Synthetic prototype: you are a new customer, so I created a synthetic profile for this case and the checks below run against it.*';
-  const result = await evaluateCase(repository, agentRuntime, opened.caseRecord.caseRunId, sessionId, `Evaluate ${opened.caseRecord.caseRunId}`);
-  return presentAssessment(deps, sessionId, result, [`Thanks ${opened.caseRecord.representativeName}. I've opened case **${opened.caseRecord.caseRunId}** for ${opened.caseRecord.businessName} and I'm running the checks now.${scenarioNote}`]);
-}
+  const { caseRecord } = opened;
+  if (opened.kind === 'NEW_LEAD') {
+    await repository.saveSession(session(sessionId, caseRecord.caseRunId, 'DONE'));
+    return { sessionId, step: 'DONE', messages: [`Thanks ${caseRecord.representativeName}. I couldn't find **${caseRecord.businessName}** in our records, so I've created **new lead case ${caseRecord.caseRunId}** for it.\n\nNo checks have been run and nothing has been approved: your details are unverified. A specialist will follow up to onboard the business before any representative can be assessed.\n\n*Synthetic prototype. No production-system update or customer communication has been performed.*`], caseRunId: caseRecord.caseRunId, syntheticDataDisclaimer: true };
+  }
+  const scenarioNote = opened.kind === 'KNOWN_CUSTOMER'
+    ? `\n\n*Synthetic prototype: your details were matched to synthetic scenario ${opened.scenario?.caseRunId}.*`
+    : `\n\n*${caseRecord.businessName} is on record, but ${caseRecord.representativeName} is not one of its recorded representatives, so your authority has to be evidenced (synthetic prototype).*`;
+  const result = await evaluateCase(repository, agentRuntime, caseRecord.caseRunId, sessionId, `Evaluate ${caseRecord.caseRunId}`);
+  return presentAssessment(deps, sessionId, result, [`Thanks ${caseRecord.representativeName}. I've opened case **${caseRecord.caseRunId}** for ${caseRecord.businessName} and I'm running the checks now.${scenarioNote}`]);}
 
 async function evaluateAndPresent(deps: ChatDependencies, sessionId: string, caseRunId: string, chatInput: string): Promise<ChatReply> {
   try {

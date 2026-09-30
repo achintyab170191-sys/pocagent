@@ -50,7 +50,7 @@ No model key yet? Set `AGENT_RUNTIME=deterministic` in `.env`: the governed tool
 
 ## Demo (web app, `npm run dev`, open http://localhost:5173)
 
-**Start as a customer.** Open the chat and say who you are and which company you represent (e.g. *"My name is Hana Rangi and I represent Kauri Harbour Demo Digital Limited"*). A case (AUTH-101...) is opened and assessed. If evidence is needed, answer in the same window: type, attach PDF / Word (.docx) / image files with the paperclip (or drag them in), or both - there is nothing to type like UPLOAD. Results come from matched synthetic scenarios (docs/07 G-33); a new name/company gets its own synthetic case, backed by a clean synthetic profile, and is assessed end to end (docs/07 G-35 - simulated, not a real verification).
+**Start as a customer.** Open the chat and say who you are and which company you represent (e.g. *"My name is Hana Rangi and I represent Kauri Harbour Demo Digital Limited"*). A case (AUTH-101...) is opened and assessed. If evidence is needed, answer in the same window: type, attach PDF / Word (.docx) / image files with the paperclip (or drag them in), or both - there is nothing to type like UPLOAD. Results come from matched synthetic scenarios (docs/07 G-33); a company that is not on record becomes a **new lead** case (no checks, nothing approved); a known company with a representative who is not on record is assessed and must evidence their authority (docs/07 G-35).
 
 Every screen shows the synthetic-data banner. The chat has quick buttons for the 11 cases.
 
