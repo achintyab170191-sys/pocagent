@@ -15,6 +15,7 @@
  * The pure functions have no I/O; the caller supplies the documents the customer uploaded and the reference date.
  */
 import type { CommunicationTemplate, DecisionRule } from './index.js';
+import { n8nAvcv, n8nEmiratesIds, n8nLicenses, n8nParties, n8nPoas } from './n8n-registers.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // Mandatory checks (governed order)
@@ -148,10 +149,10 @@ export type AvcvOutcome = 'POSITIVE' | 'NEGATIVE' | 'DISCREPANCY' | 'UNABLE_TO_V
 export type PersonCapacity = 'OWNER' | 'MANAGER' | 'AUTHORISED_SIGNATORY' | 'LISTED_NO_AUTHORITY';
 /** A person recorded in the approved source (trade licence / company registration) with the capacity and permissions that record gives them. */
 export interface RecordedPerson { name: string; capacity: PersonCapacity; scopes: string[]; /** A limitation or conflicting evidence on the person's authority (e.g. "joint signature required"). */ limitation?: string; }
-export interface TradeLicenseRecord { licenseNumber: string; qrToken: string; businessName: string; ownerName: string; status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'; expiryDate: string; dulApiAvailable: boolean; establishmentNumber: string; persons: RecordedPerson[]; }
+export interface TradeLicenseRecord { licenseNumber: string; qrToken: string; businessName: string; ownerName: string; status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'; expiryDate: string; dulApiAvailable: boolean; establishmentNumber: string; persons: RecordedPerson[]; /** false = neither the DUL API nor the government portal could answer (the register is unavailable): a specialist verifies. */ lookupAvailable?: boolean; }
 export interface EmiratesIdRecord { idNumber: string; fullName: string; expiryDate: string; }
-export interface PoaRecord { reference: string; grantor: string; grantee: string; businessName: string; scopes: string[]; validUntil: string; }
-export interface PartyRecord { partyId: string; licenseNumber: string; holderName: string; badDebtAed: number; blueCollarFlag: boolean; }
+export interface PoaRecord { reference: string; grantor: string; grantee: string; businessName: string; scopes: string[]; validUntil: string; /** A document-security finding (e.g. an embedded instruction): a specialist reviews the document. */ securityFlag?: string; }
+export interface PartyRecord { partyId: string; licenseNumber: string; holderName: string; badDebtAed: number; blueCollarFlag: boolean; /** Conflicting duplicate records for the same company: a specialist reconciles them. */ dataConflict?: boolean; }
 /** AVCV = Address Verification and Credit Verification: one outcome for the address, one for the credit profile. */
 export interface AvcvRecord { licenseNumber: string; address: AvcvOutcome; credit: AvcvOutcome; }
 
@@ -162,7 +163,7 @@ const PAST = '2020-01-31';
 const all = [...requiredAuthorityScopes];
 const owner = (name: string): RecordedPerson => ({ name, capacity: 'OWNER', scopes: all });
 const licenseOf = (n: number, businessName: string, ownerName: string, extra: Partial<TradeLicenseRecord> & { persons?: RecordedPerson[] } = {}): TradeLicenseRecord => ({ licenseNumber: `TL-DEMO-${n}`, qrToken: `QR-TL-${n}`, businessName, ownerName, status: 'ACTIVE', expiryDate: FAR, dulApiAvailable: true, establishmentNumber: `EC-DEMO-${n}`, persons: [owner(ownerName)], ...extra });
-export const tradeLicenseRegister: TradeLicenseRecord[] = [
+const demoLicenses: TradeLicenseRecord[] = [
   licenseOf(100201, 'Al Noor Trading LLC', 'Fatima Al Mansoori', { persons: [owner('Fatima Al Mansoori'), { name: 'Layth Barakat', capacity: 'MANAGER', scopes: all }] }),
   licenseOf(100202, 'Gulf Horizon Contracting LLC', 'Khalid Al Suwaidi', { persons: [owner('Khalid Al Suwaidi'), { name: 'Ahmed Yusuf', capacity: 'MANAGER', scopes: ['MANAGE_ACCOUNT', 'ORDER_SERVICES'] }] }),
   licenseOf(100203, 'Desert Bloom Cafe LLC', 'Sara Khan', { expiryDate: PAST }),
@@ -178,7 +179,7 @@ export const tradeLicenseRegister: TradeLicenseRecord[] = [
 ];
 
 const eid = (index: number, year: number, name: string): EmiratesIdRecord => ({ idNumber: `784-${year}-${String(1111111 * index).slice(0, 7)}-${index % 10}`, fullName: name, expiryDate: FAR });
-export const emiratesIdRegister: EmiratesIdRecord[] = [
+const demoEmiratesIds: EmiratesIdRecord[] = [
   { idNumber: '784-1985-1234567-1', fullName: 'Fatima Al Mansoori', expiryDate: FAR },
   { idNumber: '784-1978-2345678-2', fullName: 'Khalid Al Suwaidi', expiryDate: FAR },
   { idNumber: '784-1990-3456789-3', fullName: 'Omar Haddad', expiryDate: FAR },
@@ -194,14 +195,14 @@ export const emiratesIdRegister: EmiratesIdRecord[] = [
   eid(4, 1979, 'Ibrahim Karam'), eid(5, 1990, 'Reem Al Hosani'), eid(6, 1981, 'Adel Mansour'),
 ];
 
-export const poaRegister: PoaRecord[] = [
+const demoPoas: PoaRecord[] = [
   { reference: 'POA-DEMO-2001', grantor: 'Khalid Al Suwaidi', grantee: 'Omar Haddad', businessName: 'Gulf Horizon Contracting LLC', scopes: [...requiredAuthorityScopes], validUntil: FAR },
   { reference: 'POA-DEMO-2002', grantor: 'Fatima Al Mansoori', grantee: 'Hessa Al Ameri', businessName: 'Al Noor Trading LLC', scopes: [...requiredAuthorityScopes], validUntil: PAST },
   { reference: 'POA-DEMO-2003', grantor: 'Khalid Al Suwaidi', grantee: 'Ahmed Yusuf', businessName: 'Gulf Horizon Contracting LLC', scopes: [...requiredAuthorityScopes], validUntil: FAR },
 ];
 
 const party = (id: string, license: number, name: string, extra: Partial<PartyRecord> = {}): PartyRecord => ({ partyId: id, licenseNumber: `TL-DEMO-${license}`, holderName: name, badDebtAed: 0, blueCollarFlag: false, ...extra });
-export const partyRegister: PartyRecord[] = [
+const demoParties: PartyRecord[] = [
   party('PD-DEMO-1001', 100201, 'Fatima Al Mansoori'), party('PD-DEMO-1002', 100202, 'Khalid Al Suwaidi'), party('PD-DEMO-1003', 100203, 'Sara Khan'), party('PD-DEMO-1004', 100204, 'Rashid Al Ketbi'),
   party('PD-DEMO-5001', 100205, 'Layla Nasser'), party('PD-DEMO-5002', 100205, 'Layla Nasser', { badDebtAed: 12500 }),
   party('PD-DEMO-1006', 100206, 'Yousef Ibrahim'), party('PD-DEMO-1007', 100207, 'Noura Al Falasi'), party('PD-DEMO-1008', 100208, 'Tariq Mahmood', { blueCollarFlag: true }),
@@ -209,10 +210,17 @@ export const partyRegister: PartyRecord[] = [
 ];
 
 const avcv = (license: number, address: AvcvOutcome = 'POSITIVE', credit: AvcvOutcome = 'POSITIVE'): AvcvRecord => ({ licenseNumber: `TL-DEMO-${license}`, address, credit });
-export const avcvRegister: AvcvRecord[] = [
+const demoAvcv: AvcvRecord[] = [
   avcv(100201), avcv(100202), avcv(100203), avcv(100204), avcv(100205), avcv(100206, 'POSITIVE', 'NEGATIVE'), avcv(100207), avcv(100208), avcv(100209),
   avcv(100210, 'DISCREPANCY'), avcv(100211, 'UNABLE_TO_VERIFY'), avcv(100212, 'INSUFFICIENT_INFORMATION'),
 ];
+
+/** The registers are the demo data plus the archived n8n businesses, people, authority letters and financial/CRM facts (scripts/import-n8n-registers.ts). */
+export const tradeLicenseRegister: TradeLicenseRecord[] = [...demoLicenses, ...n8nLicenses];
+export const emiratesIdRegister: EmiratesIdRecord[] = [...demoEmiratesIds, ...n8nEmiratesIds];
+export const poaRegister: PoaRecord[] = [...demoPoas, ...n8nPoas];
+export const partyRegister: PartyRecord[] = [...demoParties, ...n8nParties];
+export const avcvRegister: AvcvRecord[] = [...demoAvcv, ...n8nAvcv];
 
 /** The chatbot recognises a company only if it is in the trade-licence register (otherwise the customer is a new lead). */
 export function findKnownBusiness(businessName: string): TradeLicenseRecord | undefined {
@@ -268,6 +276,7 @@ function tradeLicenseCheck(context: CheckContext): CheckOutcome {
   }
   const record = resolved.record;
   if (!record) return outcome('INCONCLUSIVE', 'TL-005', 'LICENSE_NOT_VERIFIABLE', { printed_license_number: resolved.printedNumber, verified: false, conflicts: [] }, 'The licence could not be matched in the licence register; route to a specialist. An unavailable or unmatched lookup is never treated as proof the business is invalid.', evidence, { confidence: 0.5, humanReview: true });
+  if (record.lookupAvailable === false) return outcome('INCONCLUSIVE', 'TL-005', 'LICENSE_NOT_VERIFIABLE', { license_number: record.licenseNumber, verification_channel: 'NONE_AVAILABLE', verified: false, conflicts: [] }, 'Neither the DUL API nor the government portal answered; a specialist verifies. An unavailable lookup is never treated as proof the business is invalid.', evidence, { confidence: 0.5, humanReview: true });
   const channel = record.dulApiAvailable ? 'DUL_API' : 'GOVERNMENT_PORTAL_UAE_PASS';
   const findings: Record<string, unknown> = { license_number: record.licenseNumber, matched_via: resolved.via, verification_channel: channel, dul_api_available: record.dulApiAvailable, register_expiry_date: record.expiryDate, register_status: record.status, conflicts: [] as string[] };
   const conflicts = findings.conflicts as string[];
@@ -319,6 +328,7 @@ function poaMoaCheck(context: CheckContext): CheckOutcome {
   const reference = text(poa.fields.reference);
   const record = poaRegister.find((entry) => entry.reference.toUpperCase() === reference.toUpperCase());
   if (!record) return outcome('INCONCLUSIVE', 'POA-003', 'POA_MOA_NOT_VERIFIABLE', { poa_moa_required: true, reference, verified: false, conflicts: [] }, 'The POA/MOA reference could not be matched; route to a specialist.', evidence, { confidence: 0.5, humanReview: true });
+  if (record.securityFlag) return outcome('INCONCLUSIVE', 'POA-005', 'DOCUMENT_SECURITY_REVIEW', { poa_moa_required: true, reference: record.reference, security_finding: true, conflicts: [] }, 'The document carries a security finding (for example an embedded instruction that was ignored); a specialist reviews it.', evidence, { confidence: 0.6, humanReview: true });
   const conflicts: string[] = [];
   if (!sameName(record.grantee, printedName)) conflicts.push('The POA/MOA was not granted to this representative.');
   if (license && !businessNamesMatch(record.businessName, license.businessName)) conflicts.push('The POA/MOA is for a different business.');
@@ -340,6 +350,7 @@ function badDebtCheck(context: CheckContext): CheckOutcome {
   const conflicts = findings.conflicts as string[];
   if (owing.length > 0) { conflicts.push('Outstanding bad debt exists on an account linked to this business or person.'); return outcome('FAIL', 'BD-001', 'BAD_DEBT_OBSERVED', findings, 'Reject the request: bad debt was observed. Draft the customer email and request root-cause analysis.', evidence); }
   if (parties.some((party) => party.blueCollarFlag)) { conflicts.push('Blue-collar behaviour was observed on a linked party.'); return outcome('FAIL', 'BD-002', 'BLUE_COLLAR_OBSERVED', findings, 'Reject the request: blue-collar behaviour was observed. Draft the customer email and request root-cause analysis.', evidence); }
+  if (parties.some((entry) => entry.dataConflict)) { conflicts.push('Conflicting duplicate records exist for this company.'); return outcome('INCONCLUSIVE', 'BD-003', 'DUPLICATE_RECORD_CONFLICT', findings, 'Duplicate party records conflict; a specialist reconciles them before the check can complete.', evidence, { confidence: 0.6, humanReview: true }); }
   return outcome('PASS', 'BD-000', 'NO_BAD_DEBT', findings, 'Continue with AVCV verification.', evidence);
 }
 
@@ -398,9 +409,11 @@ export const loaDecisionRules: DecisionRule[] = [
   rule(31, 'POA-002', 'POA_MOA_CHECK', 'POA/MOA checks not cleared', 'REJECT', 'POA_MOA_NOT_CLEARED', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.02' }),
   rule(32, 'POA-003', 'POA_MOA_CHECK', 'POA/MOA reference not found', 'MANUAL_REVIEW', 'POA_MOA_NOT_VERIFIABLE', { review: true, queue: 'POA_MOA_REVIEW', next: 'A specialist verifies the POA/MOA manually.', agent: 'SBO.02' }),
   rule(34, 'POA-004', 'POA_MOA_CHECK', 'A limitation or conflicting evidence is recorded on the person\'s authority', 'MANUAL_REVIEW', 'AUTHORITY_LIMITED', { review: true, queue: 'AUTHORITY_REVIEW', next: 'A specialist reviews the recorded limitation.', agent: 'SBO.02' }),
+  rule(35, 'POA-005', 'POA_MOA_CHECK', 'Document security finding', 'MANUAL_REVIEW', 'DOCUMENT_SECURITY_REVIEW', { review: true, queue: 'SECURITY_REVIEW', next: 'A specialist reviews the document security finding.', agent: 'SBO.02' }),
   rule(33, 'POA-000', 'POA_MOA_CHECK', 'POA/MOA not required or cleared', 'CONTINUE', 'POA_MOA_CLEARED', { agent: 'SBO.02' }),
   rule(40, 'BD-001', 'BAD_DEBT_CHECK', 'Bad debt observed on a linked party', 'REJECT', 'BAD_DEBT_OBSERVED', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.09' }),
   rule(41, 'BD-002', 'BAD_DEBT_CHECK', 'Blue-collar behaviour observed', 'REJECT', 'BLUE_COLLAR_OBSERVED', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.09' }),
+  rule(43, 'BD-003', 'BAD_DEBT_CHECK', 'Conflicting duplicate party records', 'MANUAL_REVIEW', 'DUPLICATE_RECORD_CONFLICT', { review: true, queue: 'DATA_RECONCILIATION', next: 'A specialist reconciles the duplicate records.', agent: 'SBO.09' }),
   rule(42, 'BD-000', 'BAD_DEBT_CHECK', 'No bad debt or blue-collar behaviour', 'CONTINUE', 'NO_BAD_DEBT', { agent: 'SBO.09' }),
   rule(50, 'AV-001', 'AVCV_VERIFICATION', 'Address or credit verification adverse', 'REJECT', 'AVCV_ADVERSE', { ...reject(), next: 'Confirm the rejection, send the drafted email (SBO.11) and review the root-cause analysis (SBO.20).', agent: 'SBO.10' }),
   rule(51, 'AV-002', 'AVCV_VERIFICATION', 'AVCV unable to verify or referred (not a failure)', 'MANUAL_REVIEW', 'AVCV_UNVERIFIED', { review: true, queue: 'AVCV_REVIEW', next: 'A specialist completes the address and credit verification.', agent: 'SBO.10' }),

@@ -26,7 +26,8 @@
     "analyse:sources": "node scripts/analyse-source.mjs",
     "extract:prompts": "node scripts/extract-prompts.mjs",
     "verify:sources": "tsx scripts/verify-sources.ts",
-    "samples": "tsx scripts/generate-samples.ts"
+    "samples": "tsx scripts/generate-samples.ts",
+    "import:n8n": "tsx scripts/import-n8n-registers.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.31",

@@ -175,3 +175,5 @@ table.dash tr.row-selected { box-shadow: inset 3px 0 0 var(--brand); background:
 
 .page > h2 { margin-bottom: 0.3rem; } .page > .lead { margin: 0 0 1.1rem; max-width: 78ch; color: var(--muted); }
 .stat-row .card { min-width: 170px; padding: 0.8rem 1rem; }
+
+@media (max-width: 760px) { .topbar-inner { flex-wrap: wrap; gap: 0.4rem; padding: 0.55rem 1rem; } .nav { margin-left: 0; width: 100%; } .banner, main, footer { padding-left: 1rem; padding-right: 1rem; } .brand { flex: none; } }

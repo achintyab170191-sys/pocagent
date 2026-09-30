@@ -135,7 +135,7 @@ describe('chat API (customer journey over HTTP)', () => {
   it('demo personas are listed with their sample documents and expected outcomes', async () => {
     const { get } = await start();
     const body = (await get('/api/scenarios')).json();
-    expect(body.scenarios).toHaveLength(16);
+    expect(body.scenarios).toHaveLength(26);
     expect(body.scenarios[0]).toMatchObject({ slug: 'fatima-al-noor', expectedOutcome: 'APPROVE', documents: [{ type: 'EMIRATES_ID', path: '/samples/fatima-al-noor/emirates-id.pdf' }, expect.anything(), expect.anything()] });
   });
 

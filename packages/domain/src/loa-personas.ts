@@ -3,6 +3,7 @@
  * disagree with the registers (expired licence, wrong name on the Emirates ID ...) so every branch of the To-Be process can be tried.
  */
 import { type DocumentFields, type DocumentType } from './loa.js';
+import { n8nPersonas } from './n8n-registers.js';
 
 const HEADINGS: Record<DocumentType, string> = {
   EMIRATES_ID: 'UNITED ARAB EMIRATES - EMIRATES ID (SYNTHETIC SPECIMEN)',
@@ -34,7 +35,7 @@ export interface Persona {
   slug: string; representativeName: string; businessName: string;
   /** What this persona demonstrates. */
   story: string;
-  expectedOutcome: 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW' | 'NEED_MORE_INFORMATION_THEN_APPROVE';
+  expectedOutcome: 'APPROVE' | 'REJECT' | 'MANUAL_REVIEW' | 'NEED_MORE_INFORMATION' | 'NEED_MORE_INFORMATION_THEN_APPROVE';
   documents: SampleDocument[];
 }
 
@@ -46,7 +47,7 @@ const poa = (reference: string, grantor: string, grantee: string, businessName: 
 
 const addressProof = (holderName: string, address: string): SampleDocument => ({ type: 'ADDRESS_PROOF', fileName: 'proof-of-address.pdf', fields: { holderName, address, documentKind: 'Utility bill' } });
 
-export const personas: Persona[] = [
+const corePersonas: Persona[] = [
   { slug: 'fatima-al-noor', representativeName: 'Fatima Al Mansoori', businessName: 'Al Noor Trading LLC', story: 'Licence owner with valid documents: every check passes.', expectedOutcome: 'APPROVE',
     documents: [eid('784-1985-1234567-1', 'Fatima Al Mansoori'), licence('TL-DEMO-100201', 'Al Noor Trading LLC', 'Fatima Al Mansoori'), card('EC-DEMO-100201', 'Al Noor Trading LLC', 'TL-DEMO-100201', ['Fatima Al Mansoori'])] },
   { slug: 'noura-marina-bay', representativeName: 'Noura Al Falasi', businessName: 'Marina Bay Catering LLC', story: 'The DUL API is down, so the licence is verified through the government portal with UAE Pass (passes with a flag).', expectedOutcome: 'APPROVE',
@@ -80,5 +81,8 @@ export const personas: Persona[] = [
   { slug: 'adel-coral-reef', representativeName: 'Adel Mansour', businessName: 'Coral Reef Diving LLC', story: 'AVCV has insufficient information: the chat asks for proof of address (a utility bill) in the same window, then approves.', expectedOutcome: 'NEED_MORE_INFORMATION_THEN_APPROVE',
     documents: [eid('784-1981-6666666-6', 'Adel Mansour'), licence('TL-DEMO-100212', 'Coral Reef Diving LLC', 'Adel Mansour'), card('EC-DEMO-100212', 'Coral Reef Diving LLC', 'TL-DEMO-100212', ['Adel Mansour']), addressProof('Coral Reef Diving LLC', 'Unit 4, Marina Walk, Demo City')] },
 ];
+
+/** The demo personas plus one per archived n8n scenario (scripts/import-n8n-registers.ts). */
+export const personas: Persona[] = [...corePersonas, ...n8nPersonas];
 
 export function documentText(document: SampleDocument): string { return renderDocumentText(document.type, document.fields); }

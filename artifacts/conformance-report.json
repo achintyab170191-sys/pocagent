@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T08:50:19.663Z",
+  "generatedAt": "2026-09-30T09:06:01.249Z",
   "node": "v24.21.0",
   "totals": {
     "steps": 43,
@@ -12,7 +12,7 @@
     {
       "name": "unit",
       "ran": true,
-      "passed": 294,
+      "passed": 374,
       "failed": 0,
       "skipped": 0,
       "command": "npx vitest run",
@@ -180,6 +180,96 @@
       "actual": "APPROVE",
       "reason": "ALL_CHECKS_PASSED",
       "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "n8n-hana-rangi-kauri-harbour",
+      "customer": "Hana Rangi / Kauri Harbour Demo Digital Limited",
+      "expected": "NEED_MORE_INFORMATION",
+      "actual": "NEED_MORE_INFORMATION",
+      "reason": "POA_MOA_MISSING",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "n8n-liam-chen-bluegum-vector",
+      "customer": "Liam Chen / Bluegum Vector Demo Pty Ltd",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "POA_MOA_NOT_CLEARED",
+      "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "n8n-maia-thompson-tui-peak",
+      "customer": "Maia Thompson / Tui Peak Demo Services Limited",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "TRADE_LICENSE_INACTIVE",
+      "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "n8n-noah-patel-coral-grid",
+      "customer": "Noah Patel / Coral Grid Demo Solutions Pty Ltd",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "DUPLICATE_RECORD_CONFLICT",
+      "tools": 2,
+      "matches": true
+    },
+    {
+      "slug": "n8n-aroha-kingi-fernline-demo",
+      "customer": "Aroha Kingi / Fernline Demo Mobility Limited",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "reason": "AVCV_ADVERSE",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "n8n-chloe-nguyen-southern-arc",
+      "customer": "Chloe Nguyen / Southern Arc Demo Facilities Pty Ltd",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "LICENSE_NOT_VERIFIABLE",
+      "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "n8n-marcus-lee-harbour-quartz",
+      "customer": "Marcus Lee / Harbour Quartz Demo Consulting Pty Ltd",
+      "expected": "NEED_MORE_INFORMATION_THEN_APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "n8n-sophie-williams-aoraki-lantern",
+      "customer": "Sophie Williams / Aoraki Lantern Demo Limited",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "DOCUMENT_SECURITY_REVIEW",
+      "tools": 1,
+      "matches": true
+    },
+    {
+      "slug": "n8n-jack-morgan-red-earth",
+      "customer": "Jack Morgan / Red Earth Demo Logistics Pty Ltd",
+      "expected": "MANUAL_REVIEW",
+      "actual": "MANUAL_REVIEW",
+      "reason": "AVCV_UNVERIFIED",
+      "tools": 3,
+      "matches": true
+    },
+    {
+      "slug": "n8n-emma-wilson-wattle-ridge",
+      "customer": "Emma Wilson / Wattle Ridge Demo Networks Pty Ltd",
+      "expected": "NEED_MORE_INFORMATION_THEN_APPROVE",
+      "actual": "APPROVE",
+      "reason": "ALL_CHECKS_PASSED",
+      "tools": 3,
       "matches": true
     }
   ],

@@ -14,8 +14,9 @@ export function newStore(): InMemoryRepository {
  */
 export function makePdf(text: string): Buffer {
   const escape = (line: string): string => line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const size = Math.max(2, Math.min(11, Math.floor(950 / Math.max(1, ...text.split('\n').map((line) => line.length)))));
   const lines = text.split('\n').map(escape);
-  const stream = `BT /F1 11 Tf 14 TL 56 740 Td ${lines.map((line) => `(${line}) Tj T*`).join(' ')} ET`;
+  const stream = `BT /F1 ${size} Tf 14 TL 56 740 Td ${lines.map((line) => `(${line}) Tj T*`).join(' ')} ET`;
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',

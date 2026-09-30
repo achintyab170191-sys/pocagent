@@ -408,3 +408,21 @@ describe('review dashboard and the reopen workflow', () => {
     expect(done.caseRunId).toBe(`${stopped.caseRunId}-V2`);
   });
 });
+
+describe('data retained from the n8n exports (synthetic registers)', () => {
+  it('Bluegum Vector Demo Pty Ltd is a known business, not a new lead, and Liam Chen is assessed against its authority letter', async () => {
+    expect(findKnownBusiness('Bluegum Vector Demo Pty Ltd')).toBeDefined();
+    const slug = 'n8n-liam-chen-bluegum-vector';
+    const { store, opened, reply } = await assess(slug);
+    expect(opened.messages.join(' ')).not.toMatch(/couldn't find|new lead/i);
+    expect(reply.step).not.toBe('INTAKE');
+    const cases = await store.listCases();
+    expect(cases.some((entry) => /new.?lead/i.test(JSON.stringify(entry)))).toBe(false);
+  });
+
+  it('every retained n8n persona is known to the registers', () => {
+    const n8n = personas.filter((entry) => entry.slug.startsWith('n8n-'));
+    expect(n8n).toHaveLength(10);
+    for (const entry of n8n) expect(findKnownBusiness(entry.businessName), entry.businessName).toBeDefined();
+  });
+});

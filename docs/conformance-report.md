@@ -1,6 +1,6 @@
 # Conformance report
 
-Generated 2026-09-30T08:50:19.663Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
+Generated 2026-09-30T09:06:01.249Z on Node v24.21.0 by `npm run report:conformance`. Machine-readable copy: `artifacts/conformance-report.json`.
 The behaviour under test is the **To-Be New LOA process** (docs/09), not the earlier n8n export.
 
 ## Result
@@ -19,7 +19,7 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 
 | Suite | Command | Passed | Failed | Skipped |
 | --- | --- | ---: | ---: | ---: |
-| unit | `npx vitest run` | 294 | 0 | 0 |
+| unit | `npx vitest run` | 374 | 0 | 0 |
 | integration | `npx vitest run --config vitest.integration.config.ts` | 19 | 0 | 0 |
 | e2e | `npx playwright test` | 33 | 0 | 0 |
 
@@ -43,6 +43,16 @@ The behaviour under test is the **To-Be New LOA process** (docs/09), not the ear
 | Ibrahim Karam / Cedar Point Consulting LLC | MANUAL_REVIEW | MANUAL_REVIEW | AVCV_DISCREPANCY | 5 | yes |
 | Reem Al Hosani / Palm Grove Hospitality LLC | MANUAL_REVIEW | MANUAL_REVIEW | AVCV_UNVERIFIED | 5 | yes |
 | Adel Mansour / Coral Reef Diving LLC | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 1 | yes |
+| Hana Rangi / Kauri Harbour Demo Digital Limited | NEED_MORE_INFORMATION | NEED_MORE_INFORMATION | POA_MOA_MISSING | 3 | yes |
+| Liam Chen / Bluegum Vector Demo Pty Ltd | REJECT | REJECT | POA_MOA_NOT_CLEARED | 1 | yes |
+| Maia Thompson / Tui Peak Demo Services Limited | REJECT | REJECT | TRADE_LICENSE_INACTIVE | 1 | yes |
+| Noah Patel / Coral Grid Demo Solutions Pty Ltd | MANUAL_REVIEW | MANUAL_REVIEW | DUPLICATE_RECORD_CONFLICT | 2 | yes |
+| Aroha Kingi / Fernline Demo Mobility Limited | REJECT | REJECT | AVCV_ADVERSE | 3 | yes |
+| Chloe Nguyen / Southern Arc Demo Facilities Pty Ltd | MANUAL_REVIEW | MANUAL_REVIEW | LICENSE_NOT_VERIFIABLE | 1 | yes |
+| Marcus Lee / Harbour Quartz Demo Consulting Pty Ltd | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
+| Sophie Williams / Aoraki Lantern Demo Limited | MANUAL_REVIEW | MANUAL_REVIEW | DOCUMENT_SECURITY_REVIEW | 1 | yes |
+| Jack Morgan / Red Earth Demo Logistics Pty Ltd | MANUAL_REVIEW | MANUAL_REVIEW | AVCV_UNVERIFIED | 3 | yes |
+| Emma Wilson / Wattle Ridge Demo Networks Pty Ltd | NEED_MORE_INFORMATION_THEN_APPROVE | APPROVE | ALL_CHECKS_PASSED | 3 | yes |
 
 ## Out of scope
 

@@ -210,7 +210,7 @@ test.describe('customer chat (To-Be New LOA process)', () => {
   test('the demo panel lists every synthetic customer with downloadable sample documents; there is no upload page or resubmission page', async ({ page }) => {
     await page.goto('/');
     await page.getByText('Demo: synthetic customers and sample documents').click();
-    await expect(page.locator('[data-testid^="persona-"]')).toHaveCount(16);
+    await expect(page.locator('[data-testid^="persona-"]')).toHaveCount(26);
     await expect(page.getByTestId('persona-omar-gulf-horizon')).toContainText('Power of Attorney');
     await expect(page.getByTestId('persona-omar-gulf-horizon').getByRole('link', { name: 'POA / MOA' })).toHaveAttribute('href', '/samples/omar-gulf-horizon/power-of-attorney.pdf');
     const nav = page.getByRole('navigation', { name: 'Primary' });

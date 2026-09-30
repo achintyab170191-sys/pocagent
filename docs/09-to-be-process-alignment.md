@@ -101,3 +101,7 @@ The Claude Agent SDK runtime (provisional recommendation only), the guarded five
 1. Is the check order right? (Was SBO.12 system data check meant to run before bad debt?)
 2. What is the exact list of permissions ("requested action") a New LOA can ask for? Four are assumed: manage account, order services, approve plan changes, sign commitments.
 3. Which request type should be automated next (for example address verification in profiling, or MNP in the verifier task), and what are its checks?
+
+## Retained n8n data
+
+The n8n data files (dt_*.csv) are still preserved unchanged. Their businesses, people, authority letters, party records and mock results are also retained as synthetic registers: run `npm run import:n8n` to regenerate packages/domain/src/n8n-registers.ts, which is merged into the trade-licence, Emirates ID, POA/MOA, bad-debt and AVCV registers and adds 10 personas (slugs starting n8n-, e.g. Liam Chen at Bluegum Vector Demo Pty Ltd). Where the export had no named owner, a synthetic Director is generated. Duplicate CRM records raise BD-003 (DUPLICATE_RECORD_CONFLICT), an unavailable licence lookup raises TL-005, and a flagged authority letter raises POA-005 (DOCUMENT_SECURITY_REVIEW); all go to a human.
