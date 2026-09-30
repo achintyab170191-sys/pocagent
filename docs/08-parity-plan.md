@@ -1,5 +1,7 @@
 # Parity plan and status
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 The migration is parity-first: behaviour was ported and pinned by tests **before** anything was improved, and improvements live only in `docs/post-parity-enhancements.md`.
 
 ## Method

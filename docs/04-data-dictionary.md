@@ -1,5 +1,7 @@
 # Data dictionary
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 Types are inferred only from the supplied CSV values; empty-only columns are `unknown`. No column was invented. Source column names and casing are preserved exactly in the raw import tables (`source.*` for static fixtures, `history.*` for exported runtime rows). The target database type applies to the typed domain adapter / runtime tables.
 
 Key columns are taken from the **upsert filters the workflows actually use**, not guessed from column names. Runtime tables in the target are keyed as documented in `packages/persistence/migrations`.

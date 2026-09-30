@@ -1,5 +1,7 @@
 # Source inventory
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 Generated from the immutable root-level n8n JSON exports and CSV Data Table exports. No `source/`, `docs/`, or `samples/` directories were supplied: the artifacts sit in the repository root and are preserved in place, unchanged (verify with `npm run verify:sources`).
 
 ## Preservation manifest

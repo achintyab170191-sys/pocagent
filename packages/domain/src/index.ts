@@ -1,16 +1,11 @@
 import { z } from 'zod';
 
-export const mandatoryCheckTypes = [
-  'DOCUMENT_EXTRACTION',
-  'BUSINESS_VALIDATION',
-  'IDENTITY_VALIDATION',
-  'AUTHORITY_VALIDATION',
-  'SYSTEM_DATA_CHECK',
-  'FINANCIAL_CHECK',
-  'FINAL_VERIFICATION',
-] as const;
+import { loaCheckCatalog } from './loa.js';
 
-export type CheckType = (typeof mandatoryCheckTypes)[number] | 'REQUEST_CLARIFICATION' | 'CUSTOMER_CONFIRMATION' | 'SALES_CONFIRMATION';
+/** The five mandatory checks of the To-Be New LOA process, in governed order (docs/09). */
+export const mandatoryCheckTypes = loaCheckCatalog.map((entry) => entry.checkType) as unknown as readonly ['TRADE_LICENSE_CHECK', 'IDENTITY_VALIDATION', 'POA_MOA_CHECK', 'BAD_DEBT_CHECK', 'AVCV_VERIFICATION'];
+
+export type CheckType = (typeof mandatoryCheckTypes)[number] | 'DOCUMENT_INTAKE';
 export const governedOutcomes = ['APPROVE', 'REJECT', 'NEED_MORE_INFORMATION', 'MANUAL_REVIEW'] as const;
 export type GovernedOutcome = (typeof governedOutcomes)[number];
 
@@ -157,6 +152,9 @@ export const TargetAuditEvents = {
   CASE_STATE_CHANGED: 'CASE_STATE_CHANGED',
   EVIDENCE_REQUESTED: 'EVIDENCE_REQUESTED',
   REVIEW_CREATED: 'REVIEW_CREATED',
+  RCA_REQUESTED: 'RCA_REQUESTED',
+  REQUEST_CAPTURED: 'REQUEST_CAPTURED',
+  CASE_REOPENED: 'CASE_REOPENED',
 } as const;
 
 export const EvidenceRequestStatuses = ['OPEN', 'RECEIVED', 'PARTIALLY_RECEIVED', 'INSUFFICIENT', 'ACCEPTED', 'ESCALATED', 'CANCELLED'] as const;
@@ -183,6 +181,8 @@ export const ChatSessionStateSchema = z.object({
   caseRunId: z.string(),
   step: z.enum(['IDLE', 'INTAKE', 'AWAITING_EVIDENCE', 'DONE']),
   evidenceRequestId: z.string().default(''),
+  /** The request type the customer chose or the bot recognised (catalog id); empty = New LOA by default. */
+  requestTypeId: z.string().default(''),
   intake: IntakeDetailsSchema.default({ representativeName: '', businessName: '', businessIdentifier: '' }),
   updatedAt: z.string(),
 });
@@ -346,9 +346,8 @@ export interface AuditEvent {
 }
 
 export const EvaluationInputSchema = z.object({ sessionId: z.string().max(200).default('') });
-export const TextEvidenceInputSchema = z.object({ caseRunId: z.string().optional(), text: z.string().min(1).max(20_000) });
 export const ReviewCompletionInputSchema = z.object({ reviewerName: z.string().min(1).max(200), reviewerDecision: z.enum(['APPROVE', 'NEED_MORE_INFORMATION', 'REJECT']), reviewerComments: z.string().min(1).max(10_000), overrideReason: z.string().max(10_000).default('') });
-export const ResubmissionInputSchema = z.object({ originalCaseRunId: z.string().min(1), revisedCaseRunId: z.string().min(1), resubmissionComments: z.string().max(10_000).default('') });
+export const ReopenInputSchema = z.object({ reviewerName: z.string().min(1).max(200), comments: z.string().min(1).max(10_000) });
 
 export function splitSemi(value: string | undefined): string[] {
   return (value ?? '').split(';').map((item) => item.trim()).filter(Boolean);
@@ -372,3 +371,7 @@ export function normalizeOutcome(value: string): GovernedOutcome {
   const normalized = value.trim().toUpperCase().replaceAll(' ', '_');
   return (governedOutcomes as readonly string[]).includes(normalized) ? normalized as GovernedOutcome : 'MANUAL_REVIEW';
 }
+
+export * from './loa.js';
+export * from './loa-personas.js';
+export * from './catalog.js';

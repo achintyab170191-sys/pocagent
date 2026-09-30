@@ -1,39 +1,21 @@
-import { DeterministicAgentRuntime, type AgentRuntime, type EvidenceResolutionRequest, type SuperAgentContext, type SuperAgentRun, type UtilityToolbox } from '@sbo/agent-runtime';
-import { type EvidenceResolution } from '@sbo/domain';
-import { InMemoryRepository, loadSourceData, type SourceData } from '@sbo/persistence';
+import { DeterministicAgentRuntime, type AgentRuntime, type SuperAgentContext, type SuperAgentRun, type UtilityToolbox } from '@sbo/agent-runtime';
+import { type Persona, documentText, personas } from '@sbo/domain';
+import { InMemoryRepository, type Repository } from '@sbo/persistence';
+import { handleChatMessage, resolveEvidence, submitDocumentEvidence } from '@sbo/workflows';
 
-let cachedSource: SourceData | undefined;
-/** Loads the preserved source CSVs once; each test gets its own clean in-memory runtime (no stale runtime history is seeded). */
+/** A clean in-memory runtime store: the To-Be process keeps its registers and rules in @sbo/domain, so there is nothing to load. */
 export function newStore(): InMemoryRepository {
-  cachedSource ??= loadSourceData(process.cwd());
-  return new InMemoryRepository(cachedSource);
-}
-
-/** A store over a modified deep copy of the source fixtures (the preserved CSVs are never touched). */
-export function newStoreWith(mutate: (source: SourceData) => void): InMemoryRepository {
-  cachedSource ??= loadSourceData(process.cwd());
-  const source = structuredClone(cachedSource);
-  mutate(source);
-  return new InMemoryRepository(source);
+  return new InMemoryRepository();
 }
 
 /**
- * FOCUSED FIXTURE (not source data): dt_mock_utility_results has NOT_RUN rows for AUTH-003 after AUTHORITY_VALIDATION, so the real source
- * lands in MANDATORY_CHECKS_INCOMPLETE after EVID-001. This fixture copies AUTH-001's passing downstream rows to prove the continuation
- * mechanism (resume from the next incomplete check without restarting passed checks) would reach APPROVE if the fixture were complete.
+ * Builds a minimal valid text-based PDF (Helvetica). Lines are separated by newlines, so a document can carry one field per line,
+ * and the PDF text extractor can be exercised without binary fixtures.
  */
-export function completeAuth003Downstream(source: SourceData): void {
-  for (const checkType of ['SYSTEM_DATA_CHECK', 'FINANCIAL_CHECK', 'FINAL_VERIFICATION']) {
-    const passing = source.mockResults.get(`AUTH-001|${checkType}`);
-    if (!passing) throw new Error(`fixture AUTH-001|${checkType} missing`);
-    source.mockResults.set(`AUTH-003|${checkType}`, { ...passing, caseRunId: 'AUTH-003' });
-  }
-}
-
-/** Builds a minimal valid text-based PDF (one page, Helvetica) so PDF extraction can be exercised without binary fixtures. */
 export function makePdf(text: string): Buffer {
-  const escaped = text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-  const stream = `BT /F1 12 Tf 72 720 Td (${escaped}) Tj ET`;
+  const escape = (line: string): string => line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const lines = text.split('\n').map(escape);
+  const stream = `BT /F1 11 Tf 14 TL 56 740 Td ${lines.map((line) => `(${line}) Tj T*`).join(' ')} ET`;
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
@@ -50,28 +32,42 @@ export function makePdf(text: string): Buffer {
   return Buffer.from(body, 'latin1');
 }
 
-export const resolved: EvidenceResolution = { resolutionStatus: 'RESOLVED', supportedFacts: ['The signed authority letter expressly grants the requested authority.'], remainingGaps: [], reasonCodes: [], confidence: 0.95, recommendedNextAction: 'Resume processing from the next incomplete mandatory check.' };
-export const insufficient: EvidenceResolution = { resolutionStatus: 'INSUFFICIENT', supportedFacts: [], remainingGaps: ['Signed authority wording is still missing.'], reasonCodes: [], confidence: 0.4, recommendedNextAction: 'Request the specific remaining evidence.' };
-export const contradictory: EvidenceResolution = { resolutionStatus: 'CONTRADICTORY', supportedFacts: [], remainingGaps: [], reasonCodes: [], confidence: 0.8, recommendedNextAction: 'Route to human evidence review.' };
+export function persona(slug: string): Persona {
+  const found = personas.find((entry) => entry.slug === slug);
+  if (!found) throw new Error(`Unknown persona ${slug}`);
+  return found;
+}
+
+/** The persona's sample documents as attachments (already text-extracted), plus the PDF bytes for API uploads. */
+export function personaAttachments(slug: string, only?: string[]): Array<{ fileName: string; mimeType: string; storageUrl: string; extractedText: string; bytes: Buffer; type: string }> {
+  return persona(slug).documents.filter((document) => !only || only.includes(document.type)).map((document) => {
+    const extractedText = documentText(document);
+    return { fileName: document.fileName, mimeType: 'application/pdf', storageUrl: `test-${slug}-${document.fileName}`, extractedText, bytes: makePdf(extractedText), type: document.type };
+  });
+}
 
 /**
- * Test agent: runs the governed sequence deterministically and plays back scripted evidence resolutions.
- * It records every tool call (including refused ones) so tests can assert exact call sequences.
+ * Test agent: runs the governed sequence deterministically. It records every tool call so tests can assert exact call sequences.
  */
 export class ScriptedRuntime implements AgentRuntime {
-  public readonly resolutionRequests: EvidenceResolutionRequest[] = [];
   public readonly refusedCalls: string[] = [];
   private readonly inner = new DeterministicAgentRuntime();
-  public constructor(private readonly resolutions: Array<EvidenceResolution | Error> = [], private readonly superAgent?: (context: SuperAgentContext, toolbox: UtilityToolbox) => Promise<SuperAgentRun>) {}
+  public constructor(private readonly superAgent?: (context: SuperAgentContext, toolbox: UtilityToolbox) => Promise<SuperAgentRun>) {}
   public async runSuperAgent(context: SuperAgentContext, toolbox: UtilityToolbox): Promise<SuperAgentRun> {
     if (this.superAgent) return this.superAgent(context, toolbox);
     return this.inner.runSuperAgent(context, toolbox);
   }
-  public async resolveEvidence(request: EvidenceResolutionRequest): Promise<EvidenceResolution> {
-    this.resolutionRequests.push(request);
-    const next = this.resolutions.shift();
-    if (!next) throw new Error('ScriptedRuntime: no scripted evidence resolution left');
-    if (next instanceof Error) throw next;
-    return next;
-  }
+}
+
+/**
+ * A case whose intake documents are recorded and accepted (the document request is resolved) but which has NOT been assessed yet: the state
+ * SBO.02 starts from. `types` selects which of the persona's sample documents are attached.
+ */
+export async function caseWithDocuments<R extends Repository = InMemoryRepository>(slug: string, types: string[] = ['EMIRATES_ID', 'TRADE_LICENSE', 'ESTABLISHMENT_CARD'], store: R = newStore() as unknown as R): Promise<{ store: R; caseRunId: string; sessionId: string }> {
+  const sessionId = `s-${slug}`;
+  const opened = await handleChatMessage({ repository: store, agentRuntime: new ScriptedRuntime(), appBaseUrl: 'http://localhost:5173' }, { sessionId, message: `My name is ${persona(slug).representativeName} and I represent ${persona(slug).businessName}` });
+  const requestId = opened.evidenceRequest!.evidenceRequestId;
+  for (const file of personaAttachments(slug, types)) await submitDocumentEvidence(store, requestId, { fileName: file.fileName, mimeType: file.mimeType, storageUrl: file.storageUrl, extractedText: file.extractedText, allowReceived: true });
+  await resolveEvidence(store, requestId, opened.caseRunId, 1);
+  return { store, caseRunId: opened.caseRunId, sessionId };
 }

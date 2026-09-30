@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 
 export function SyntheticBanner() {
-  return <div className="banner" role="note"><strong>Synthetic data · proof of concept.</strong> Every record, document and message here is synthetic. No production system is read or updated and no message is sent.</div>;
+  return <div className="banner"><div role="note"><span className="dot" aria-hidden="true" /><span><strong>Synthetic data · proof of concept.</strong> Every record, document and message here is synthetic. No production system is read or updated and no message is sent.</span></div></div>;
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -13,7 +13,7 @@ export function Notice({ tone, children }: { tone: 'error' | 'success' | 'info';
 }
 
 export function Badge({ value }: { value: string }) {
-  const tone = value === 'APPROVE' || value === 'READY_TO_PROCEED' || value === 'ACCEPTED' || value === 'COMPLETED' ? 'good' : value === 'REJECT' || value === 'CANCELLED' ? 'bad' : value === '' ? 'muted' : 'warn';
+  const tone = ['APPROVE', 'READY_TO_PROCEED', 'ACCEPTED', 'COMPLETED', 'LIVE'].includes(value) ? 'good' : ['REJECT', 'CANCELLED'].includes(value) ? 'bad' : ['REQUEST_CAPTURED', 'ROUTED'].includes(value) ? 'info' : ['NOT_BUILT', 'NOT_AUTOMATED', ''].includes(value) ? 'muted' : 'warn';
   return <span className={`badge badge-${tone}`}>{value ? value.replaceAll('_', ' ') : 'NONE'}</span>;
 }
 
@@ -42,6 +42,9 @@ export function Markdown({ text }: { text: string }) {
     }
     if (block.startsWith('---')) return <div key={index}><hr />{block.slice(3).trim() ? <p className="muted">{inline(block.slice(3).trim())}</p> : null}</div>;
     if (block.split('\n').every((line) => line.startsWith('- ') || line.startsWith('• '))) return <ul key={index}>{block.split('\n').map((line, position) => <li key={position}>{inline(line.slice(2))}</li>)}</ul>;
-    return <p key={index}>{block.split('\n').map((line, position) => <span key={position}>{inline(line)}{position < block.split('\n').length - 1 ? <br /> : null}</span>)}</p>;
+    const lines = block.split('\n');
+    const firstBullet = lines.findIndex((line) => line.startsWith('- ') || line.startsWith('• '));
+    if (firstBullet > 0 && lines.slice(firstBullet).every((line) => line.startsWith('- ') || line.startsWith('• '))) return <div key={index}><p>{inline(lines.slice(0, firstBullet).join(' '))}</p><ul>{lines.slice(firstBullet).map((line, position) => <li key={position}>{inline(line.slice(2))}</li>)}</ul></div>;
+    return <p key={index}>{lines.map((line, position) => <span key={position}>{inline(line)}{position < lines.length - 1 ? <br /> : null}</span>)}</p>;
   })}</div>;
 }

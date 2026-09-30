@@ -1,30 +1,22 @@
 [
   {
-    "name": "Document Checks",
-    "description": "Use this tool only when DOCUMENT_EXTRACTION does not already have\nPASS or PASS_WITH_FLAG in existing_runtime_results.\n\nFor a new assessment, this is the first mandatory tool.\n\nIt checks document presence, readability, completeness, contradictions,\nand document-security issues. Stop if it returns is_terminal=true.\n"
-  },
-  {
-    "name": "Business Validation",
-    "description": "Use this tool only when BUSINESS_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and DOCUMENT_EXTRACTION is already passed.\n\nIt validates the synthetic business identifier, legal name, registration\nstatus, and lookup availability.\n"
+    "name": "Trade License Check",
+    "description": "SBO.06. Use this tool only when TRADE_LICENSE_CHECK does not already have\nPASS or PASS_WITH_FLAG in existing_runtime_results. It is the first\nmandatory tool of a new assessment.\n\nIt checks the Trade License and Establishment Card: licence validity and\nexpiry, business name match, and verification through the DUL API (QR\ncode or the government portal via UAE Pass as fallbacks). Stop if it\nreturns is_terminal=true.\n"
   },
   {
     "name": "Identity Validation",
-    "description": "Use this tool only when IDENTITY_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and the document and business checks have passed.\n\nIt establishes who the representative is. It does not establish authority.\n"
+    "description": "SBO.07. Use this tool only when IDENTITY_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and the Trade License check has passed.\n\nIt cross-checks the Emirates ID with the Establishment Card / Trade\nLicense names and the request. It establishes who the person is.\n"
   },
   {
-    "name": "Authority Validation",
-    "description": "Use this tool only when AUTHORITY_VALIDATION does not already have\nPASS or PASS_WITH_FLAG and identity has passed.\n\nDo not call it again where an EVID-001 result already resolved\nAUTHORITY_VALIDATION.\n"
+    "name": "POA/MOA Check",
+    "description": "Use this tool only when POA_MOA_CHECK does not already have PASS or\nPASS_WITH_FLAG and identity has passed.\n\nA Power of Attorney or Memorandum of Association is required only when\nthe representative is not recorded as owner, manager with representative\nauthority or authorised signatory whose capacity covers the requested\nactions. A recorded limitation goes to a specialist.\nIf the document is missing the tool asks the customer for it.\n"
   },
   {
-    "name": "System Data Check",
-    "description": "Use this tool only when SYSTEM_DATA_CHECK is the first incomplete\nmandatory check and all earlier checks have passed.\n\nIt examines Party IDs, duplicate records, account-name conflicts,\nexisting authority records, and duplicate requests.\n"
+    "name": "Bad Debt Check",
+    "description": "SBO.09 (with SBO.08 duplicate-PD cross-check). Use this tool only when\nBAD_DEBT_CHECK is the first incomplete mandatory check and the POA/MOA\ncheck has passed.\n\nIt verifies bad debt and blue-collar behaviour for every party linked to\nthe licence or the person.\n"
   },
   {
-    "name": "Financial Check",
-    "description": "Use this tool only when FINANCIAL_CHECK is the first incomplete\nmandatory check and System Data Check has passed.\n\nDo not invent a policy when a financial rule is TBD.\n"
-  },
-  {
-    "name": "Final Verification",
-    "description": "Use this tool only when FINAL_VERIFICATION is the first incomplete\nmandatory check and every earlier mandatory check has passed.\n"
+    "name": "AVCV Verification",
+    "description": "SBO.10. Use this tool only when AVCV_VERIFICATION is the first incomplete\nmandatory check and every earlier mandatory check has passed.\n\nIt runs Address Verification and Credit Verification. Only an adverse\nresult is a rejection; unable-to-verify, refer and discrepancy go to a\nspecialist, and insufficient information asks for proof of address.\n"
   }
 ]

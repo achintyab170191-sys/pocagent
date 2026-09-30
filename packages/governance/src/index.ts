@@ -38,26 +38,20 @@ function customerSafeSummary(outcome: string): string {
 function conflictSummary(checks: CheckRow[]): string[] {
   const conflicts: string[] = [];
   for (const check of checks) {
-    const findings = check.findings;
-    if (findings.legal_name_conflict === true) conflicts.push('Conflicting legal names exist across CRM records.');
-    if (findings.open_duplicate_request === true) conflicts.push('Another authority request is already open.');
-    if (String(findings.scope).toUpperCase() === 'AMBIGUOUS') conflicts.push('The submitted authority scope is ambiguous.');
-    if (findings.security_flag && String(findings.security_flag).toUpperCase() !== 'NONE') conflicts.push('A document security flag requires specialist review.');
-    if (String(findings.lookup_status).toUpperCase() === 'UNAVAILABLE') conflicts.push('The business-register lookup is unavailable.');
+    const value = check.findings.conflicts;
+    if (Array.isArray(value)) conflicts.push(...(value as string[]));
   }
   return unique(conflicts);
 }
 
-function missingInformationFor(checks: CheckRow[], applicableRules: DecisionRule[]): string[] {
+function missingInformationFor(checks: CheckRow[]): string[] {
   const missing: string[] = [];
   for (const check of checks) {
     const value = check.findings.missing;
     if (Array.isArray(value)) missing.push(...(value as string[]));
   }
-  if (applicableRules.some((rule) => rule.reasonCode === 'AUTHORITY_MISSING') && !missing.includes('AUTHORITY_LETTER')) missing.push('AUTHORITY_LETTER');
   return unique(missing);
 }
-
 export interface Determination { decision: Decision; selectedRule: DecisionRule; }
 
 /** Pure port of the "Determine Final Decision" code node. */
@@ -110,7 +104,7 @@ export function determineDecision(caseRecord: CaseRecord, rows: CheckRow[], rule
     primaryReasonCode: selected.reasonCode,
     secondaryReasonCodes: unique(checks.flatMap((check) => check.reasonCodes)),
     targetQueue: selected.targetQueue,
-    missingInformation: missingInformationFor(checks, applicable),
+    missingInformation: missingInformationFor(checks),
     conflicts: conflictSummary(checks),
     nextAction: selected.nextAction,
     customerSafeSummary: customerSafeSummary(selected.finalOutcome.toUpperCase()),
@@ -158,8 +152,7 @@ export function createRuntimeCase(caseRecord: CaseRecord, decision: Decision): R
   return { caseRunId: caseRecord.caseRunId, caseId: caseRecord.caseId, submissionVersion: caseRecord.submissionVersion, country: caseRecord.country, requestType: caseRecord.requestType, businessName: caseRecord.businessName, businessIdentifier: caseRecord.businessIdentifier, customerId: caseRecord.customerId, representativeName: caseRecord.representativeName, status: statusMap[decision.outcome], currentStage: stageMap[decision.outcome], finalOutcome: decision.outcome, targetQueue: decision.targetQueue, humanReviewRequired: decision.humanReviewRequired, createdAt: timestamp, updatedAt: timestamp, primaryReasonCode: decision.primaryReasonCode };
 }
 
-export async function loadRowsForSource(repository: Repository, caseRunId: string, submissionVersion: number, resultSource: ResultSource): Promise<CheckRow[]> {
-  if (resultSource === 'MOCK') return (await repository.getMockResults(caseRunId)).map((row) => ({ sequence: row.sequence, agentId: row.agentId, utilityName: row.utilityName, checkType: row.checkType, status: row.status, findings: row.findings, reasonCodes: row.reasonCodes, ruleIds: row.ruleIds }));
+export async function loadRowsForSource(repository: Repository, caseRunId: string, submissionVersion: number, _resultSource: ResultSource): Promise<CheckRow[]> {
   return repository.getRuntimeResults(caseRunId, submissionVersion);
 }
 

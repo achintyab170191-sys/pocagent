@@ -1,5 +1,7 @@
 # Workflow graph
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 ```mermaid
 flowchart TD
   5f2f30a1["03 - SBO.02 - Agentic Reasoning Orchestrator"]

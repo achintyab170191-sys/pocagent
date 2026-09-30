@@ -1,5 +1,7 @@
 # n8n node catalog
 
+> **ARCHIVED (docs/09).** This document analyses the earlier n8n export, which the To-Be process diagrams have replaced as the source of truth. It is kept as reference only and is not maintained.
+
 Every exported node is catalogued below. Parameter and code-node details are retained in `artifacts/source-node-catalog.json` to keep this review document readable. Target module / test / parity status for each node is in docs/05.
 
 | Workflow | Node ID | Node name | Node type | Table / dependency |

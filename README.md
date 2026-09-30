@@ -1,23 +1,31 @@
-# SBO agentic POC — n8n → TypeScript / Claude Agent SDK
+# SBO agentic POC — New LOA processing (To-Be process) on the Claude Agent SDK
 
-A parity-first re-implementation of an n8n proof of concept that decides whether a **new authorised representative** may be added for a business. A Claude-powered Super Agent (SBO.02) calls seven deterministic specialist checks; a **deterministic finalizer** — never the model — issues the governed outcome (`APPROVE`, `REJECT`, `NEED_MORE_INFORMATION`, `MANUAL_REVIEW`). Evidence loops, human review, versioned resubmission, communications drafts and a full audit trail are included.
+A governed, agentic implementation of the **New LOA (letter of authority) processing** process from the E&SMB-BO To-Be diagrams: a customer chats with a bot, says who they are and which company they represent, attaches their documents in the same window, and a Super Agent (SBO.02) runs the specialist checks. A **deterministic finalizer** — never the model — issues the governed outcome (`APPROVE`, `REJECT`, `NEED_MORE_INFORMATION`, `MANUAL_REVIEW`). Human review, a review dashboard, a reopen workflow, draft communications and a full audit trail are included.
 
-> **All data is synthetic.** No production system is read or written and no message is sent. Communications are drafts.
+> **All data is synthetic.** The DUL API, government portal / UAE Pass, BCRM and AVCV are synthetic registers, not integrations. No production system is read or written and no message is sent. Communications are drafts.
 
-The original n8n exports (`NN - *.json`) and Data Table exports (`dt_*.csv`) in the repository root are the source of truth and are preserved unchanged (`npm run verify:sources`).
+The process is taken from photographs of the To-Be diagrams (pages 12–13); how they were read, what was built and what was not is in [docs/09](docs/09-to-be-process-alignment.md). The earlier n8n proof of concept (`NN - *.json`, `dt_*.csv`) is **archived** unchanged in the repository root (`npm run verify:sources`).
 
-## Architecture
+## The process
 
 ```
-Chat / API ─▶ SBO.02 Super Agent (Claude Agent SDK — provisional recommendation only)
-                └─ guarded toolbox ─▶ Document · Business · Identity · Authority · System data · Financial · Final verification
-                                        └─ persisted runtime results  (unique: case_run_id + submission_version + check_type)
-            ─▶ Deterministic Finalizer (Workflow 90 — no LLM)
-                └─ decision · draft communication · runtime case · audit   (one transaction)
-            ─▶ Evidence loop (96 attachments in chat → 95 resolution → resume) · Human review (91) · Resubmission (92) · Case status
+Customer chat ─▶ SBO.01 orchestrator: name + company → company on record?
+                    no  → NEW LEAD case only (nothing checked, nothing approved)
+                    yes → case opened, chat asks for Emirates ID, Trade License, Establishment Card (attach in the same window)
+              ─▶ SBO.02 Super Agent (Claude Agent SDK — provisional recommendation only) calls, in order, and stops at a terminal result:
+                    1 Trade License Check (SBO.06)   TL/EC validity, names; DUL API → QR → government portal (UAE Pass)
+                    2 Identity Validation (SBO.07)   Emirates ID vs licence records and the request
+                    3 POA/MOA Check                  only when the person is not recorded as owner / manager with authority / signatory covering the request (asks in the chat)
+                    4 Bad Debt Check (SBO.09/08)     bad debt and blue-collar behaviour on every linked party
+                    5 AVCV (SBO.10)  Address Verification and Credit Verification: only an ADVERSE result rejects
+              ─▶ Deterministic finalizer (no LLM): decision · SBO.11 draft email · runtime case · audit  (one transaction)
+                    APPROVE → done · REJECT recommended → SBO.20 root-cause analysis; NOT final and NOT shown to the customer until a human confirms it on the review dashboard
+              ─▶ Review dashboard: every review by Review ID; confirm / change, or REOPEN → a new version; the customer answers in the chat
 ```
 
-Monorepo: `apps/api` (Fastify) · `apps/web` (React + Vite) · `packages/{domain,governance,persistence,workflows,agent-runtime,testkit}` · `scripts/` · `docs/`. ORM choice: no ORM — the `postgres` driver with hand-written SQL behind a `Repository` interface, because the schema is small, must be identical for the in-memory test double and PostgreSQL, and the key/constraint behaviour is the thing under test.
+Evidence is **documents only** (PDF, Word, images); typed text is never accepted as evidence.
+
+Monorepo: `apps/api` (Fastify) · `apps/web` (React + Vite) · `packages/{domain,governance,persistence,workflows,agent-runtime,testkit}` · `scripts/` · `docs/`. No ORM: the `postgres` driver with hand-written SQL behind a `Repository` interface, so the in-memory test double and PostgreSQL behave identically.
 
 ## Set up and run
 
@@ -28,76 +36,84 @@ npm install
 cp .env.example .env        # then edit: ANTHROPIC_API_KEY, CLAUDE_MODEL, SESSION_SECRET (>= 32 chars)
 docker compose up -d postgres
 npm run db:migrate
-npm run db:seed             # static reference fixtures only (runtime tables stay empty)
 npm run dev                 # API http://localhost:3000, web http://localhost:5173
 ```
 
-No model key yet? Set `AGENT_RUNTIME=deterministic` in `.env`: the governed tool sequence and the finalizer run without a model (AUTH-001…010 first-pass decisions work); the **evidence-resolution step needs the model** and fails closed without it.
+No model key? Set `AGENT_RUNTIME=deterministic` in `.env`: the five checks and the finalizer run without a model. **Evidence completeness and every check are deterministic in both modes**; the model only adds the provisional recommendation.
 
 | Command | What it does |
 | --- | --- |
-| `npm run typecheck` / `lint` | TypeScript strict (API/packages/tests + web) / ESLint (no `any` in contracts) |
+| `npm run typecheck` / `lint` | TypeScript strict (API/packages/tests + web) / ESLint |
 | `npm test` | Unit + in-memory suites (vitest) |
-| `npm run test:integration` | SQL suite on embedded PostgreSQL (PGlite) — migrations, constraints, importers, repositories, transactions |
-| `npm run test:e2e` | Playwright browser suite. Uses the installed Edge; `PW_CHANNEL= npx playwright test` for bundled Chromium after `npx playwright install chromium` |
-| `npm run build` | Typecheck + API bundle (`dist/api/server.mjs`) + web build |
-| `npm run db:migrate` · `db:seed` | Schema · static fixtures into schema `source` (exact source column names) |
-| `npm run import:sources [-- --history --verify]` | Re-import fixtures; optionally exported runtime rows into schema `history` (reference only) |
+| `npm run test:integration` | SQL suite on embedded PostgreSQL (PGlite) — migrations, constraints, repositories, transactions, the whole process on SQL |
+| `npm run test:e2e` | Playwright browser suite (installed Edge; `PW_CHANNEL= npx playwright test` for bundled Chromium) |
+| `npm run build` | Typecheck + API bundle + web build |
+| `npm run samples` | Regenerate the synthetic sample documents in `apps/web/public/samples/` |
+| `npm run docs:conformance` | Rebuild `docs/05` (fails on any step whose referenced test does not exist) |
+| `npm run report:conformance` | Run all suites, replay every demo persona, write `docs/conformance-report.md` + `artifacts/conformance-report.json` |
 | `npm run reset:runtime` | Delete **only** runtime state |
-| `npm run docs:traceability` | Rebuild `docs/05` (fails on any unmapped node or missing test) |
-| `npm run report:parity` | Run all suites and write `artifacts/parity-report.json` + `docs/parity-report.md` |
-| `npm run verify:sources` | SHA-256 check of the preserved uploads |
+| `npm run verify:sources` | SHA-256 check of the archived n8n files |
 
-## Demo (web app, `npm run dev`, open http://localhost:5173)
+## What the assistant offers
 
-**Start as a customer.** Open the chat and say who you are and which company you represent (e.g. *"My name is Hana Rangi and I represent Kauri Harbour Demo Digital Limited"*). A case (AUTH-101...) is opened and assessed. If evidence is needed, answer in the same window: type, attach PDF / Word (.docx) / image files with the paperclip (or drag them in), or both - there is nothing to type like UPLOAD. Results come from matched synthetic scenarios (docs/07 G-33); a company that is not on record becomes a **new lead** case (no checks, nothing approved); a known company with a representative who is not on record is assessed and must evidence their authority (docs/07 G-35).
+The chat opens with **eight topics** (authorised representative & company profile · correct or verify data · mobile and SIM · new services · change a service · move, transfer or port · renew or cease · verification, compliance and legal) and **ready-made questions** you can click, or you can type a request in your own words. Every request type of the operating model (profiling → verifier task → processing) is in the catalog. **Only New LOA is automated**; any other request is *captured and routed* to the team that owns it (VERIFIER_OPERATIONS, PROCESSING_ORDERS, ...) with a plain statement that nothing was checked, approved or changed. The **Operations** page shows the six stages of the operating model and the captured requests.
 
-Every screen shows the synthetic-data banner. The chat has quick buttons for the 11 cases.
+## Demo (web app, open http://localhost:5173)
 
-| Case | Do this | You should see |
-| --- | --- | --- |
-| **AUTH-001** | Chat → click `AUTH-001` | *Eligible to proceed* — 7 checks passed, tool trace `Document Checks → … → Final Verification`, governed outcome APPROVE / `ALL_CHECKS_PASSED`. |
-| **AUTH-003** | Chat → `AUTH-003` (demo shortcut) → simply type e.g. *"The signed authority letter grants account management, service ordering, plan changes and contract approval."* | First: *Additional evidence required* (authority scope ambiguous) with an evidence request and a prompt to type an answer and/or attach documents (PDF, Word, images) in the same chat window; nothing else to type. After the evidence: the assessment **resumes from the next incomplete check without re-running passed ones**. Note (source fact, docs/07 G-12): the fixture's downstream rows are `NOT_RUN`, so the governed result is `MANUAL_REVIEW / MANDATORY_CHECKS_INCOMPLETE`. Try attaching a PDF, .docx or image with the paperclip instead of typing. (Needs `AGENT_RUNTIME=claude`.) |
-| **AUTH-005** | Chat → `AUTH-005`; then *Human review* → `REV-AUTH-005-1` | *Specialist review required*: conflicting CRM legal names, route *Customer Data Reconciliation*. Complete the review once (`NEED_MORE_INFORMATION` + comment); a second attempt is refused. *Case status* → `AUTH-005` shows review, decision, draft communication. |
-| **AUTH-010** | Chat → `AUTH-010` | *Policy review required* — a TBD credit rule triggers control `CTRL-001 / TBD_POLICY`; never an automated approval or rejection. |
-| AUTH-008 | Chat → `AUTH-008-V1`, then *Resubmission* → V1 → V2 | V1 needs more information; V2 is approved; V1 becomes `SUPERSEDED_BY_RESUBMISSION`. |
+Open **Assessment chat** and expand *Demo: synthetic customers and sample documents*. Click a customer to fill the introduction, send it, then attach that customer's sample documents (each row has download links).
+
+| Customer | What you see |
+| --- | --- |
+| **Fatima Al Mansoori — Al Noor Trading LLC** | Owner, valid documents: five checks pass in order → *Eligible to proceed*, draft approval email. |
+| **Noura Al Falasi — Marina Bay Catering LLC** | The DUL API is down; the licence is verified through the government portal (UAE Pass) → passes *with a flag*. |
+| **Mariam Saeed — Dune Ridge Engineering LLC** | The licence number is unreadable; the QR code is used. |
+| **Omar Haddad — Gulf Horizon Contracting LLC** | Not the owner: the chat asks for a Power of Attorney **in the same window**; attach `power-of-attorney.pdf`; the assessment resumes and approves. |
+| **Sara Khan — Desert Bloom Cafe LLC** | Trade License expired → the agent recommends rejection, but the customer only sees *Awaiting specialist confirmation*; the reason, a draft email and a root-cause analysis are on the dashboard for a human to confirm. |
+| Rashid Al Ketbi · Layla Nasser · Tariq Mahmood · Yousef Ibrahim · Hessa Al Ameri | ID name mismatch · bad debt on a duplicate party · blue-collar behaviour · adverse credit verification · expired POA — rejection recommended at the right check, pending human confirmation. |
+| **Layth Barakat — Al Noor Trading LLC** | Recorded as a manager with full authority: no POA needed. |
+| **Ahmed Yusuf — Gulf Horizon Contracting LLC** | Recorded manager whose capacity covers only some actions: a POA is required, then approval. |
+| **Jamal Farouk — Falcon Logistics LLC** | A recorded limitation on his authority: a specialist decides; a POA cannot override it. |
+| **Ibrahim Karam · Reem Al Hosani — Cedar Point / Palm Grove** | AVCV discrepancy · AVCV unable to verify: specialist review, not a rejection. |
+| **Adel Mansour — Coral Reef Diving LLC** | AVCV has insufficient information: the chat asks for **proof of address** in the same window, then approves. |
+| Anyone at a company not on the list | **New lead** case: nothing checked, nothing approved. |
+
+Then open **Review dashboard**: every review is listed by Review ID. Open a recommended rejection, see the reason, the checks, the documents received and the root-cause analysis, confirm it — or **reopen** it with a note: a new version (`AUTH-101-V2`) is created and the customer's chat asks for the documents again. There is no separate resubmission or upload page.
 
 ## What is where
 
 | Need | Read |
 | --- | --- |
-| Source files, checksums, workflow & table inventory | `docs/01-source-inventory.md` |
-| Workflow call graph, table readers/writers | `docs/02-workflow-graph.md` |
-| Every node | `docs/03-node-catalog.md`, `artifacts/source-node-catalog.json` |
-| Tables, columns, types, keys (from real upsert filters), source gaps in schemas | `docs/04-data-dictionary.md` |
-| **Node → code → test matrix** (229 nodes, generated & validated) | `docs/05-n8n-to-code-traceability.md` |
+| **How the diagrams were read, the operating model and request catalog, what was built and not, open questions** | `docs/09-to-be-process-alignment.md` |
+| **Diagram step → code → test matrix** (generated & validated) | `docs/05-to-be-process-conformance.md` |
+| Test results and conformance % | `docs/conformance-report.md`, `artifacts/conformance-report.json` |
 | Case / evidence / review state machines | `docs/06-state-machine-specification.md` |
-| **Every gap, defect and brief-vs-source conflict, and platform differences** | `docs/07-source-gaps-and-conflicts.md` |
-| Method and limits of verification | `docs/08-parity-plan.md` |
-| Test results and parity % | `docs/parity-report.md`, `artifacts/parity-report.json` |
 | Security findings | `docs/security-review.md` |
-| Improvements deliberately not built | `docs/post-parity-enhancements.md` |
+| The archived n8n analysis (inventory, graph, nodes, data dictionary, gaps) | `docs/01`–`04`, `docs/07`, `docs/08` — reference only, superseded by docs/09 |
 | Rules for contributors / agents | `CLAUDE.md`, `.claude/agents/` |
 
-## API ↔ n8n entry points
+## API
 
-| n8n trigger | Route |
+| Purpose | Route |
 | --- | --- |
-| Agentic Chat (03) | `POST /api/chat`, `POST /api/cases/:caseRunId/{evaluate,messages}` |
-| Case status (93 — absent, adapter) | `GET /api/cases/:caseRunId/status` |
-| Customer Evidence Upload form (96) | `GET /api/evidence/:id` (validate), `POST /api/chat/evidence` (attachments from the chat window, up to 3 files), `POST /api/evidence/:id/upload`, `POST /api/evidence/:id/text`, `GET /api/scenarios`, `POST /api/evidence/:id/cancel` |
-| Evidence Resolution (95, via 03) | `POST /api/evidence/:id/resolve` |
-| Human Review form (91) | `GET /api/reviews/:reviewId`, `POST /api/reviews/:reviewId/complete` |
-| Resubmission form (92) | `POST /api/resubmissions` |
-| — | `GET /api/session` (CSRF token + server-issued conversation session), `GET /api/cases`, `GET /health` |
+| Chat: introduction, replies | `POST /api/chat` · `GET /api/chat/state` (what the conversation is waiting for) |
+| Attach documents in the chat (up to 3 files) | `POST /api/chat/evidence` |
+| One document for an explicit request; validate / resolve / cancel | `POST /api/evidence/:id/upload` · `GET /api/evidence/:id` · `POST /api/evidence/:id/resolve` · `POST /api/evidence/:id/cancel` |
+| Case status | `GET /api/cases/:caseRunId/status` · `GET /api/cases` |
+| Review dashboard, detail, completion | `GET /api/reviews` · `GET /api/reviews/:reviewId` · `POST /api/reviews/:reviewId/complete` |
+| Reopen a case | `POST /api/cases/:caseRunId/reopen` |
+| Demo customers and sample documents | `GET /api/scenarios` |
+| Operating model, request catalog, standard queries | `GET /api/catalog` · `POST /api/chat` accepts an optional `intent` |
+| Operations overview (stages, captured requests) | `GET /api/operations` |
+| Session / CSRF / health | `GET /api/session` · `GET /health` |
 
-State-changing routes require the double-submit CSRF header; assessment/evidence/review POSTs are rate-limited; attachments are PDF, Word (.docx) or image files identified by magic bytes (5 MB each, up to 3 per message; legacy .doc is refused; images are read offline with OCR), stored outside any web root under generated names.
+State-changing routes require the double-submit CSRF header and an Origin check; POSTs are rate-limited (uploads ≤ 10/min/client); attachments are identified by magic bytes (PDF, Word .docx, PNG/JPEG/GIF/BMP/WebP; 5 MB each; legacy .doc refused; images read offline with OCR), stored outside any web root under generated names.
 
 ## Honest limits
 
-- **No live Claude call has been made** in this build (no API key was available). The SDK integration is tested against an injected SDK double; deterministic guards (toolbox, Zod validation, finalizer) do not depend on model behaviour.
-- **No PostgreSQL server or Docker** was available: SQL is tested on embedded PostgreSQL 18 (PGlite) via the same driver. `docker-compose.yml`/`Dockerfile` are provided but were not run.
-- Git was not available on the authoring machine, so nothing was committed and no branch was created.
-- Workflow 93 (Case Status Portal) and workflow `02 - SBO.02 - Profiling Super Agent` (called by 92) are not in the upload; see docs/07 G-01, G-05.
-- The review, status and evidence endpoints are unauthenticated **because the source forms are**: run this only on a trusted demo network. See `docs/security-review.md` (independent review; 14 findings, all triaged) and `docs/post-parity-enhancements.md`.
-- Hardening deviations from the source (each pinned by a test and listed in docs/07): a reviewed or superseded case cannot be re-evaluated from the chat (`CASE_LOCKED`); PDFs are parsed in a bounded worker (≤ 50 pages, 8 s); evidence resolution / resubmission run as one locked transaction.
+- **No live Claude call has been made** in this build. The SDK integration is tested against an injected SDK double; the checks, the evidence loop and the finalizer do not depend on model behaviour.
+- **The registers are synthetic.** A real DUL API / government portal / BCRM / AVCV integration does not exist here; "SIMULATED" steps in docs/05 prove the process logic only.
+- **Only the New LOA chatbot process is automated.** Every other request type in the catalog is captured and routed, not processed; the verifier task, processing, control tower, governance and reporting are not built (docs/09).
+- **The diagrams were read from photographs** of a screen; docs/09 lists the interpretation to confirm.
+- **OCR is offline and imperfect**: a blurry photo may be refused as unreadable. PDF and Word are reliable.
+- **No PostgreSQL server or Docker** was available: SQL is tested on embedded PostgreSQL (PGlite) via the same driver.
+- The review, status and evidence endpoints are unauthenticated: run this only on a trusted demo network (`docs/security-review.md`).

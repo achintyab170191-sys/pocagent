@@ -9,8 +9,8 @@ import {
   fallbackProvisional, sbo02ToolDefinitions,
 } from '@sbo/agent-runtime';
 import {
-  type CaseRecord, type Decision, type EvidenceRequest, type HumanReview, type ProvisionalRecommendation, type UtilityResult, type Communication,
-  TargetAuditEvents, mandatoryCheckTypes,
+  type CaseRecord, type Decision, type EvidenceRequest, type HumanReview, type ProvisionalRecommendation, type RuntimeCase, type UtilityResult, type Communication,
+  TargetAuditEvents, buildRootCauseAnalysis, documentLabels, mandatoryCheckTypes,
 } from '@sbo/domain';
 import { finalizeDecision } from '@sbo/governance';
 import { type Repository, now, uniqueMillis } from '@sbo/persistence';
@@ -31,7 +31,8 @@ export function resolveCaseRequest(input: string, sessionId = ''): ResolvedCaseR
   return { chatInput, caseIdFound: true, caseRunId, submissionVersion: version ? Number(version[1]) : 1, sessionId };
 }
 
-export const invalidRequestMessage = 'I could not find a supported synthetic Case Run ID. Enter a case such as AUTH-001, AUTH-003, or AUTH-008-V2.';
+/** Runtime-case status of a version that a human reviewer reopened as a newer version (docs/09, review dashboard). */
+export const reopenedStatus = 'REOPENED_AS_NEW_VERSION';
 export const caseNotFoundMessage = (caseRunId: string): string => `Synthetic case ${caseRunId} was not found. No assessment was performed.`;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -105,44 +106,37 @@ export function createToolbox(repository: Repository, caseRecord: CaseRecord): U
 
 export interface ContinuationConfig { remediable: boolean; channel: string; checkType: string; requestedItems: string[]; }
 
+/** Which findings the customer can fix by attaching a document (NEED_MORE_INFORMATION); everything else goes to a human reviewer. */
 export function classifyContinuation(decision: Pick<Decision, 'outcome' | 'primaryReasonCode' | 'missingInformation'>): ContinuationConfig {
-  const missing = decision.missingInformation;
   const table: Record<string, ContinuationConfig> = {
-    DOCUMENT_MISSING: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'DOCUMENT_EXTRACTION', requestedItems: missing.length > 0 ? missing : ['Required document'] },
-    DOCUMENT_UNREADABLE: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'DOCUMENT_EXTRACTION', requestedItems: ['Readable replacement document'] },
-    AUTHORITY_MISSING: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'AUTHORITY_VALIDATION', requestedItems: ['Authority letter or approved delegation evidence'] },
-    AUTHORITY_SCOPE_INSUFFICIENT: { remediable: true, channel: 'CHAT_OR_FILE', checkType: 'AUTHORITY_VALIDATION', requestedItems: ['Evidence explicitly covering the requested authority'] },
-    AUTHORITY_SCOPE_AMBIGUOUS: { remediable: true, channel: 'CHAT_OR_FILE', checkType: 'AUTHORITY_VALIDATION', requestedItems: ['Exact authority clause or revised authority document'] },
-    IDENTITY_MISMATCH: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'IDENTITY_VALIDATION', requestedItems: ['Corrected or replacement identity evidence'] },
-    DOCUMENT_CONTRADICTION: { remediable: true, channel: 'CHAT_OR_FILE', checkType: 'DOCUMENT_EXTRACTION', requestedItems: ['Clarification or corrected document addressing the contradiction'] },
-    ADDITIONAL_DETAILS_REQUIRED: { remediable: true, channel: 'CHAT_TEXT', checkType: 'REQUEST_CLARIFICATION', requestedItems: ['Additional request details'] },
-    CUSTOMER_CONFIRMATION_REQUIRED: { remediable: true, channel: 'CHAT_TEXT', checkType: 'CUSTOMER_CONFIRMATION', requestedItems: ['Customer confirmation'] },
-    SALES_CONFIRMATION_REQUIRED: { remediable: true, channel: 'CHAT_TEXT', checkType: 'SALES_CONFIRMATION', requestedItems: ['Sales or account-team confirmation'] },
-    REGISTRY_UNAVAILABLE: { remediable: false, channel: 'HUMAN_REVIEW', checkType: 'BUSINESS_VALIDATION', requestedItems: [] },
-    DUPLICATE_RECORD_CONFLICT: { remediable: false, channel: 'HUMAN_REVIEW', checkType: 'SYSTEM_DATA_CHECK', requestedItems: [] },
-    PROMPT_INJECTION_DETECTED: { remediable: false, channel: 'HUMAN_REVIEW', checkType: 'DOCUMENT_EXTRACTION', requestedItems: [] },
-    TBD_POLICY: { remediable: false, channel: 'HUMAN_REVIEW', checkType: 'FINANCIAL_CHECK', requestedItems: [] },
-    BUSINESS_INACTIVE: { remediable: false, channel: 'HUMAN_REVIEW', checkType: 'BUSINESS_VALIDATION', requestedItems: [] },
+    DOCUMENT_UNREADABLE: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'TRADE_LICENSE_CHECK', requestedItems: [documentLabels.TRADE_LICENSE] },
+    EID_UNREADABLE: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'IDENTITY_VALIDATION', requestedItems: [documentLabels.EMIRATES_ID] },
+    EID_EXPIRED: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'IDENTITY_VALIDATION', requestedItems: ['A valid (unexpired) Emirates ID of the representative'] },
+    POA_MOA_MISSING: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'POA_MOA_CHECK', requestedItems: [documentLabels.POA_MOA] },
+    AVCV_INSUFFICIENT_INFORMATION: { remediable: true, channel: 'FILE_UPLOAD', checkType: 'AVCV_VERIFICATION', requestedItems: [documentLabels.ADDRESS_PROOF] },
   };
   const reason = decision.primaryReasonCode.trim().toUpperCase();
-  return table[reason] ?? { remediable: decision.outcome === 'NEED_MORE_INFORMATION', channel: decision.outcome === 'NEED_MORE_INFORMATION' ? 'CHAT_TEXT' : 'NONE', checkType: 'REQUEST_CLARIFICATION', requestedItems: missing };
+  return table[reason] ?? { remediable: false, channel: decision.outcome === 'NEED_MORE_INFORMATION' ? 'FILE_UPLOAD' : 'HUMAN_REVIEW', checkType: 'DOCUMENT_INTAKE', requestedItems: [] };
 }
 
-export async function createEvidenceRequest(repository: Repository, decision: Decision, config: ContinuationConfig, sessionId: string): Promise<EvidenceRequest> {
-  // One clock read: created_at and due_at (+48 h) come from the same instant (the source reads the clock twice, so the gap drifts by a millisecond).
+export interface EvidenceRequestInput { caseRunId: string; submissionVersion: number; sessionId: string; originatingCheckType: string; reasonCode: string; requestedItems: string[]; previousState: string; ruleId?: string; message?: string; }
+
+/** Opens an evidence request and puts the case in WAITING_FOR_EVIDENCE (creating the runtime case record if this is the very first request). */
+export async function openEvidenceRequest(repository: Repository, input: EvidenceRequestInput): Promise<EvidenceRequest> {
+  // One clock read: created_at and due_at (+48 h) come from the same instant.
   const createdMillis = Date.now();
   const timestamp = new Date(createdMillis).toISOString();
   const request: EvidenceRequest = {
-    evidenceRequestId: `EVID-${decision.caseRunId}-V${decision.submissionVersion}-${uniqueMillis()}`,
-    caseRunId: decision.caseRunId,
-    submissionVersion: decision.submissionVersion,
-    sessionId,
+    evidenceRequestId: `EVID-${input.caseRunId}-V${input.submissionVersion}-${uniqueMillis()}`,
+    caseRunId: input.caseRunId,
+    submissionVersion: input.submissionVersion,
+    sessionId: input.sessionId,
     processCode: 'P-1.1',
-    originatingCheckType: config.checkType,
-    originatingReasonCode: decision.primaryReasonCode,
-    evidenceChannel: config.channel,
-    requestedItems: config.requestedItems,
-    customerMessage: config.requestedItems.length > 0 ? `Please provide the following additional evidence:\n${config.requestedItems.map((item) => `- ${item}`).join('\n')}` : 'Please provide the additional information needed to continue.',
+    originatingCheckType: input.originatingCheckType,
+    originatingReasonCode: input.reasonCode,
+    evidenceChannel: 'FILE_UPLOAD',
+    requestedItems: input.requestedItems,
+    customerMessage: input.message ?? (input.requestedItems.length > 0 ? `Please attach the following document(s):\n${input.requestedItems.map((item) => `- ${item}`).join('\n')}` : 'Please attach the document needed to continue.'),
     status: 'OPEN',
     attemptCount: 0,
     maxAttempts: 3,
@@ -151,17 +145,20 @@ export async function createEvidenceRequest(repository: Repository, decision: De
   };
   await repository.transaction(async (transaction) => {
     await transaction.persistEvidenceRequest(request);
-    const runtimeCase = await transaction.getRuntimeCase(decision.caseRunId);
-    // Source "Update Case to Waiting for Evidence": status/stage/queue exactly as below; synthetic_Only is written false by the source.
-    if (runtimeCase) await transaction.persistRuntimeCase({ ...runtimeCase, status: 'WAITING_FOR_EVIDENCE', currentStage: 'CUSTOMER_EVIDENCE', targetQueue: 'CUSTOMER_FOLLOW_UP', humanReviewRequired: false, updatedAt: now() });
-    await transaction.appendAudit({ eventId: `EVT-${decision.caseRunId}-EVIDENCE-REQUEST-${uniqueMillis()}`, caseRunId: decision.caseRunId, submissionVersion: decision.submissionVersion, timestamp: now(), actor: 'SBO.02', eventType: TargetAuditEvents.EVIDENCE_REQUESTED, stage: 'EVIDENCE_COLLECTION', previousState: decision.outcome, newState: 'WAITING_FOR_EVIDENCE', ruleId: decision.appliedRuleId, reasonCode: decision.primaryReasonCode, evidenceReference: request.evidenceRequestId, details: { evidenceChannel: request.evidenceChannel, requestedItems: request.requestedItems, originatingCheckType: request.originatingCheckType } });
+    const caseRecord = await transaction.getCase(input.caseRunId);
+    const existing = await transaction.getRuntimeCase(input.caseRunId);
+    const base: RuntimeCase | undefined = existing ?? (caseRecord ? { caseRunId: caseRecord.caseRunId, caseId: caseRecord.caseId, submissionVersion: caseRecord.submissionVersion, country: caseRecord.country, requestType: caseRecord.requestType, businessName: caseRecord.businessName, businessIdentifier: caseRecord.businessIdentifier, customerId: caseRecord.customerId, representativeName: caseRecord.representativeName, status: '', currentStage: '', finalOutcome: '', targetQueue: '', humanReviewRequired: false, createdAt: timestamp, updatedAt: timestamp, primaryReasonCode: '' } : undefined);
+    if (base) await transaction.persistRuntimeCase({ ...base, status: 'WAITING_FOR_EVIDENCE', currentStage: 'CUSTOMER_EVIDENCE', targetQueue: 'CUSTOMER_FOLLOW_UP', humanReviewRequired: false, updatedAt: now() });
+    await transaction.appendAudit({ eventId: `EVT-${input.caseRunId}-EVIDENCE-REQUEST-${uniqueMillis()}`, caseRunId: input.caseRunId, submissionVersion: input.submissionVersion, timestamp: now(), actor: 'SBO.02', eventType: TargetAuditEvents.EVIDENCE_REQUESTED, stage: 'EVIDENCE_COLLECTION', previousState: input.previousState, newState: 'WAITING_FOR_EVIDENCE', ruleId: input.ruleId ?? '', reasonCode: input.reasonCode, evidenceReference: request.evidenceRequestId, details: { evidenceChannel: request.evidenceChannel, requestedItems: request.requestedItems, originatingCheckType: request.originatingCheckType } });
   });
   return request;
 }
 
+export async function createEvidenceRequest(repository: Repository, decision: Decision, config: ContinuationConfig, sessionId: string): Promise<EvidenceRequest> {
+  return openEvidenceRequest(repository, { caseRunId: decision.caseRunId, submissionVersion: decision.submissionVersion, sessionId, originatingCheckType: config.checkType, reasonCode: decision.primaryReasonCode, requestedItems: config.requestedItems, previousState: decision.outcome, ruleId: decision.appliedRuleId });
+}
 /**
- * UNRESOLVED_SOURCE_GAP: no uploaded workflow creates review rows for non-evidence MANUAL_REVIEW/REJECT decisions, although the
- * exported dt_human_reviews contains REV-AUTH-004-1 and REV-AUTH-010-1. This target-side adapter follows that ID convention.
+ * A MANUAL_REVIEW or REJECT decision creates a review row (REV-{case}-{n}) on the review dashboard; a rejection stays pending until a human confirms it.
  */
 export async function createReviewForDecision(repository: Repository, decision: Decision): Promise<HumanReview | undefined> {
   if (!decision.humanReviewRequired || !(decision.outcome === 'MANUAL_REVIEW' || decision.outcome === 'REJECT')) return undefined;
@@ -194,6 +191,13 @@ export interface AssessmentResult {
   review?: HumanReview;
 }
 
+/** SBO.20 RCA agent: a rejection triggers a root-cause analysis (deterministic summary here), recorded on the audit trail for the reviewer. */
+export async function requestRootCauseAnalysis(repository: Repository, decision: Decision): Promise<void> {
+  const failed = decision.completedChecks.find((check) => check.status.toUpperCase() === 'FAIL');
+  const analysis = buildRootCauseAnalysis(decision.primaryReasonCode, failed?.checkType ?? '');
+  await repository.appendAudit({ eventId: `EVT-${decision.caseRunId}-RCA-${uniqueMillis()}`, caseRunId: decision.caseRunId, submissionVersion: decision.submissionVersion, timestamp: now(), actor: 'SBO.20', eventType: TargetAuditEvents.RCA_REQUESTED, stage: 'ROOT_CAUSE_ANALYSIS', previousState: '', newState: 'RCA_COMPLETED', ruleId: decision.appliedRuleId, reasonCode: decision.primaryReasonCode, evidenceReference: decision.decisionId, details: { ...analysis } });
+}
+
 async function runAssessment(repository: Repository, agentRuntime: AgentRuntime, caseRecord: CaseRecord, chatInput: string, sessionId: string): Promise<AssessmentResult> {
   const context = await prepareAgentContext(repository, caseRecord, chatInput, sessionId);
   const toolbox = createToolbox(repository, caseRecord);
@@ -213,6 +217,7 @@ async function runAssessment(repository: Repository, agentRuntime: AgentRuntime,
   // "Prepare Runtime Finalization Input" → RUNTIME source; persisted results exist before the Finalizer runs.
   const { decision, communication } = await finalizeDecision(repository, caseRecord.caseRunId, caseRecord.submissionVersion, 'RUNTIME');
   const governanceOverride = provisional.provisionalOutcome !== decision.outcome;
+  if (decision.outcome === 'REJECT') await requestRootCauseAnalysis(repository, decision);
   const continuation = classifyContinuation(decision);
   let evidenceRequest: EvidenceRequest | undefined;
   let review: HumanReview | undefined;
@@ -236,7 +241,7 @@ export async function evaluateCase(repository: Repository, agentRuntime: AgentRu
     // TARGET HARDENING (docs/07 G-27, security review SEC-02): the source lets any chat message re-evaluate any case, which silently
     // overwrites a decision a human reviewer already completed. A reviewed or superseded case is locked until an operator resets runtime state.
     const [reviews, runtimeCase] = await Promise.all([transaction.getReviews(caseRecord.caseRunId), transaction.getRuntimeCase(caseRecord.caseRunId)]);
-    if (reviews.some((review) => review.reviewStatus.toUpperCase() === 'COMPLETED') || runtimeCase?.status === 'SUPERSEDED_BY_RESUBMISSION') throw new Error(`CASE_LOCKED:${caseRecord.caseRunId}`);
+    if (reviews.some((review) => review.reviewStatus.toUpperCase() === 'COMPLETED') || runtimeCase?.status === reopenedStatus) throw new Error(`CASE_LOCKED:${caseRecord.caseRunId}`);
     // Source deletes exactly case_run_id + submission_version before a fresh assessment.
     await transaction.deleteRuntimeResults(caseRecord.caseRunId, caseRecord.submissionVersion);
     return runAssessment(transaction, agentRuntime, caseRecord, chatInput, sessionId);
@@ -255,10 +260,5 @@ export async function resumeAssessment(repository: Repository, agentRuntime: Age
   });
 }
 
-/** Back-compat wrapper used by resubmission and older callers: a fresh evaluation. */
-export async function assessCase(repository: Repository, caseRunId: string, sessionId = '', agentRuntime?: AgentRuntime): Promise<AssessmentResult> {
-  const { DeterministicAgentRuntime } = await import('@sbo/agent-runtime');
-  return evaluateCase(repository, agentRuntime ?? new DeterministicAgentRuntime(), caseRunId, sessionId);
-}
-
 export { toolNameFor };
+
